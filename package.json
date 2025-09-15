@@ -6,9 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/main.js",
-    "lint": "eslint .",
-    "format": "prettier -w ."
+    "start": "node dist/main.js"
   },
   "keywords": [],
   "author": "",
@@ -16,10 +14,10 @@
   "description": "",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
     "express": "^5.1.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.5.0",
     "tsx": "^4.20.5",
