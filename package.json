@@ -13,13 +13,16 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@scalar/express-api-reference": "^0.8.18",
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "swagger-jsdoc": "^6.2.8"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.5.0",
+    "@types/swagger-jsdoc": "^6.0.4",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }

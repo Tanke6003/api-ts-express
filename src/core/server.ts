@@ -3,6 +3,8 @@
 import express, { Application } from "express";
 import cors from "cors";
 import { IndexRoutes } from "../presentation/routes/index.route";
+import { swaggerOptions } from "./config/swagger.config";
+import swaggerJsdoc from "swagger-jsdoc";
 
 
 
@@ -31,7 +33,27 @@ export class Server {
         this.app.use(express.urlencoded({ limit: '50mb', extended: true }));
         
     }   
+    async configureScalar() {
+        const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
+        this.app.get("/api/openapi.json", (_req, res) => {
+    res.json(swaggerSpec);
+  });
+
+  // Scalar API Reference en /reference (dynamic import para ESM)
+  try {
+    const { apiReference } = await import("@scalar/express-api-reference");
+    this.app.use(
+      "/api/scalar",
+      apiReference({
+        url: "/api/openapi.json",
+        theme: "purple",
+      })
+    );
+  } catch (err) {
+    console.warn("Scalar API Reference no pudo cargarse:", err);
+  }
+    }
     // Configure routes for the Express app
     async configureRoutes() {
         // TODO: Add Swagger setup here
@@ -43,12 +65,13 @@ export class Server {
     async run() {
         await this.configureMiddleware();
         await this.configureRoutes();
+        await this.configureScalar();
         console.log("Server started");
         this.app.listen(this.port, () => {
             console.log(`🚀          Server listening on port ${this.port}`);
             console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
             // console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
-            // console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
+            console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
         });
     }
 }
