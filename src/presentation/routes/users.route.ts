@@ -31,6 +31,6 @@ export class UsersRoutes {
  *                 $ref: '#/components/schemas/User'
  */
         app.get("/api/users", this.usersController.getAllUsers);
-        
+
     }
 }

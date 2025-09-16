@@ -3,10 +3,10 @@
 import express, { Application } from "express";
 import cors from "cors";
 import { IndexRoutes } from "../presentation/routes/index.route";
-import { swaggerOptions } from "./config/swagger.config";
+
 import swaggerJsdoc from "swagger-jsdoc";
-
-
+import swaggerUi from "swagger-ui-express";
+import { swaggerOptions } from "./config/swagger.config";
 
 
 export class Server {
@@ -31,10 +31,12 @@ export class Server {
         this.app.use(express.json({ limit: '50mb' }));
         //limit urlencoded request size to 50mb
         this.app.use(express.urlencoded({ limit: '50mb', extended: true }));
-        
+       
     }   
+
     async configureScalar() {
         const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
 
         this.app.get("/api/openapi.json", (_req, res) => {
     res.json(swaggerSpec);
@@ -54,6 +56,12 @@ export class Server {
     console.warn("Scalar API Reference no pudo cargarse:", err);
   }
     }
+        async configureSwagger() {
+      const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
+  // Swagger UI en /api-docs
+  this.app.use("/api/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+    }
     // Configure routes for the Express app
     async configureRoutes() {
         // TODO: Add Swagger setup here
@@ -66,12 +74,22 @@ export class Server {
         await this.configureMiddleware();
         await this.configureRoutes();
         await this.configureScalar();
+
+         //configure swagger
+        await this.configureSwagger();
+
         console.log("Server started");
         this.app.listen(this.port, () => {
             console.log(`🚀          Server listening on port ${this.port}`);
             console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
             // console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
             console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
+
+             console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
+            // console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
+
         });
     }
 }
+
+
