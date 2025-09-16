@@ -74,7 +74,6 @@ export class Server {
         await this.configureMiddleware();
         await this.configureRoutes();
         await this.configureScalar();
-
          //configure swagger
         await this.configureSwagger();
 
@@ -86,7 +85,7 @@ export class Server {
             console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
 
              console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
-            // console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
+        
 
         });
     }
