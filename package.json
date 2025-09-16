@@ -7,7 +7,6 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "vercel-start": "tsx src/main.ts"
-    
   },
   "keywords": [],
   "author": "",
@@ -20,6 +19,7 @@
     "express": "^5.1.0",
     "sequelize": "^6.37.7",
     "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-dist": "^5.29.0",
     "swagger-ui-express": "^5.0.1",
     "tedious": "^18.6.1",
     "winston": "^3.17.0"
@@ -29,6 +29,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.5.0",
     "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-dist": "^3.30.6",
     "@types/swagger-ui-express": "^4.1.8",
     "@vercel/node": "^5.3.22",
     "tsx": "^4.20.5",
