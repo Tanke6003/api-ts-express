@@ -5,7 +5,7 @@ import cors from "cors";
 import { IndexRoutes } from "../presentation/routes/index.route";
 
 import swaggerJsdoc from "swagger-jsdoc";
-import swaggerUi from "swagger-ui-express";
+import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 import { swaggerOptions } from "./config/swagger.config";
 
 
@@ -60,7 +60,38 @@ export class Server {
       const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
   // Swagger UI en /api-docs
-  this.app.use("/api/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  this.app.use("/api/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec,{
+    swaggerOptions: {
+        docExpansion: "none",
+        persistAuthorization: true,
+
+    },
+    explorer: true,
+        customSiteTitle: "API Docs",
+        // customCss: `
+        // .swagger-ui .topbar { background-color: #4CAF50; }
+        // .swagger-ui .topbar a { color: white; font-weight: bold; }
+        // .swagger-ui .info { background-color: #f0f0f0; padding: 10px; border-radius: 5px; } 
+        // .swagger-ui .opblock { border-radius: 5px; margin-bottom: 10px; }
+        // .swagger-ui .opblock-summary { background-color: #e0e0e0; border-radius: 5px; }
+        // .swagger-ui .opblock-summary:hover { background-color: #d0d0d0; }
+        // .swagger-ui .btn.authorize { background-color: #4CAF50; color: white; }
+        // .swagger-ui .btn.authorize:hover { background-color: #45a049; }
+        // .swagger-ui .responses-table { border-radius: 5px; }
+        // .swagger-ui .response-col_status { font-weight: bold; }
+        // .swagger-ui .response-col_description { font-style: italic; }
+        // .swagger-ui .model-box { border-radius: 5px; }
+        // .swagger-ui .model-box:hover { box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        // .swagger-ui .parameter__name { font-weight: bold; }
+        // .swagger-ui .parameter__in { font-style: italic; color: #555; }
+        // .swagger-ui .parameter__required { color: red; font-weight: bold; }
+        // .swagger-ui .parameter__type { color: #007bff; }
+        // .swagger-ui .tab { border-radius: 5px; }
+        // .swagger-ui .tab:hover { background-color: #f0f0f0; }
+        // .swagger-ui .tab.active { background-color: #e0e0e0; font-weight: bold; }
+        // `,
+        
+  } as SwaggerUiOptions));
     }
     // Configure routes for the Express app
     async configureRoutes() {
