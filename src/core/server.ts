@@ -8,7 +8,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 import { swaggerOptions } from "./config/swagger.config";
 import { WinstonPlugin } from "../infrastructure/plugins/winston.plugin";
-
+import swaggerUiDist from "swagger-ui-dist";
 
 export class Server {
 
@@ -59,7 +59,7 @@ export class Server {
         const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
         // Swagger UI en /api-docs
-        this.app.use("/api/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+        this.app.use("/api/swagger",express.static(swaggerUiDist.getAbsoluteFSPath()), swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
             swaggerOptions: {
                 docExpansion: "none",
                 persistAuthorization: true,
