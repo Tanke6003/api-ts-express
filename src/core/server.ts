@@ -107,7 +107,7 @@ export class Server {
    // src/core/server.ts
 
 async run() {
-  let logger = new WinstonPlugin();
+  //let logger = new WinstonPlugin();
   await this.configureMiddleware();
   await this.configureRoutes();
   await this.configureScalar();
@@ -122,7 +122,7 @@ async run() {
       console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
       console.log(`💖 Health:  http://localhost:${this.port}/health`);
     });
-    logger.debug(`Server started on port ${this.port}`);
+    //logger.debug(`Server started on port ${this.port}`);
   }
 }
 }
