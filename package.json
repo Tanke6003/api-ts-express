@@ -2,7 +2,6 @@
   "name": "api-ts-express",
   "version": "1.0.0",
   "main": "index.js",
-
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",
@@ -17,8 +16,10 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "sequelize": "^6.37.7",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "tedious": "^18.6.1",
     "winston": "^3.17.0"
   },
   "devDependencies": {

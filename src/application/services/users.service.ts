@@ -10,6 +10,23 @@ export class UsersService implements IUsersService {
     constructor() {
         this.usersRepository = new UsersRepository();
     }
+    async getUserById(id: number): Promise<UserDTO | null> {
+        const user = await this.usersRepository.getUserById(id);
+        return user ? this.toDTO(user) : null;
+    }
+
+    async createUser(user: UserDTO): Promise<boolean> {
+        return await this.usersRepository.createUser(this.toModel(user));
+    }
+
+    async updateUser(id: number, user: Partial<UserDTO>): Promise<boolean> {
+        return await this.usersRepository.updateUser(id, this.toModel(user as UserDTO));
+    }
+
+    async deleteUser(id: number): Promise<boolean> {
+        return await this.usersRepository.deleteUser(id);
+    }
+  
 
     public async getAllUsers(): Promise<UserDTO[]> {
         const users = await this.usersRepository.getAllUsers();
@@ -20,6 +37,12 @@ export class UsersService implements IUsersService {
         return {
             id: user.pkUser,
             name: user.name,
+        };
+    }
+    private toModel(userDTO: UserDTO): IUser {
+        return {
+            pkUser: userDTO.id || 0,
+            name: userDTO.name,
         };
     }
 }

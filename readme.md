@@ -41,27 +41,26 @@
  ```plaintext
  src/
   ├─ main.ts                # Punto de entrada principal
+  ├─ core/                  # Archivo base server y configuraciones
   ├─ presentation/          # Rutas y controladores
   ├─ application/           # DTOs, servicios de aplicación
-  ├─ domain/                # Interfaces y lógica de dominio
-  └─ infrastructure/        # Configuración, persistencia, etc.
+  ├─ domain/                # Interfaces y modelos
+  └─ infrastructure/        # Datasources, plugins y repositorios
  ```
 
  ---
 
- ## 📖 Documentación con Swagger
+ ## 📖 Documentación con Swagger y Scalar
 
- El proyecto usa **swagger-jsdoc** + **swagger-ui-express**.  
+ El proyecto usa **swagger-jsdoc** + **swagger-ui-express** y **Scalar** .  
  Al ejecutar la API:
 
- - **UI Swagger**: [http://localhost:3000/docs](http://localhost:3000/docs)  
- - **Especificación JSON**: [http://localhost:3000/swagger.json](http://localhost:3000/swagger.json)  
-
- Este JSON se puede importar en **Postman** para probar los endpoints.
+ - **UI Swagger**: [http://localhost:3001/api/swagger](http://localhost:3001/api/swagger)  
+ - **Scalara**: [http://localhost:3001/api/scalar](http://localhost:3001/api/scalar)  
 
  ---
 
- ## 🔒 Seguridad
+ ## 🔒 Seguridad - [Pendiente]
 
  Se configuró un esquema de autenticación con **JWT (Bearer Token)** en Swagger:
 
@@ -93,7 +92,3 @@
 
  ---
 
- ## 📌 Próximos pasos
- - Añadir controladores y rutas personalizadas.  
- - Definir **DTOs** en `src/application/dtos/`.  
- - Documentar cada endpoint con bloques `@openapi`.  
