@@ -104,27 +104,25 @@ export class Server {
         });
     }
     // Start the Express server and listen on the specified port
-    async run() {
-        let looger = new WinstonPlugin();
-        await this.configureMiddleware();
-        await this.configureRoutes();
-        await this.configureScalar();
-        //configure swagger
-        await this.configureSwagger();
-        this.app.listen(this.port, () => {
-            console.log(`🚀          Server listening on port ${this.port}`);
-            console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
-            // console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
-            console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
+   // src/core/server.ts
 
-            console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
-            // health check endpoint
-            console.log(`💖 Health:  http://localhost:${this.port}/health`);
+async run() {
+  let logger = new WinstonPlugin();
+  await this.configureMiddleware();
+  await this.configureRoutes();
+  await this.configureScalar();
+  await this.configureSwagger();
 
-
-        });
-        looger.debug(`Server started on port ${this.port}`);
-    }
+  // Solo levantar el puerto si NO estamos en Vercel
+  if (process.env.VERCEL !== "1") {
+    this.app.listen(this.port, () => {
+      console.log(`🚀 Server listening on port ${this.port}`);
+      console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
+      console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
+      console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
+      console.log(`💖 Health:  http://localhost:${this.port}/health`);
+    });
+    logger.debug(`Server started on port ${this.port}`);
+  }
 }
-
-
+}
