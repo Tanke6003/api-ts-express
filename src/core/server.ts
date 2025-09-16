@@ -13,7 +13,7 @@ import { WinstonPlugin } from "../infrastructure/plugins/winston.plugin";
 export class Server {
 
     private readonly port: number;
-    private app: Application = express();
+    public app: Application = express();
     private routes = IndexRoutes;
 
     constructor(port: number) {

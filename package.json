@@ -28,6 +28,7 @@
     "@types/node": "^24.5.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "@vercel/node": "^5.3.22",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }

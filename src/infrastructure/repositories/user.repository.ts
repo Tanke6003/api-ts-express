@@ -10,7 +10,7 @@ import { UsersSqlServerDataSource } from "../datasources/sqlserver/users.sqlserv
 export class UsersRepository implements IUsersRepository {
     private dataSource: IUsersDataSource;
     constructor() {
-        this.dataSource = new UsersSqlServerDataSource();
+        this.dataSource = new UsersDummyDataSource();
     }
 
 
