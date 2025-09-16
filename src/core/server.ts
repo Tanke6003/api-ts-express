@@ -7,6 +7,7 @@ import { IndexRoutes } from "../presentation/routes/index.route";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 import { swaggerOptions } from "./config/swagger.config";
+import { WinstonPlugin } from "../infrastructure/plugins/winston.plugin";
 
 
 export class Server {
@@ -102,13 +103,12 @@ export class Server {
     }
     // Start the Express server and listen on the specified port
     async run() {
+        let looger = new WinstonPlugin();
         await this.configureMiddleware();
         await this.configureRoutes();
         await this.configureScalar();
          //configure swagger
         await this.configureSwagger();
-
-        console.log("Server started");
         this.app.listen(this.port, () => {
             console.log(`🚀          Server listening on port ${this.port}`);
             console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
@@ -119,6 +119,7 @@ export class Server {
         
 
         });
+        looger.debug(`Server started on port ${this.port}`);
     }
 }
 
