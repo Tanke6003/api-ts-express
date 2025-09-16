@@ -1,6 +1,6 @@
 // src/main.ts
-import { Server } from "./core/server.js";
-import { DotenvPlugin } from "./infrastructure/plugins/dotenv.plugin.js";
+import { Server } from "./core/server";
+import { DotenvPlugin } from "./infrastructure/plugins/dotenv.plugin";
 
 
 

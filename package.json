@@ -2,7 +2,7 @@
   "name": "api-ts-express",
   "version": "1.0.0",
   "main": "index.js",
-  "type": "module",
+
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "build": "tsc -p tsconfig.json",

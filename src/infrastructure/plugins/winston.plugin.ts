@@ -1,11 +1,15 @@
 // src/infrastructure/plugins/winston.plugin.ts
 import winston from "winston";
+import path from "path";
+// Remove ESM-specific fileURLToPath and import.meta.url usage
+// Use CommonJS __filename and __dirname provided by Node.js
 
 export class WinstonPlugin {
   private logger: winston.Logger;
 
   constructor() {
     const level = "info"
+ 
 
     this.logger = winston.createLogger({
       level,
@@ -23,6 +27,7 @@ export class WinstonPlugin {
   }
 
   private getTransports(): winston.transport[] {
+       let logDir = path.resolve(__dirname, '../../logs');
     const transports: winston.transport[] = [
       new winston.transports.Console({
         format: winston.format.combine(
@@ -42,22 +47,24 @@ export class WinstonPlugin {
    
       transports.push(
         new winston.transports.File({
-          filename: "logs/error.log",
+        
+          filename: path.join(logDir,"error.log"),
           level: "error",
+
         }),
         new winston.transports.File({
-          filename: "logs/combined.log",
+          filename: path.join(logDir,"combined.log")
         }),
         new winston.transports.File({
-            filename: "logs/debug.log",
+            filename : path.join(logDir,"debug.log"),
             level: "debug",
             }),
         new winston.transports.File({
-            filename: "logs/warn.log",
+            filename: path.join(logDir,"warn.log"),
             level: "warn",
             }),
         new winston.transports.File({
-            filename: "logs/info.log",
+            filename: path.join(logDir,"info.log"),
             level: "info",
             })
         
