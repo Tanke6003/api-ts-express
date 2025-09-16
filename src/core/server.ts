@@ -118,6 +118,8 @@ export class Server {
             console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
 
             console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
+            // health check endpoint
+            console.log(`💖 Health:  http://localhost:${this.port}/health`);
 
 
         });
