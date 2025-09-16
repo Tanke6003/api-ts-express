@@ -59,7 +59,7 @@ export class Server {
         const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
         // Swagger UI en /api-docs
-        this.app.use("/api/swagger",express.static(swaggerUiDist.getAbsoluteFSPath()), swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+        this.app.use("/api/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
             swaggerOptions: {
                 docExpansion: "none",
                 persistAuthorization: true,

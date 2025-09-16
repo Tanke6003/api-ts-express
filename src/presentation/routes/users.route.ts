@@ -1,9 +1,11 @@
 // src/presentation/routes/user.routes.ts
 
 import { UsersController } from '../controllers/users.controller';
+import { JwtPlugin } from '../../infrastructure/plugins/jwt.plugin';
 
 export class UsersRoutes {
     private usersController: UsersController;
+    private JwtPlugin: JwtPlugin = new JwtPlugin();
 
     constructor() {
         this.usersController = new UsersController();
@@ -53,24 +55,30 @@ public register(app: any) {
      */
     app.get("/api/users/:id", this.usersController.getUserById.bind(this.usersController));
 
-    /**
-     * @openapi
-     * /api/users:
-     *   post:
-     *     tags:
-     *       - Users
-     *     summary: Create a new user
-     *     requestBody:
-     *       required: true
-     *       content:
-     *         application/json:
-     *           schema:
-     *             $ref: '#/components/schemas/User'
-     *     responses:
-     *       201:
-     *         description: User created
-     */
-    app.post("/api/users", this.usersController.createUser.bind(this.usersController));
+/**
+ * @openapi
+ * /api/users:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Create a new user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/User'
+ *     responses:
+ *       201:
+ *         description: User created
+ */
+app.post(
+  "/api/users",
+  this.JwtPlugin.middleware,
+  this.usersController.createUser.bind(this.usersController)
+);
 
     /**
      * @openapi
