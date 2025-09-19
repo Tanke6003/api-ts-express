@@ -20,7 +20,7 @@ container.register<ILogger>("ILogger", {
 
 container.register<IEnvs>("IEnvs",{
   useClass:DotenvPlugin
-})
+});
 
 
 // ========== DataSources =================
@@ -28,16 +28,16 @@ container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersSqlSer
 
 // ========== Repositories =================
 
-container.register<IUsersRepository>("IUsersRepository",{useClass:UsersRepository})
+container.register<IUsersRepository>("IUsersRepository",{useClass:UsersRepository});
 
 // ========== Services  ======================
 
-container.register<IUsersService>("IUsersService",{useClass:UsersService})
+container.register<IUsersService>("IUsersService",{useClass:UsersService});
 
 
 // ========== controllers ======================
 
-container.register<IUsersController>("IUsersController",{useClass:UsersController})
+container.register<IUsersController>("IUsersController",{useClass:UsersController});
 
 
 

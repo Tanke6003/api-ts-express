@@ -1,9 +1,9 @@
 // src/presentation/routes/user.routes.ts
 
-import { UsersController } from '../controllers/users.controller';
-import { JwtPlugin } from '../../infrastructure/plugins/jwt.plugin';
-import { IUsersController } from '../../domain/interfaces/presentation/controllers/users.controller.interface';
-import { container } from 'tsyringe';
+import { UsersController } from "../controllers/users.controller";
+import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
+import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
+import { container } from "tsyringe";
 
 export class UsersRoutes {
  private usersController: IUsersController;

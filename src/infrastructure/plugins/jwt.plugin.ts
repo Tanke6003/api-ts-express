@@ -14,7 +14,7 @@ export class JwtPlugin {
    */
   generateToken(
     payload: Record<string, unknown>,
-    expiresIn: SignOptions['expiresIn'] = "1h"
+    expiresIn: SignOptions["expiresIn"] = "1h"
   ): string {
     const options: SignOptions = { expiresIn };
     return jwt.sign(payload, this.secret, options);

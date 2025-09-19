@@ -1,6 +1,6 @@
  // src/main.ts
 import "reflect-metadata";
-import "./core/di/container"
+import "./core/di/container";
  import { Server } from "./core/server";
 import { container } from "./core/di/container";
 import { IEnvs } from "./domain/interfaces/infrastructure/plugins/envs.plugin.interface";

@@ -28,13 +28,13 @@ export class Server {
         // for parsing application/x-www-form-urlencoded
         this.app.use(express.urlencoded({ extended: true }));
         // Enable CORS for all routes
-        this.app.use(cors())
+        this.app.use(cors());
         //limit request size to 50mb
-        this.app.use(express.json({ limit: '50mb' }));
+        this.app.use(express.json({ limit: "50mb" }));
         //limit urlencoded request size to 50mb
-        this.app.use(express.urlencoded({ limit: '50mb', extended: true }));
+        this.app.use(express.urlencoded({ limit: "50mb", extended: true }));
         // register http logs
-        this.app.use(httpLoggerMiddleware)
+        this.app.use(httpLoggerMiddleware);
 
 
     }

@@ -1,7 +1,7 @@
 // user.controller.ts
 import { Request, Response } from "express";
 import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
-import { IUsersService } from '../../domain/interfaces/application/services/users.service.interface';
+import { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
 import { inject, injectable } from "tsyringe";
 
 @injectable()
@@ -23,7 +23,7 @@ export class UsersController implements IUsersController {
         } catch (error) {
             res.status(500).json({ message: "Internal server error" });
         }
-    }
+    };
 
     public createUser = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -33,7 +33,7 @@ export class UsersController implements IUsersController {
         } catch (error) {
             res.status(500).json({ message: "Internal server error" });
         }
-    }
+    };
 
     public updateUser = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -48,7 +48,7 @@ export class UsersController implements IUsersController {
         } catch (error) {
             res.status(500).json({ message: "Internal server error" });
         }
-    }
+    };
 
     public deleteUser = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -63,11 +63,11 @@ export class UsersController implements IUsersController {
         } catch (error) {
             res.status(500).json({ message: "Internal server error" });
         }
-    }
+    };
 
 
     public getAllUsers = async (req: Request, res: Response) => {
         res.json(await this.usersService.getAllUsers());
-    }
+    };
 
 }
