@@ -5,14 +5,14 @@ import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugi
 
 export class DotenvPlugin implements IEnvs {
   constructor() {
-    const env = process.env.NODE_ENV || "development";
+   const env = process.env.NODE_ENV || "development";
+let envFile = ".env";
 
-    // Selecciona el archivo según NODE_ENV
-    const envFile = env === "development" ? ".env.dev" : ".env";
+if (env === "development") envFile = ".env.dev";
+if (env === "test") envFile = ".env.test";
 
-    dotenv.config({
-      path: path.resolve(process.cwd(), envFile),
-    });
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+
 
     console.log(`Variables cargadas desde ${envFile}`);
   }
