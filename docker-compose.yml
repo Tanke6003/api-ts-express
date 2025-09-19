@@ -6,9 +6,9 @@ services:
     restart: always
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: "StrongPassword123!"
+      SA_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "1434:1433"
+      - "${DB_PORT}:1433"
     volumes:
       - mssql_data:/var/opt/mssql
 
