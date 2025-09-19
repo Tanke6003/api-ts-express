@@ -12,8 +12,8 @@
      "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "sourceMap": true,
-    "removeComments": true // remueve los comentarios en el dist posible error en swagger
-
+    "removeComments": true, // remueve los comentarios en el dist posible error en swagger
+    "isolatedModules": true
   },
   "include": ["src"],
   "exclude": ["dist"]
