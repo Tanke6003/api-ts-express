@@ -1,10 +1,27 @@
 // src/infrastructure/plugins/dotenv.plugin.ts
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 
-export class DotenvPlugin  {
-  getEnv = (key: string): string|undefined =>
-    process.env[key] ?? undefined
-    // (() => {
-    //   throw new Error(`La variable de entorno "${key}" no está definida.`);
-    // })();
+export class DotenvPlugin implements IEnvs {
+  constructor() {
+    const env = process.env.NODE_ENV || "development";
+
+    // Selecciona el archivo según NODE_ENV
+    const envFile = env === "development" ? ".env.dev" : ".env";
+
+    dotenv.config({
+      path: path.resolve(process.cwd(), envFile),
+    });
+
+    console.log(`Variables cargadas desde ${envFile}`);
+  }
+
+  getEnv(key: string): string {
+    const value = process.env[key];
+    if (value === undefined || value === null) {
+      throw new Error(`La variable de entorno "${key}" no está definida.`);
+    }
+    return value;
+  }
 }

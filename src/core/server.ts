@@ -3,22 +3,22 @@
 import express, { Application } from "express";
 import cors from "cors";
 import { IndexRoutes } from "../presentation/routes/index.route";
-
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 import { swaggerOptions } from "./config/swagger.config";
-import { WinstonPlugin } from "../infrastructure/plugins/winston.plugin";
 import { httpLoggerMiddleware } from "../presentation/middlewares/httpLogger.middleware";
+import {  injectable } from "tsyringe";
 
-
+@injectable()
 export class Server {
-
     private readonly port: number;
     public app: Application = express();
     private routes = IndexRoutes;
-
-    constructor(port: number) {
+    constructor(
+    
+        port: number) {
         this.port = port;
+
     }
 
     // Configure middleware for the Express app
@@ -33,7 +33,7 @@ export class Server {
         this.app.use(express.json({ limit: '50mb' }));
         //limit urlencoded request size to 50mb
         this.app.use(express.urlencoded({ limit: '50mb', extended: true }));
-        //
+        // register http logs
         this.app.use(httpLoggerMiddleware)
 
 
@@ -74,8 +74,6 @@ export class Server {
     }
     // Configure routes for the Express app
     async configureRoutes() {
-        // TODO: Add Swagger setup here
-
         // Import and register additional routes
         this.routes.register(this.app);
         // Health check endpoint
@@ -86,7 +84,7 @@ export class Server {
 
 
 async run() {
-  let logger = new WinstonPlugin();
+ 
   await this.configureMiddleware();
   await this.configureRoutes();
   await this.configureScalar();
@@ -101,7 +99,7 @@ async run() {
       console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
       console.log(`💖 Health:  http://localhost:${this.port}/health`);
     });
-    logger.debug(`Server started on port ${this.port}`);
+
   }
 }
 }

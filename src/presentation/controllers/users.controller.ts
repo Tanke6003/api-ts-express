@@ -1,13 +1,15 @@
 // user.controller.ts
 import { Request, Response } from "express";
-import { IUsersController } from "../../domain/interfaces/controllers/users.controller.interface";
-import { IUsersService } from "../../domain/interfaces/services/users.service.interface";
-import { UsersService } from "../../application/services/users.service";
+import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
+import { IUsersService } from '../../domain/interfaces/application/services/users.service.interface';
+import { inject, injectable } from "tsyringe";
 
+@injectable()
 export class UsersController implements IUsersController {
-    private usersService: IUsersService;
-    constructor() {
-        this.usersService = new UsersService();
+
+    constructor(
+        @inject("IUsersService") private readonly usersService: IUsersService
+    ) {
     }
     public getUserById = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -62,10 +64,10 @@ export class UsersController implements IUsersController {
             res.status(500).json({ message: "Internal server error" });
         }
     }
-   
-    
-    public getAllUsers = async (req: Request, res: Response) =>{
+
+
+    public getAllUsers = async (req: Request, res: Response) => {
         res.json(await this.usersService.getAllUsers());
-    }   
- 
+    }
+
 }
