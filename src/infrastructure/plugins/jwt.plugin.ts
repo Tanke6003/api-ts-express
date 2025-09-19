@@ -1,8 +1,9 @@
 // src/infrastructure/plugins/JwtPlugin.ts
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
+import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 
-export class JwtPlugin {
+export class JwtPlugin implements ITokenPlugin{
   private readonly secret: string;
 
   constructor(secret?: string) {
@@ -13,7 +14,7 @@ export class JwtPlugin {
    * Genera un token firmado
    */
   generateToken(
-    payload: Record<string, unknown>,
+    payload: Record<string, any>,
     expiresIn: SignOptions["expiresIn"] = "1h"
   ): string {
     const options: SignOptions = { expiresIn };

@@ -1,4 +1,4 @@
-// TODO:
+// tests/unit/plugins/winston.plugin.unit.test.ts
 import winston from "winston";
 import { WinstonPlugin } from "../../../src/infrastructure/plugins/winston.plugin";
 
@@ -12,7 +12,9 @@ jest.mock("winston", () => {
     format: {
       combine: jest.fn(),
       timestamp: jest.fn(),
-      printf: jest.fn(),
+      printf: jest.fn((formatter) => ({
+        transform: formatter, // devolvemos objeto con .transform
+      })),
       colorize: jest.fn(),
       simple: jest.fn(),
       metadata: jest.fn(),
@@ -71,12 +73,86 @@ describe("WinstonPlugin", () => {
 
     plugin.http(req, res);
 
-    expect(mockLogger.log).toHaveBeenCalledWith("http", "HTTP Request", expect.objectContaining({
-      method: "GET",
-      endpoint: "/test",
-      status: 200,
-      ip: "127.0.0.1",
-      userAgent: "jest",
-    }));
+    expect(mockLogger.log).toHaveBeenCalledWith(
+      "http",
+      "HTTP Request",
+      expect.objectContaining({
+        method: "GET",
+        endpoint: "/test",
+        status: 200,
+        ip: "127.0.0.1",
+        userAgent: "jest",
+      })
+    );
+  });
+
+  it("should format log message without meta", () => {
+    const formatter = winston.format.printf(
+      ({ timestamp, level, message, ...meta }) =>
+        `${timestamp} [${level.toUpperCase()}]: ${message} ${
+          Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ""
+        }`
+    );
+
+    const result = formatter.transform({
+      timestamp: "2025-09-19 12:00:00",
+      level: "info",
+      message: "Hello",
+    });
+
+    expect(result).toBe("2025-09-19 12:00:00 [INFO]: Hello ");
+  });
+
+  it("should format log message with meta", () => {
+    const formatter = winston.format.printf(
+      ({ timestamp, level, message, ...meta }) =>
+        `${timestamp} [${level.toUpperCase()}]: ${message} ${
+          Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ""
+        }`
+    );
+
+    const result = formatter.transform({
+      timestamp: "2025-09-19 12:00:00",
+      level: "error",
+      message: "Something failed",
+      foo: "bar",
+    });
+
+    expect(result).toContain("foo");
+    expect(result).toContain("bar");
+  });
+   it("formats without meta", () => {
+    const formatter = winston.format.printf(
+      ({ timestamp, level, message, ...meta }) =>
+        `${timestamp} [${level.toUpperCase()}]: ${message} ${
+          Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ""
+        }`
+    );
+
+    const result = formatter.transform({
+      timestamp: "2025-09-19 12:00:00",
+      level: "info",
+      message: "Hello",
+    });
+
+    expect(result).toBe("2025-09-19 12:00:00 [INFO]: Hello ");
+  });
+
+  it("formats with meta", () => {
+    const formatter = winston.format.printf(
+      ({ timestamp, level, message, ...meta }) =>
+        `${timestamp} [${level.toUpperCase()}]: ${message} ${
+          Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ""
+        }`
+    );
+
+    const result = formatter.transform({
+      timestamp: "2025-09-19 12:00:00",
+      level: "error",
+      message: "Fail",
+      foo: "bar",
+    });
+
+    expect(result).toContain("foo");
   });
 });

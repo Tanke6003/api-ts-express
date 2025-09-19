@@ -30,6 +30,7 @@ module.exports = {
     "!src/**/index.ts"
   ],
 
+
   // 👇 aquí le decimos que lo guarde en reports/
   coverageDirectory: "reports/coverage",
   coverageReporters: ["json", "lcov", "text", "html"],

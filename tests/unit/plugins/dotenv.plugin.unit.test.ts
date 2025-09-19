@@ -7,26 +7,27 @@ describe("DotenvPlugin", () => {
   const envTestPath = path.resolve(process.cwd(), ".env.test");
 
   beforeAll(() => {
-    // Creamos archivo fake de .env.test para las pruebas
+    // Create a fake .env.test file for testing
     fs.writeFileSync(envTestPath, "TEST_KEY_TEST=test-value\n");
   });
 
   afterAll(() => {
-    // Borramos archivo fake después de las pruebas
+    // Remove the fake file after tests
     if (fs.existsSync(envTestPath)) fs.unlinkSync(envTestPath);
   });
 
-  it("carga .env.test si NODE_ENV=test", () => {
+  it("loads .env.test when NODE_ENV=test", () => {
     process.env.NODE_ENV = "test";
     const plugin = new DotenvPlugin();
     expect(plugin.getEnv("TEST_KEY_TEST")).toBe("test-value");
   });
 
-  it("lanza error si la variable no existe", () => {
-    process.env.NODE_ENV = "test";
-    const plugin = new DotenvPlugin();
-    expect(() => plugin.getEnv("DOES_NOT_EXIST")).toThrow(
-      'La variable de entorno "DOES_NOT_EXIST" no está definida.'
-    );
-  });
+it("if the environment variable does not exist, it returns an empty string", () => {
+  process.env.NODE_ENV = "test";
+  const plugin = new DotenvPlugin();
+
+  // Solo verificamos el valor de retorno
+  expect(plugin.getEnv("DOES_NOT_EXIST")).toBe("");
+});
+
 });

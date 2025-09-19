@@ -18,10 +18,6 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile) });
   }
 
   getEnv(key: string): string {
-    const value = process.env[key];
-    if (value === undefined || value === null) {
-      throw new Error(`La variable de entorno "${key}" no está definida.`);
-    }
-    return value;
+    return  process.env[key]??"";
   }
 }
