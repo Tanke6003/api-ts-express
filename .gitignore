@@ -4,15 +4,15 @@
 /dist
 .env
 
+/reports
 
 
+# # Ignorar reports crudos de Jest (si quieres solo HTML)
+# reports/coverage/*.json
+# reports/coverage/*.xml
+# reports/coverage/*.info
 
-# Ignorar reports crudos de Jest (si quieres solo HTML)
-reports/coverage/*.json
-reports/coverage/*.xml
-reports/coverage/*.info
-
-# Mantener los HTML bonitos
-!reports/tests-report.html
-!reports/coverage/index.html
-!reports/coverage/lcov-report/**
+# # Mantener los HTML bonitos
+# !reports/tests-report.html
+# !reports/coverage/index.html
+# !reports/coverage/lcov-report/**
