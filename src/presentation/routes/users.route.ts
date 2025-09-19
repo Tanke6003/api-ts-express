@@ -2,15 +2,16 @@
 
 import { UsersController } from '../controllers/users.controller';
 import { JwtPlugin } from '../../infrastructure/plugins/jwt.plugin';
+import { IUsersController } from '../../domain/interfaces/presentation/controllers/users.controller.interface';
+import { container } from 'tsyringe';
 
 export class UsersRoutes {
-    private usersController: UsersController;
-    private JwtPlugin: JwtPlugin = new JwtPlugin();
+ private usersController: IUsersController;
+  private JwtPlugin: JwtPlugin = new JwtPlugin();
 
-    constructor() {
-        this.usersController = new UsersController();
-    }
-
+  constructor() {
+    this.usersController = container.resolve<IUsersController>("IUsersController");
+  }
 public register(app: any) {
     /**
      * @openapi

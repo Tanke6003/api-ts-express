@@ -1,79 +1,104 @@
 // src/infrastructure/datasources/sqlserver/users.sqlserver.datasource.ts
 
-import { IUsersDataSource } from "../../../domain/interfaces/datasources/users.datasource.interface";
+import { inject, injectable } from "tsyringe";
+import { IUsersDataSource } from "../../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { IUser } from "../../../domain/models/users.model";
 import { SequelizePlugin } from "../../plugins/sequelize.plugin";
+import { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
+@injectable()
 export class UsersSqlServerDataSource implements IUsersDataSource {
-    private db:SequelizePlugin;
+  private db: SequelizePlugin;
 
-    constructor(){
-        this.db = new SequelizePlugin({
-            dialect: "mssql",
-            host: process.env.DB_HOST || "localhost", 
-            port: Number(process.env.DB_PORT) || 1434,
-            username: process.env.DB_USER || "sa",
-            password: process.env.DB_PASSWORD || "StrongPassword123!",
-            database: process.env.DB_NAME || "testdb"
-        });
-        this.db.authenticate(); 
-    }       
-   
+  constructor(
+    @inject("ILogger") private readonly logger: ILogger
+  ) {
+    this.db = new SequelizePlugin({
+      dialect: "mssql",
+      host: process.env.DB_HOST || "localhost",
+      port: Number(process.env.DB_PORT) || 1434,
+      username: process.env.DB_USER || "sa",
+      password: process.env.DB_PASSWORD || "StrongPassword123!",
+      database: process.env.DB_NAME || "testdb",
+    });
 
-async getAllUsers(): Promise<IUser[]> {
-  const query = "SELECT * FROM Users WHERE Available = 1";
-  const result = await this.db.executeQuery(query);
+    this.db.authenticate().catch((err) => {
+      this.logger.error("❌ Error al autenticar con la base de datos", { err });
+      throw new Error(`[DataSource] Error al autenticar SequelizePlugin: ${err.message}`);
+    });
+  }
 
-  console.log(result.rows);
+  async getAllUsers(): Promise<IUser[]> {
+    try {
+      const query = "SELECT * FROM Users WHERE Available = 1";
+      const result = await this.db.executeQuery(query);
 
-  const users: IUser[] = result.rows.map((row: any) => ({
-    pkUser: row.PKUser,
-    name: row.Name,
-  }));
+      this.logger.debug("✅ getAllUsers ejecutado", { count: result.rows.length });
 
-  return users;
+      return result.rows.map((row: any) => ({
+        pkUser: row.PKUser,
+        name: row.Name,
+      }));
+    } catch (err: any) {
+      this.logger.error("❌ Error en getAllUsers", { err });
+      throw new Error(`[DataSource] getAllUsers failed: ${err.message}`);
+    }
+  }
+
+  async getUserById(id: number): Promise<IUser | null> {
+    try {
+      const query = "SELECT * FROM Users WHERE PKUser = ? AND Available = 1";
+      const rows = await this.db.getDataTable(query, [id]);
+
+      if (rows.length === 0) return null;
+
+      return { pkUser: rows[0].PKUser, name: rows[0].Name };
+    } catch (err: any) {
+      this.logger.error("❌ Error en getUserById", { id, err });
+      throw new Error(`[DataSource] getUserById failed for id=${id}: ${err.message}`);
+    }
+  }
+
+  async createUser(user: IUser): Promise<boolean> {
+    try {
+      const query = "INSERT INTO Users (Name) VALUES (?)";
+      const result = await this.db.executeQuery(query, [user.name]);
+      const affected = result.metadata ?? 0;
+
+      this.logger.info("👤 Usuario creado", { user, affected });
+      return affected > 0;
+    } catch (err: any) {
+      this.logger.error("❌ Error en createUser", { user, err });
+      throw new Error(`[DataSource] createUser failed: ${err.message}`);
+    }
+  }
+
+  async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
+    try {
+      const query = "UPDATE Users SET Name = ? WHERE PKUser = ?";
+      const result = await this.db.executeQuery(query, [user.name, id]);
+      const affected = result.metadata ?? 0;
+
+      this.logger.info("✏️ Usuario actualizado", { id, user, affected });
+      return affected > 0;
+    } catch (err: any) {
+      this.logger.error("❌ Error en updateUser", { id, user, err });
+      throw new Error(`[DataSource] updateUser failed for id=${id}: ${err.message}`);
+    }
+  }
+
+  async deleteUser(id: number): Promise<boolean> {
+    try {
+      const query =
+        "UPDATE Users SET Available = 0 WHERE PKUser = ? AND Available = 1";
+      const result = await this.db.executeQuery(query, [id]);
+      const affected = result.metadata ?? 0;
+
+      this.logger.warn("🗑 Usuario marcado como eliminado", { id, affected });
+      return affected > 0;
+    } catch (err: any) {
+      this.logger.error("❌ Error en deleteUser", { id, err });
+      throw new Error(`[DataSource] deleteUser failed for id=${id}: ${err.message}`);
+    }
+  }
 }
-
-async getUserById(id: number): Promise<IUser | null> {
-  const query = "SELECT * FROM Users WHERE PKUser = ? AND Available = 1";
-  const rows = await this.db.getDataTable(query, [id]);
-
-  if (rows.length === 0) return null;
-
-  const row = rows[0];
-  return {
-    pkUser: row.PKUser,
-    name: row.Name,
-  } as IUser;
-}
-
-async createUser(user: IUser): Promise<boolean> {
-  const query = "INSERT INTO Users (Name) VALUES (?)";
-  const result = await this.db.executeQuery(query, [user.name]);
-console.log(result);
-  const rowsAffected = result.metadata ?? undefined;
-    return rowsAffected > 0;
-}
-
-async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
-  const query = "UPDATE Users SET Name = ? WHERE PKUser = ?";
-  const result = await this.db.executeQuery(query, [user.name, id]);
-    console.log(result);
-  const affected = result.metadata ?? undefined;
-
-  return affected > 0;
- 
-}
-
-async deleteUser(id: number): Promise<boolean> {
-  const query =
-    "UPDATE Users SET Available = 0 WHERE PKUser = ? AND Available = 1";
-  const result = await this.db.executeQuery(query, [id]);
-console.log(result);
-  const affected = result.metadata ?? 0;
-  return affected > 0;
-}
-
-
-
-    }   

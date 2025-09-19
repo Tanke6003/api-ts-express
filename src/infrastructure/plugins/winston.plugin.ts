@@ -1,8 +1,11 @@
 // src/infrastructure/plugins/winston.plugin.ts
 import winston from "winston";
 import path from "path";
+import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import { injectable } from "tsyringe";
 
-export class WinstonPlugin {
+@injectable()
+export class WinstonPlugin implements ILogger{
   private logger: winston.Logger;
 
   constructor() {

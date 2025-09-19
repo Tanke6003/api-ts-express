@@ -2,7 +2,7 @@
 
 
 
-import { IUsersDataSource } from "../../../domain/interfaces/datasources/users.datasource.interface";
+import { IUsersDataSource } from "../../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { IUser } from "../../../domain/models/users.model";
 
 export class UsersDummyDataSource implements IUsersDataSource {
