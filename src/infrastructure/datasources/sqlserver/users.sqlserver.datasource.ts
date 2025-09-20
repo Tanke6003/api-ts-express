@@ -4,23 +4,18 @@ import { inject, injectable } from "tsyringe";
 import { IUsersDataSource } from "../../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { IUser } from "../../../domain/models/users.model";
 import { SequelizePlugin } from "../../plugins/sequelize.plugin";
-import { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+
 
 @injectable()
 export class UsersSqlServerDataSource implements IUsersDataSource {
-  private db: SequelizePlugin;
+
 
   constructor(
-    @inject("ILogger") private readonly logger: ILogger
+    @inject("ILogger") private readonly logger: ILogger,
+    @inject("TestDB") private readonly db: SequelizePlugin
   ) {
-    this.db = new SequelizePlugin({
-      dialect: "mssql",
-      host: process.env.DB_HOST || "localhost",
-      port: Number(process.env.DB_PORT) || 1434,
-      username: process.env.DB_USER || "sa",
-      password: process.env.DB_PASSWORD || "StrongPassword123!",
-      database: process.env.DB_NAME || "testdb",
-    });
+
 
     this.db.authenticate().catch((err) => {
       this.logger.error("❌ Error al autenticar con la base de datos", { err });

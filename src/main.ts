@@ -15,5 +15,3 @@ import { IEnvs } from "./domain/interfaces/infrastructure/plugins/envs.plugin.in
    
     await server.run();
 })();
-
-export default server.app;
