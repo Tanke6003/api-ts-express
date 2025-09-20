@@ -1,4 +1,4 @@
-import { JwtPlugin } from '../../../src/infrastructure/plugins/jwt.plugin';
+import { JwtPlugin } from "../../../../src/infrastructure/plugins/jwt.plugin";
 import { Request, Response, NextFunction } from 'express';
 
 describe("JWTPlugin", () => {

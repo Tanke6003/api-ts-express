@@ -1,7 +1,7 @@
 // tests/unit/dotenv.plugin.test.ts
 import fs from "fs";
 import path from "path";
-import { DotenvPlugin } from "../../../src/infrastructure/plugins/dotenv.plugin";
+import { DotenvPlugin } from "../../../../src/infrastructure/plugins/dotenv.plugin";
 
 describe("DotenvPlugin", () => {
   const envTestPath = path.resolve(process.cwd(), ".env.test");

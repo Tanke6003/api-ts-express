@@ -6,7 +6,7 @@ import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.p
 import { IUsersDataSource } from "../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { UsersSqlServerDataSource } from "../../infrastructure/datasources/sqlserver/users.sqlserver.datasource";
 import { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
-import { UsersRepository } from "../../infrastructure/repositories/user.repository";
+import { UsersRepository } from "../../infrastructure/repositories/users.repository";
 import { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
 import { UsersService } from "../../application/services/users.service";
 import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";

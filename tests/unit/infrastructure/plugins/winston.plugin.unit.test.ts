@@ -1,6 +1,6 @@
 // tests/unit/plugins/winston.plugin.unit.test.ts
 import winston from "winston";
-import { WinstonPlugin } from "../../../src/infrastructure/plugins/winston.plugin";
+import { WinstonPlugin } from "../../../../src/infrastructure/plugins/winston.plugin";
 
 // Mock de winston
 jest.mock("winston", () => {
@@ -13,7 +13,7 @@ jest.mock("winston", () => {
       combine: jest.fn(),
       timestamp: jest.fn(),
       printf: jest.fn((formatter) => ({
-        transform: formatter, // devolvemos objeto con .transform
+        transform: formatter,
       })),
       colorize: jest.fn(),
       simple: jest.fn(),
@@ -37,27 +37,38 @@ describe("WinstonPlugin", () => {
     mockLogger = (winston.createLogger as jest.Mock).mock.results[0].value;
   });
 
-  it("should call log with info level", () => {
+  // =========================
+  // ✅ Métodos de nivel
+  // =========================
+  it("should call log() directly", () => {
+    plugin.log("custom", "Custom log", { foo: "bar" });
+    expect(mockLogger.log).toHaveBeenCalledWith("custom", "Custom log", { foo: "bar" });
+  });
+
+  it("should call info()", () => {
     plugin.info("Test info", { foo: "bar" });
     expect(mockLogger.log).toHaveBeenCalledWith("info", "Test info", { foo: "bar" });
   });
 
-  it("should call log with error level", () => {
+  it("should call error()", () => {
     plugin.error("Test error");
     expect(mockLogger.log).toHaveBeenCalledWith("error", "Test error", {});
   });
 
-  it("should call log with warn level", () => {
+  it("should call warn()", () => {
     plugin.warn("Test warn");
     expect(mockLogger.log).toHaveBeenCalledWith("warn", "Test warn", {});
   });
 
-  it("should call log with debug level", () => {
+  it("should call debug()", () => {
     plugin.debug("Test debug");
     expect(mockLogger.log).toHaveBeenCalledWith("debug", "Test debug", {});
   });
 
-  it("should log http request after response finishes", () => {
+  // =========================
+  // ✅ Middleware HTTP
+  // =========================
+  it("should log http request after response finishes (200)", () => {
     const req = {
       method: "GET",
       originalUrl: "/test",
@@ -86,6 +97,37 @@ describe("WinstonPlugin", () => {
     );
   });
 
+  it("should log http request with 404 status", () => {
+    const req = {
+      method: "POST",
+      originalUrl: "/not-found",
+      headers: { "user-agent": "jest" },
+      ip: "192.168.0.1",
+    };
+    const res: any = {
+      on: jest.fn((event, cb) => {
+        if (event === "finish") cb();
+      }),
+      statusCode: 404,
+    };
+
+    plugin.http(req, res);
+
+    expect(mockLogger.log).toHaveBeenCalledWith(
+      "http",
+      "HTTP Request",
+      expect.objectContaining({
+        method: "POST",
+        endpoint: "/not-found",
+        status: 404,
+        ip: "192.168.0.1",
+      })
+    );
+  });
+
+  // =========================
+  // ✅ Formatos
+  // =========================
   it("should format log message without meta", () => {
     const formatter = winston.format.printf(
       ({ timestamp, level, message, ...meta }) =>
@@ -121,38 +163,43 @@ describe("WinstonPlugin", () => {
     expect(result).toContain("foo");
     expect(result).toContain("bar");
   });
-   it("formats without meta", () => {
-    const formatter = winston.format.printf(
-      ({ timestamp, level, message, ...meta }) =>
-        `${timestamp} [${level.toUpperCase()}]: ${message} ${
-          Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ""
-        }`
-    );
 
-    const result = formatter.transform({
-      timestamp: "2025-09-19 12:00:00",
-      level: "info",
-      message: "Hello",
-    });
+  // =========================
+  // ✅ Transports
+  // =========================
+  it("should create transports", () => {
+    // volver a instanciar para que se ejecute getTransports()
+    plugin = new WinstonPlugin();
 
-    expect(result).toBe("2025-09-19 12:00:00 [INFO]: Hello ");
+    // Debió crear Console y varios File transports
+    expect(winston.transports.Console).toHaveBeenCalled();
+    expect(winston.transports.File).toHaveBeenCalled();
   });
 
-  it("formats with meta", () => {
-    const formatter = winston.format.printf(
-      ({ timestamp, level, message, ...meta }) =>
-        `${timestamp} [${level.toUpperCase()}]: ${message} ${
-          Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ""
-        }`
-    );
-
-    const result = formatter.transform({
+  // =========================
+  // ✅ Console transport formatter (branch coverage)
+  // =========================
+  it("should format console transport without meta", () => {
+    const printfFn = (winston.format.printf as jest.Mock).mock.calls[1][0];
+    const result = printfFn({
       timestamp: "2025-09-19 12:00:00",
-      level: "error",
-      message: "Fail",
+      level: "info",
+      message: "Console test",
+    });
+
+    expect(result).toBe("2025-09-19 12:00:00 [INFO]: Console test ");
+  });
+
+  it("should format console transport with meta", () => {
+    const printfFn = (winston.format.printf as jest.Mock).mock.calls[1][0];
+    const result = printfFn({
+      timestamp: "2025-09-19 12:00:00",
+      level: "warn",
+      message: "Warn with meta",
       foo: "bar",
     });
 
     expect(result).toContain("foo");
+    expect(result).toContain("bar");
   });
 });

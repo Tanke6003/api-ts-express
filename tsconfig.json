@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
@@ -13,7 +13,8 @@
     "emitDecoratorMetadata": true,
     "sourceMap": true,
     "removeComments": true, // remueve los comentarios en el dist posible error en swagger
-    "isolatedModules": true
+    "isolatedModules": true, // Asegura que cada archivo se trate como un módulo independiente
+    // "ignoreDeprecations": "6.0"// Ignorar deprecaciones de TypeScript 6.0
   },
   "include": ["src"],
   "exclude": ["dist"]

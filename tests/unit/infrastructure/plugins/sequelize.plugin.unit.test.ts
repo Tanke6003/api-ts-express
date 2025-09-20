@@ -1,6 +1,6 @@
 
 import { QueryTypes, Transaction } from "sequelize";
-import { SequelizePlugin } from '../../../src/infrastructure/plugins/sequelize.plugin';
+import { SequelizePlugin  } from "../../../../src/infrastructure/plugins/sequelize.plugin";
 
 describe("SequelizePlugin (unit tests with mocks - MSSQL)", () => {
   let plugin: SequelizePlugin;

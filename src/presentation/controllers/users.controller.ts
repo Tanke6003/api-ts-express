@@ -1,7 +1,7 @@
 // user.controller.ts
 import { Request, Response } from "express";
 import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
-import { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
+import type { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
 import { inject, injectable } from "tsyringe";
 
 @injectable()

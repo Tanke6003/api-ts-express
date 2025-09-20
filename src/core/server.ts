@@ -40,13 +40,7 @@ export class Server {
     }
 
     async configureScalar() {
-        const swaggerSpec = swaggerJsdoc(swaggerOptions);
-        this.app.get("/api/openapi.json", (_req, res) => {
-            res.json(swaggerSpec);
-        });
 
-        // Scalar API Reference en /reference (dynamic import para ESM)
-        try {
             const { apiReference } = await import("@scalar/express-api-reference");
             this.app.use(
                 "/api/scalar",
@@ -55,9 +49,7 @@ export class Server {
                     theme: "purple",
                 })
             );
-        } catch (err) {
-            console.warn("Scalar API Reference no pudo cargarse:", err);
-        }
+       
     }
     async configureSwagger() {
         const swaggerSpec = swaggerJsdoc(swaggerOptions);
@@ -71,6 +63,9 @@ export class Server {
             explorer: true,
             customSiteTitle: "API Docs",
         } as SwaggerUiOptions));
+         this.app.get("/api/openapi.json", (_req, res) => {
+            res.json(swaggerSpec);
+        });
     }
     // Configure routes for the Express app
     async configureRoutes() {
@@ -90,8 +85,7 @@ async run() {
   await this.configureScalar();
   await this.configureSwagger();
 
-  // Solo levantar el puerto si NO estamos en Vercel
-  if (process.env.VERCEL !== "1") {
+
     this.app.listen(this.port, () => {
       console.log(`🚀 Server listening on port ${this.port}`);
       console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
@@ -100,6 +94,6 @@ async run() {
       console.log(`💖 Health:  http://localhost:${this.port}/health`);
     });
 
-  }
+
 }
 }

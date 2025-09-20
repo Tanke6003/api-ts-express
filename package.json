@@ -10,7 +10,7 @@
     "start:win": "set NODE_ENV=production&& node dist/main.js",
     "test": "jest --passWithNoTests --verbose",
     "test:watch": "jest --watch --verbose",
-    "test:coverage": "jest --coverage --verbose",
+    "test:coverage": "jest --coverage --verbose --detectOpenHandles --runInBand --coverageReporters=text --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=html --coverageReporters=json-summary",
     "lint": "eslint \"src/**/*.{ts,js}\" --fix"
   },
   "keywords": [],

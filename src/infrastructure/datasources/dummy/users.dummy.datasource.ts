@@ -1,50 +1,54 @@
 // src/infrastructure/datasources/dummy/users.dummy.datasource.ts
 
-
-
-import { IUsersDataSource } from "../../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
+import type { IUsersDataSource } from "../../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { IUser } from "../../../domain/models/users.model";
 
 export class UsersDummyDataSource implements IUsersDataSource {
-    private users: IUser[] = [
-        { pkUser: 1, name: "John Doe" },
-        { pkUser: 2, name: "Jane Smith" },
-        { pkUser: 3, name: "Alice Johnson" },
-        { pkUser: 4, name: "Bob Brown" }
-    ];
+  private users: IUser[] = [
+    { pkUser: 1, name: "John Doe", available: true },
+    { pkUser: 2, name: "Jane Smith", available: true },
+    { pkUser: 3, name: "Alice Johnson", available: true },
+    { pkUser: 4, name: "Bob Brown", available: true },
+  ];
 
-    public async getAllUsers(): Promise<IUser[]> {
-        return this.users;
-    }
+  private idCounter = this.users.length + 1;
 
-    public async getUserById(id: number): Promise<IUser | null> {
-        const user = this.users.find(u => u.pkUser === id);
-        return user || null;
-    }
+  public async getAllUsers(): Promise<IUser[]> {
+    // Solo devolvemos los que siguen disponibles
+    return this.users.filter(u => u.available);
+  }
 
-    public async createUser(user: IUser): Promise<boolean> {
-        if (this.users.some(u => u.pkUser === user.pkUser)) {
-            return false; // Duplicate pkUser
-        }
-        this.users.push(user);
-        return true;
-    }
+  public async getUserById(id: number): Promise<IUser | null> {
+    const user = this.users.find(u => u.pkUser === id && u.available);
+    return user || null;
+  }
 
-    public async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
-        const index = this.users.findIndex(u => u.pkUser === id);
-        if (index === -1) {
-            return false;
-        }
-        this.users[index] = { ...this.users[index], ...user };
-        return true;
-    }
+  public async createUser(user: IUser): Promise<boolean> {
+    // Asignamos PK autoincremental y disponible = true
+    const newUser: IUser = {
+      pkUser: this.idCounter++,
+      name: user.name,
+      available: true,
+    };
+    this.users.push(newUser);
+    return true;
+  }
 
-    public async deleteUser(id: number): Promise<boolean> {
-        const index = this.users.findIndex(u => u.pkUser === id);
-        if (index === -1) {
-            return false;
-        }
-        this.users.splice(index, 1);
-        return true;
+  public async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
+    const record = this.users.find(u => u.pkUser === id && u.available);
+    if (!record) {
+      return false;
     }
+    record.name = user.name ?? record.name;
+    return true;
+  }
+
+  public async deleteUser(id: number): Promise<boolean> {
+    const record = this.users.find(u => u.pkUser === id && u.available);
+    if (!record) {
+      return false;
+    }
+    record.available = false; // Borrado lógico
+    return true;
+  }
 }
