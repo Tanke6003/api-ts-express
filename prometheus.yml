@@ -1,8 +1,8 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 15s   # cada 15 segundos
 
 scrape_configs:
   - job_name: "minio"
+    metrics_path: /minio/v2/metrics/cluster
     static_configs:
-      - targets: ["minio:9000"]   # expone /minio/metrics/v3
-    metrics_path: /minio/metrics/v3
+      - targets: ["minio:9000"]

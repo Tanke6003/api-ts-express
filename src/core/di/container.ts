@@ -40,7 +40,7 @@ container.register<ISqlConnectionPlugin>("TestDB", {
 });
 
 // ========== DataSources =================
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersDummyDataSource  });
+container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersSqlServerDataSource  });
 
 // ========== Repositories =================
 

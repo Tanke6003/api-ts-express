@@ -18,15 +18,24 @@ services:
     image: minio/minio:latest
     container_name: minio
     ports:
-      - "8000:9000"    # API S3
-      - "8081:9001"    # Web UI
+      - "9100:9000"   # API disponible en http://localhost:9100
+      - "9101:9001"   # WebUI disponible en http://localhost:9101
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_PROMETHEUS_AUTH_TYPE: public   # 👈 permite scraping sin token
+      MINIO_PROMETHEUS_AUTH_TYPE: public
     command: server /data --console-address ":9001"
     volumes:
       - ./s3_data:/data
+  mc:
+    image: minio/mc:latest
+    container_name: mc
+    depends_on:
+      - minio
+    entrypoint: /bin/sh
+    tty: true
+    networks:
+      - default
 
   prometheus:
     image: prom/prometheus:latest
