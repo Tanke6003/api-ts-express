@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "minio"
+    static_configs:
+      - targets: ["minio:9000"]   # expone /minio/metrics/v3
+    metrics_path: /minio/metrics/v3

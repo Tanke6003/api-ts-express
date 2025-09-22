@@ -3,9 +3,16 @@
 **/logs
 /dist
 .env
+# Ignorar todo dentro de uploads
+**/uploads/*
 
 /reports
+/s3_data
 
+
+
+# Excepto el archivo .keep
+!**/uploads/.keep
 
 # # Ignorar reports crudos de Jest (si quieres solo HTML)
 # reports/coverage/*.json

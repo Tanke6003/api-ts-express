@@ -17,6 +17,7 @@ import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/tok
 import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
 import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
 import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
+import { UsersDummyDataSource } from "../../infrastructure/datasources/dummy/users.dummy.datasource";
 // ========== Plugins =================
 container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
 
@@ -39,7 +40,7 @@ container.register<ISqlConnectionPlugin>("TestDB", {
 });
 
 // ========== DataSources =================
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersSqlServerDataSource });
+container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersDummyDataSource  });
 
 // ========== Repositories =================
 
