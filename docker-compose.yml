@@ -23,68 +23,12 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_PROMETHEUS_AUTH_TYPE: public
-    command: server /data --console-address ":9001"
     volumes:
       - ./s3_data:/data
-  mc:
-    image: minio/mc:latest
-    container_name: mc
-    depends_on:
-      - minio
-    entrypoint: /bin/sh
-    tty: true
-    networks:
-      - default
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    depends_on:
-      - minio
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    depends_on:
-      - prometheus
 
-  # localstack:
-  #   image: localstack/localstack:3.4
-  #   container_name: localstack
-  #   ports:
-  #     - "4566:4566"   # gateway S3 y otros
-  #   environment:
-  #     - SERVICES=s3
-  #     - DEBUG=1
-  #     #- DATA_DIR=/var/lib/localstack
-  #     - AWS_DEFAULT_REGION=us-east-1
-  #   # volumes:
-  #   #   - localstack-data:/tmp/localstack
-
-  # s3manager:
-  #   image: cloudlena/s3manager:latest
-  #   container_name: s3manager
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - ENDPOINT=localstack:4566
-  #     - REGION=us-east-1
-  #     - ACCESS_KEY_ID=test
-  #     - SECRET_ACCESS_KEY=test
-  #     - USE_SSL=false
-  #   depends_on:
-  #     - localstack
 
 volumes:
   mssql_data:
-  # localstack-data:
+

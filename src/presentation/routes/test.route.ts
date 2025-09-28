@@ -81,13 +81,7 @@ export class TestRoutes {
   "minioadmin",
   "http://localhost:9100" // endpoint local
 );
-//       const storage = new S3FileStoragePlugin(
-//   "my-bucket",
-//   "us-east-1",
-//   "test",   // credenciales por defecto en LocalStack
-//   "test",   // credenciales por defecto en LocalStack
-//   "http://localhost:4566" // endpoint LocalStack
-// );
+
 
       
       busboy.on("file", async (_fieldname, file, info) => {
@@ -148,13 +142,7 @@ export class TestRoutes {
      */
 app.post("/api/upload-files", (req: Request, res: Response) => {
   const busboy = Busboy({ headers: req.headers });
-      const storage = new S3FileStoragePlugin(
-  "my-bucket",
-  "us-east-1",
-  "minioadmin",
-  "minioadmin",
-  "http://localhost:9100" // endpoint local
-);
+      const storage = new NativeFileStoragePlugin();
   const filesData: { buffer: Buffer; originalname: string }[] = [];
 
   busboy.on("file", (_fieldname, file, info) => {

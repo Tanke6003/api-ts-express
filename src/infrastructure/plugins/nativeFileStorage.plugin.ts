@@ -9,6 +9,7 @@ export class NativeFileStoragePlugin implements IFileStorage {
     constructor(uploadDirectory?: string) {
         this.uploadDirectory =
             uploadDirectory ?? path.join(__dirname, "../../uploads");
+        console.log(this.uploadDirectory)
 
         if (!fs.existsSync(this.uploadDirectory)) {
             fs.mkdirSync(this.uploadDirectory, { recursive: true });
