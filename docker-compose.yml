@@ -1,4 +1,5 @@
 version: "3.8"
+
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -11,6 +12,23 @@ services:
       - "${DB_PORT}:1433"
     volumes:
       - mssql_data:/var/opt/mssql
+      - ./backup:/var/opt/mssql/backup
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9100:9000"   # API disponible en http://localhost:9100
+      - "9101:9001"   # WebUI disponible en http://localhost:9101
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - ./s3_data:/data
+
+
+
 
 volumes:
   mssql_data:
+

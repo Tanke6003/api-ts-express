@@ -17,6 +17,10 @@ import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/tok
 import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
 import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
 import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
+import { UsersDummyDataSource } from "../../infrastructure/datasources/dummy/users.dummy.datasource";
+import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.interface";
+import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
+import path from "path";
 // ========== Plugins =================
 container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
 
@@ -38,8 +42,11 @@ container.register<ISqlConnectionPlugin>("TestDB", {
     }),
 });
 
+container.register<IFileStorage>("IFileStorage",{
+ useValue: new NativeFileStoragePlugin()
+})
 // ========== DataSources =================
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersSqlServerDataSource });
+container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersDummyDataSource  });
 
 // ========== Repositories =================
 
