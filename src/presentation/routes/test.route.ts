@@ -142,7 +142,15 @@ export class TestRoutes {
      */
 app.post("/api/upload-files", (req: Request, res: Response) => {
   const busboy = Busboy({ headers: req.headers });
-      const storage = new NativeFileStoragePlugin();
+        const storage = new S3FileStoragePlugin(
+  "my-bucket",
+  "us-east-1",
+  "minioadmin",
+  "minioadmin",
+  "http://localhost:9100" // endpoint local
+);
+
+
   const filesData: { buffer: Buffer; originalname: string }[] = [];
 
   busboy.on("file", (_fieldname, file, info) => {
