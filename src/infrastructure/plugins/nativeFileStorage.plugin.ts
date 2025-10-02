@@ -1,5 +1,5 @@
 // src/infrastructure/plugins/nativeFileStorage.plugin.ts
-import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.interface";
+import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
 import path from "path";
 import fs from "fs";
 

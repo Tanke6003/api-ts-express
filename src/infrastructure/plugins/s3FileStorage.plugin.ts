@@ -1,4 +1,4 @@
-import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.interface";
+import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export class S3FileStoragePlugin implements IFileStorage {

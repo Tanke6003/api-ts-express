@@ -18,12 +18,18 @@ import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
 import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
 import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
 import { UsersDummyDataSource } from "../../infrastructure/datasources/dummy/users.dummy.datasource";
-import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.interface";
+import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
 import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
 import path from "path";
+import { PinoLoggerPlugin } from "../../infrastructure/plugins/pino.plugin";
 // ========== Plugins =================
-container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
-
+// container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
+container.register<ILogger>("ILogger", {
+  useValue: new PinoLoggerPlugin({
+    service: "api-ts-express",
+    level: process.env.LOG_LEVEL ?? "debug", // para ver más en dev
+  }),
+});
 container.register<IEnvs>("IEnvs", {
   useClass: DotenvPlugin
 });

@@ -15,7 +15,9 @@ export class UsersRepository implements IUsersRepository {
 
     public async getAllUsers(): Promise<IUser[]> {
         try {
+            this.logger.debug("dooo")
             return await this.dataSource.getAllUsers();
+
         } catch (error) {
             this.logger.error("Error in UsersRepository.getAllUsers", { error });
             throw new Error("Failed to fetch users.");
