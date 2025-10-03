@@ -1,8 +1,9 @@
-// tests/unit/routes/test.route.unit.test.ts
 import request from "supertest";
 import express from "express";
+import { container } from "tsyringe";
+import { IEnvs } from "../../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 import { S3FileStoragePlugin } from "../../../src/infrastructure/plugins/s3FileStorage.plugin";
-import { TestRoutes } from '../../../src/presentation/routes/test.route';
+import { TestRoutes } from "../../../src/presentation/routes/test.route";
 
 // mock del S3FileStoragePlugin
 jest.mock("../../../src/infrastructure/plugins/s3FileStorage.plugin");
@@ -11,8 +12,20 @@ describe("TestRoutes (unit)", () => {
   let app: express.Express;
 
   beforeEach(() => {
-    app = express();
+    // Reiniciar el contenedor de tsyringe
+    container.reset();
 
+    // Mock de IEnvs para devolver siempre un JWT_SECRET
+    container.register<IEnvs>("IEnvs", {
+      useValue: {
+        getEnv: (key: string) => {
+          if (key === "JWT_SECRET") return "unit-test-secret";
+          return "";
+        },
+      },
+    });
+
+    // Mock de S3FileStoragePlugin
     (S3FileStoragePlugin as jest.Mock).mockImplementation(() => ({
       single: jest.fn().mockResolvedValue("https://fake-bucket.s3.amazonaws.com/file.txt"),
       array: jest.fn().mockResolvedValue([
@@ -21,15 +34,25 @@ describe("TestRoutes (unit)", () => {
       ]),
     }));
 
+    // Inicializar Express y registrar las rutas de prueba
+    app = express();
+    app.use(express.json());
     new TestRoutes().register(app);
   });
 
+  // =============================
+  // ✅ Ruta GET /api/generate-token
+  // =============================
   it("GET /api/generate-token should return a token", async () => {
     const res = await request(app).get("/api/generate-token");
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("token");
+    expect(typeof res.body.token).toBe("string");
   });
 
+  // =============================
+  // ✅ Ruta POST /api/upload-file
+  // =============================
   it("POST /api/upload-file should return mocked path", async () => {
     const res = await request(app)
       .post("/api/upload-file")
@@ -39,6 +62,9 @@ describe("TestRoutes (unit)", () => {
     expect(res.body.path).toBe("https://fake-bucket.s3.amazonaws.com/file.txt");
   });
 
+  // =============================
+  // ✅ Ruta POST /api/upload-files
+  // =============================
   it("POST /api/upload-files should return mocked paths", async () => {
     const res = await request(app)
       .post("/api/upload-files")

@@ -5,9 +5,10 @@ import cors from "cors";
 import { IndexRoutes } from "../presentation/routes/index.route";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
-import { swaggerOptions } from "./config/swagger.config";
+
 import { httpLoggerMiddleware } from "../presentation/middlewares/httpLogger.middleware";
 import {  injectable } from "tsyringe";
+import { getSwaggerOptions } from "./config/swagger.config";
 
 @injectable()
 export class Server {
@@ -52,7 +53,7 @@ export class Server {
        
     }
     async configureSwagger() {
-        const swaggerSpec = swaggerJsdoc(swaggerOptions);
+        const swaggerSpec = swaggerJsdoc(getSwaggerOptions());
 
         // Swagger UI en /api-docs
         this.app.use("/api/swagger", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

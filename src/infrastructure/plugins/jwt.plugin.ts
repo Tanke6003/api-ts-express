@@ -2,12 +2,14 @@
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import { container } from "tsyringe";
 
 export class JwtPlugin implements ITokenPlugin{
   private readonly secret: string;
-
+  private envs:IEnvs = container.resolve("IEnvs")
   constructor(secret?: string) {
-    this.secret = secret ?? process.env.JWT_SECRET ?? "super-secret-key";
+    this.secret = secret ?? this.envs.getEnv("JWT_SECRET") ?? "super-secret-key";
   }
 
   /**

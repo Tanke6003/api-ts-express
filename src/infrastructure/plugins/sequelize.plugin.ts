@@ -3,7 +3,7 @@ import { Sequelize, QueryTypes, Transaction, Options } from "sequelize";
 import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
 
 export interface SequelizeConnectionConfig {
-  dialect: "mssql" | "mysql" | "mariadb" | "postgres";
+  dialect: "mssql" | "mysql" | "mariadb" | "postgres"|string;
   host: string;
   port: number;
   username: string;

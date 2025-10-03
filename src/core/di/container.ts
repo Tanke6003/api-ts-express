@@ -23,29 +23,32 @@ import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFile
 import path from "path";
 import { PinoLoggerPlugin } from "../../infrastructure/plugins/pino.plugin";
 // ========== Plugins =================
+container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
+
+const envs:IEnvs = container.resolve("IEnvs");
 // container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
 container.register<ILogger>("ILogger", {
   useValue: new PinoLoggerPlugin({
     service: "api-ts-express",
-    level: process.env.LOG_LEVEL ?? "debug", // para ver más en dev
+    level: envs.getEnv("LOG_LEVEL") ?? "debug", // para ver más en dev
   }),
 });
-container.register<IEnvs>("IEnvs", {
-  useClass: DotenvPlugin
-});
+
+
+
 container.register<ITokenPlugin>("ITokenPlugin", {
   useClass: JwtPlugin
 });
 
 container.register<ISqlConnectionPlugin>("TestDB", {
   useValue: new SequelizePlugin({
-      dialect: "mssql",
-      host: process.env.DB_HOST || "localhost",
-      port: Number(process.env.DB_PORT) || 1434,
-      username: process.env.DB_USER || "sa",
-      password: process.env.DB_PASSWORD || "StrongPassword123!",
-      database: process.env.DB_NAME || "testdb",
-    }),
+    dialect: envs.getEnv("DB_DIALECT") || "mssql",
+    host: envs.getEnv("DB_HOST") || "localhost",
+    port: Number(envs.getEnv("DB_PORT") || "1434"),
+    username: envs.getEnv("DB_USER") || "sa",
+    password: envs.getEnv("DB_PASSWORD") || "StrongPassword123!",
+    database: envs.getEnv("DB_NAME") || "testdb",
+  }),
 });
 
 container.register<IFileStorage>("IFileStorage",{

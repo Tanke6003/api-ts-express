@@ -1,10 +1,29 @@
+import { container } from "tsyringe";
 import { JwtPlugin } from "../../../../src/infrastructure/plugins/jwt.plugin";
 import { Request, Response, NextFunction } from 'express';
+import { IEnvs } from "../../../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 
 describe("JWTPlugin", () => {
-  const jwtPlugin = new JwtPlugin();
+  let jwtPlugin: JwtPlugin;
 
-  it("it should create a token string", () => {
+  beforeEach(() => {
+    container.reset();
+
+    // Mock de IEnvs para devolver siempre un JWT_SECRET
+    container.register<IEnvs>("IEnvs", {
+      useValue: {
+        getEnv: (key: string) => {
+          if (key === "JWT_SECRET") return "unit-test-secret";
+          return "";
+        },
+      },
+    });
+
+    // ✅ Ahora sí instanciamos el JwtPlugin después del registro
+    jwtPlugin = new JwtPlugin();
+  });
+
+  it("should create a token string", () => {
     const token = jwtPlugin.generateToken({ userId: 1 });
     expect(typeof token).toBe("string");
     expect(token.length).toBeGreaterThan(0);
@@ -23,7 +42,6 @@ describe("JWTPlugin", () => {
   it("middleware should call next() if token is valid", () => {
     const token = jwtPlugin.generateToken({ userId: 42 });
 
-    // Cast seguro para tests
     const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request;
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as unknown as Response;
     const next = jest.fn() as NextFunction;

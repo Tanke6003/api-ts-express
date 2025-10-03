@@ -8,9 +8,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "NODE_ENV=production node dist/main.js",
     "start:win": "set NODE_ENV=production&& node dist/main.js",
-    "test": "jest --passWithNoTests --verbose",
+    "test": "jest",
     "test:watch": "jest --watch --verbose",
-    "test:coverage": "jest --coverage --verbose --detectOpenHandles --runInBand --coverageReporters=text --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=html --coverageReporters=json-summary",
+    "test:local": "jest --coverage --verbose --detectOpenHandles --runInBand --coverageReporters=text --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=html --coverageReporters=json-summary",
+    "test:repo": "jest --coverage --coverageReporters=text-summary",
     "lint": "eslint \"src/**/*.{ts,js}\" --fix"
   },
   "keywords": [],

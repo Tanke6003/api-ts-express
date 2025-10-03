@@ -33,7 +33,7 @@ public register(app: any) {
      *               items:
      *                 $ref: '#/components/schemas/User'
      */
-    app.get("/api/users", this.usersController.getAllUsers.bind(this.usersController));
+    app.get("/users", this.usersController.getAllUsers.bind(this.usersController));
 
     /**
      * @openapi
@@ -54,7 +54,7 @@ public register(app: any) {
      *       404:
      *         description: User not found
      */
-    app.get("/api/users/:id", this.usersController.getUserById.bind(this.usersController));
+    app.get("/users/:id", this.usersController.getUserById.bind(this.usersController));
 
 /**
  * @openapi
@@ -76,7 +76,7 @@ public register(app: any) {
  *         description: User created
  */
 app.post(
-  "/api/users",
+  "/users",
   this.JwtPlugin.middleware,
   this.usersController.createUser.bind(this.usersController)
 );
@@ -106,7 +106,7 @@ app.post(
      *       404:
      *         description: User not found
      */
-    app.put("/api/users/:id", this.usersController.updateUser.bind(this.usersController));
+    app.put("/users/:id", this.usersController.updateUser.bind(this.usersController));
 
     /**
      * @openapi
@@ -127,6 +127,6 @@ app.post(
      *       404:
      *         description: User not found
      */
-    app.delete("/api/users/:id", this.usersController.deleteUser.bind(this.usersController));
+    app.delete("/users/:id", this.usersController.deleteUser.bind(this.usersController));
   }
 }

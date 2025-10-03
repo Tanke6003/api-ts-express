@@ -2,25 +2,27 @@
 import pino, { Logger } from "pino";
 import pinoHttp from "pino-http";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { injectable } from "tsyringe";
+import { container, injectable } from "tsyringe";
+import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 
 @injectable()
 export class PinoLoggerPlugin implements ILogger {
   private logger: Logger;
   private httpMw: ReturnType<typeof pinoHttp>;
-
+  private envs:IEnvs = container.resolve("IEnvs")
   constructor(opts?: {
     level?: string;
     service?: string;
     env?: string;
     version?: string;
   }) {
+    console.log("levellog",opts?.level)
     this.logger = pino({
-      level: opts?.level ?? process.env.LOG_LEVEL ?? "info",
+      level: opts?.level ?? this.envs.getEnv("LOG_LEVEL") ?? "info",
       base: {
-        service: opts?.service ?? process.env.SERVICE_NAME ?? "api",
-        env: opts?.env ?? process.env.NODE_ENV ?? "dev",
-        version: opts?.version ?? process.env.APP_VERSION ?? "dev",
+        service: opts?.service ??  this.envs.getEnv("SERVICE_NAME") ?? "api",
+        env: opts?.env ??  this.envs.getEnv("NODE_ENV") ?? "dev",
+        version: opts?.version ?? this.envs.getEnv("API_VERSION")?? "dev",
       },
       timestamp: pino.stdTimeFunctions.isoTime,
     });
