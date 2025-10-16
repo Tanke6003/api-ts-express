@@ -7,8 +7,9 @@ import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 
 import { httpLoggerMiddleware } from "../presentation/middlewares/httpLogger.middleware";
-import {  injectable } from "tsyringe";
+import {  container, injectable } from "tsyringe";
 import { getSwaggerOptions } from "./config/swagger.config";
+import { ILogger } from "../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
 @injectable()
 export class Server {
@@ -24,6 +25,8 @@ export class Server {
 
     // Configure middleware for the Express app
     async configureMiddleware() {
+        return new Promise<void>((resolve,reject)=>{
+            
         // Middleware to parse JSON and urlencoded data
         this.app.use(express.json());
         // for parsing application/x-www-form-urlencoded
@@ -34,8 +37,11 @@ export class Server {
         this.app.use(express.json({ limit: "50mb" }));
         //limit urlencoded request size to 50mb
         this.app.use(express.urlencoded({ limit: "50mb", extended: true }));
+        const logger:ILogger = container.resolve("ILogger");
         // register http logs
-        this.app.use(httpLoggerMiddleware);
+        this.app.use(logger.http());
+        resolve();
+        })
 
 
     }

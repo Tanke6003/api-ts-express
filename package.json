@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx watch src/main.ts",
     "dev:win": "set NODE_ENV=development&& tsx watch src/main.ts ",
+      "dev:win:pretty": "set NODE_ENV=development&& tsx watch src/main.ts | npx pino-pretty --singleLine --colorize --translateTime \"SYS:isoTime\" --ignore pid,hostname,service,env,version",
     "build": "tsc -p tsconfig.json",
     "start": "NODE_ENV=production node dist/main.js",
     "start:win": "set NODE_ENV=production&& node dist/main.js",
