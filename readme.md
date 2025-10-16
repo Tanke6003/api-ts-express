@@ -1,8 +1,28 @@
-# 📌 API TS Express
+# 📌 API Template - Node.js, Express 5 & TypeScript
 
-API base construida con **Node.js**, **Express 5**, **TypeScript**, documentada con **Swagger** y **Scalar API Reference**, con **JWT** para seguridad y **Sequelize** (SQL Server vía `tedious`). Incluye **Winston** para logging y **CORS**/**dotenv** para configuración.
 
----
+This is a template for building APIs using **Node.js**, **Express 5**, and **TypeScript**.  
+This API is built following **Clean Architecture principles** and common design patterns, making it **scalable** and **modular**, so components can be **added or removed with minimal effort**.
+## Design Patterns
+This project implements the following design patterns:
+
+- **Repository Pattern:** Implemented in `infrastructure/repositories/` to separate data access logic from business logic, allowing easy swapping of data sources.  
+- **Dependency Injection (DI):** Configured in `core/di/` using **tsyringe**, enabling modularity and easier testing.  
+- **Service Layer / Application Service:** `application/services/` encapsulates business logic and use cases, keeping controllers thin.  
+- **DTO (Data Transfer Object):** `application/dtos/` transfers data between layers without exposing domain entities directly.  
+- **Singleton / Logger Pattern:** `infrastructure/plugins/` uses **Winston** as a singleton for centralized logging.  
+- **Factory Pattern (implicit):** Used for instantiating models, plugins, or connections in a decoupled way.  
+- **Clean Architecture / Layered Architecture:** Clear separation of layers: `presentation`, `application`, `domain`, `infrastructure`.
+
+## Features
+
+- **Automated Documentation:** Use **Swagger** or **Scalar API Reference** with OpenAPI comments methodology.  
+- **Authentication:** Implemented using **JWT** (JSON Web Tokens).  
+- **Data Persistence:** Handled with **Sequelize** and **Tedious** for SQL Server connections.  
+- **Logging:** Managed with **Winston**.  
+- **Environment Variables:** Managed with **dotenv**.  
+- **Testing:** Set up with **Jest**.
+
 
 ## 🚀 Requisitos previos
 - [Node.js](https://nodejs.org/) >= 18
@@ -29,35 +49,13 @@ En el `package.json` están definidos los siguientes scripts:
 | `npm run dev` | Corre la API en modo desarrollo con **Hot Reload** usando `tsx watch` |
 | `npm run build` | Compila el proyecto con `tsc` y genera los archivos en `dist/` |
 | `npm start` | Corre la API compilada desde `dist/main.js` |
-| `npm run vercel-start` | Arranque para **Vercel** usando `tsx src/main.ts` |
 
 ---
 
-## 📂 Estructura del proyecto
+- [📂 Estructura del proyecto](docs/architecture.md)
 
-```plaintext
-src/
- ├─ main.ts                 # Punto de entrada
- ├─ core/                   # Bootstrap (server, config/env, DI si aplica)
- │   └─ config/
- ├─ presentation/           # Capa HTTP: rutas, controladores, middlewares
- │   ├─ controllers/
- │   ├─ middlewares/
- │   └─ routes/
- ├─ application/            # Casos de uso, DTOs, mappers/servicios de aplicación
- │   ├─ dtos/
- │   └─ services/
- ├─ domain/                 # Entidades y contratos (interfaces) del dominio
- │   ├─ interfaces/
- │   └─ models/
- ├─ infrastructure/         # Implementaciones: repos, datasources, plugins
- │   ├─ datasources/
- │   ├─ plugins/            # Winston, etc.
- │   └─ repositories/
- └─ logs/                       # Archivos de log (recomendado en .gitignore)
-```
 
-> Los **middlewares que interceptan HTTP** (CORS, parsers, logging) viven en `presentation/middlewares` y se montan en el bootstrap (`core/server.ts` o `main.ts`) **antes** de registrar rutas.
+Los **middlewares que interceptan HTTP** (CORS, parsers, logging) viven en `presentation/middlewares` y se montan en el bootstrap (`core/server.ts` o `main.ts`) **antes** de registrar rutas.
 
 ---
 

@@ -47,9 +47,9 @@ export class WinstonPlugin implements ILogger{
         filename: path.join(logDir, "error.log"),
         level: "error",
       }),
-      new winston.transports.File({
-        filename: path.join(logDir, "combined.log"),
-      }),
+      // new winston.transports.File({
+      //   filename: path.join(logDir, "combined.log"),
+      // }),
       new winston.transports.File({
         filename: path.join(logDir, "debug.log"),
         level: "debug",
@@ -67,7 +67,7 @@ export class WinstonPlugin implements ILogger{
         level: "http",
         format: winston.format.combine(
           winston.format.timestamp(),
-          // Guardamos logs HTTP en JSON estructurado
+
           winston.format.json()
         ),
       }),
@@ -81,7 +81,7 @@ export class WinstonPlugin implements ILogger{
     this.logger.log(level, message, meta);
   }
 
-  // Middleware para logs HTTP
+
   http(req: any, res: any) {
     const { method, originalUrl, headers, ip } = req;
 
@@ -100,7 +100,6 @@ export class WinstonPlugin implements ILogger{
     });
   }
 
-  // Métodos de nivel
   info(message: string, meta: object = {}) {
     this.log("info", message, meta);
   }
