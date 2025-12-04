@@ -22,17 +22,26 @@ import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fil
 import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
 import path from "path";
 import { PinoLoggerPlugin } from "../../infrastructure/plugins/pino.plugin";
+import { ServerlessLoggerPlugin } from "../../infrastructure/plugins/serverless-logger.plugin";
 // ========== Plugins =================
 container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
 
 const envs:IEnvs = container.resolve("IEnvs");
+const isServerless = (envs.getEnv("SERVERLESS") ?? envs.getEnv("IS_SERVERLESS") ?? "")
+  .toString()
+  .toLowerCase() === "true";
+
 // container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
-container.register<ILogger>("ILogger", {
-  useValue: new PinoLoggerPlugin({
-    service: "api-ts-express",
-    level: envs.getEnv("LOG_LEVEL") ?? "debug", // para ver más en dev
-  }),
-});
+if (isServerless) {
+  container.registerSingleton<ILogger>("ILogger", ServerlessLoggerPlugin);
+} else {
+  container.register<ILogger>("ILogger", {
+    useValue: new PinoLoggerPlugin({
+      service: "api-ts-express",
+      level: envs.getEnv("LOG_LEVEL") ?? "debug", // para ver más en dev
+    }),
+  });
+}
 
 
 

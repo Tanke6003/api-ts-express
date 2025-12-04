@@ -30,6 +30,7 @@
     "pino": "^9.11.0",
     "pino-http": "^10.5.0",
     "reflect-metadata": "^0.2.2",
+    "serverless-http": "^3.2.0",
     "sequelize": "^6.37.7",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-dist": "^5.29.0",

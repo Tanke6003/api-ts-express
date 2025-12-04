@@ -6,8 +6,7 @@ import { IndexRoutes } from "../presentation/routes/index.route";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 
-import { httpLoggerMiddleware } from "../presentation/middlewares/httpLogger.middleware";
-import {  container, injectable } from "tsyringe";
+import { container, injectable } from "tsyringe";
 import { getSwaggerOptions } from "./config/swagger.config";
 import { ILogger } from "../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
@@ -16,34 +15,30 @@ export class Server {
     private readonly port: number;
     public app: Application = express();
     private routes = IndexRoutes;
-    constructor(
-    
-        port: number) {
-        this.port = port;
+    private initialized = false;
 
+    constructor(port = 3000) {
+        this.port = port;
     }
 
     // Configure middleware for the Express app
     async configureMiddleware() {
-        return new Promise<void>((resolve,reject)=>{
-            
-        // Middleware to parse JSON and urlencoded data
-        this.app.use(express.json());
-        // for parsing application/x-www-form-urlencoded
-        this.app.use(express.urlencoded({ extended: true }));
-        // Enable CORS for all routes
-        this.app.use(cors());
-        //limit request size to 50mb
-        this.app.use(express.json({ limit: "50mb" }));
-        //limit urlencoded request size to 50mb
-        this.app.use(express.urlencoded({ limit: "50mb", extended: true }));
-        const logger:ILogger = container.resolve("ILogger");
-        // register http logs
-        this.app.use(logger.http());
-        resolve();
-        })
-
-
+        return new Promise<void>((resolve) => {
+            // Middleware to parse JSON and urlencoded data
+            this.app.use(express.json());
+            // for parsing application/x-www-form-urlencoded
+            this.app.use(express.urlencoded({ extended: true }));
+            // Enable CORS for all routes
+            this.app.use(cors());
+            //limit request size to 50mb
+            this.app.use(express.json({ limit: "50mb" }));
+            //limit urlencoded request size to 50mb
+            this.app.use(express.urlencoded({ limit: "50mb", extended: true }));
+            const logger: ILogger = container.resolve("ILogger");
+            // register http logs
+            this.app.use(logger.http());
+            resolve();
+        });
     }
 
     async configureScalar() {
@@ -85,22 +80,24 @@ export class Server {
     }
 
 
-async run() {
- 
-  await this.configureMiddleware();
-  await this.configureRoutes();
-  await this.configureScalar();
-  await this.configureSwagger();
+    async init() {
+        if (this.initialized) return;
+        await this.configureMiddleware();
+        await this.configureRoutes();
+        await this.configureScalar();
+        await this.configureSwagger();
+        this.initialized = true;
+    }
 
+    async run() {
+        await this.init();
 
-    this.app.listen(this.port, () => {
-      console.log(`🚀 Server listening on port ${this.port}`);
-      console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
-      console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
-      console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
-      console.log(`💖 Health:  http://localhost:${this.port}/health`);
-    });
-
-
-}
+        this.app.listen(this.port, () => {
+            console.log(`🚀 Server listening on port ${this.port}`);
+            console.log(`🧪 To Test: http://localhost:${this.port}/api/users`);
+            console.log(`🟢 Swagger: http://localhost:${this.port}/api/swagger`);
+            console.log(`🌘 Scalar:  http://localhost:${this.port}/api/scalar`);
+            console.log(`💖 Health:  http://localhost:${this.port}/health`);
+        });
+    }
 }
