@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import "./core/di/container";
-import serverlessExpress from "serverless-http";
 import { Server } from "./core/server";
+import { createServerlessHandler, LambdaLikeEvent, LambdaLikeResponse } from "./core/serverless-adapter";
 
 const server = new Server();
 let cachedHandler: any;
@@ -9,13 +9,13 @@ let cachedHandler: any;
 async function bootstrap() {
   if (!cachedHandler) {
     await server.init();
-    cachedHandler = serverlessExpress(server.app);
+    cachedHandler = createServerlessHandler(server.app);
   }
 
   return cachedHandler;
 }
 
-export const handler = async (event: any, context: any) => {
+export const handler = async (event: LambdaLikeEvent, _context: any): Promise<LambdaLikeResponse> => {
   const appHandler = await bootstrap();
-  return appHandler(event, context);
+  return appHandler(event);
 };

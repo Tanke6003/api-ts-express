@@ -54,7 +54,7 @@ describe("Server class", () => {
     // Mock de ILogger (necesario para httpLoggerMiddleware)
     container.register<ILogger>("ILogger", {
       useValue: {
-        http: jest.fn((_req, _res) => {}),
+        http: jest.fn(() => (_req: any, _res: any, next: any) => next()),
         info: jest.fn(),
         warn: jest.fn(),
         error: jest.fn(),

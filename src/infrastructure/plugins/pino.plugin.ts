@@ -15,7 +15,7 @@ export class PinoLoggerPlugin implements ILogger {
     const env = (opts?.env ?? this.envs.getEnv("NODE_ENV") ?? "dev").toString();
     const isDev = /^(dev|development)$/i.test(env);
 
-    const level = opts?.level ?? this.envs.getEnv("LOG_LEVEL") ?? (isDev ? "trace" : "info");
+    const level = opts?.level ?? this.envs.getEnv("LOG_LEVEL") ?? "info";
     const service = opts?.service ?? this.envs.getEnv("SERVICE_NAME") ?? "api";
     const version = opts?.version ?? this.envs.getEnv("API_VERSION") ?? "dev";
 
@@ -37,34 +37,49 @@ export class PinoLoggerPlugin implements ILogger {
       }
     }
 
-    this.logger = pino(
-      {
-        level,
-        base: { service, env, version },
-        timestamp: pino.stdTimeFunctions.isoTime,
-        redact: {
-          paths: [
-            "req.headers.authorization",
-            "req.headers.cookie",
-            "headers.authorization",
-            "password",
-            "authorization"
-          ],
-          remove: true
-        }
-      },
-      transport
-    );
+    const baseConfig = {
+      level,
+      base: { service, env, version },
+      timestamp: pino.stdTimeFunctions.isoTime,
+      redact: {
+        paths: [
+          "req.headers.authorization",
+          "req.headers.cookie",
+          "headers.authorization",
+          "password",
+          "authorization"
+        ],
+        remove: true
+      }
+    };
+
+    this.logger = transport ? pino(baseConfig, transport) : pino(baseConfig);
 
     this.httpMidleWare = pinoHttp({
       logger: this.logger,
-      customSuccessMessage: undefined,
+      customSuccessMessage: () => "http_access",
       customErrorMessage: (_req, _res, err) => err?.message || "http_error",
       customLogLevel: (_req, res, err) => {
         if (err) return "error";
         if (res.statusCode >= 500) return "error";
         if (res.statusCode >= 400) return "warn";
         return "info";
+      },
+      customProps: (req, res) => {
+        const headers = req.headers || {};
+        const reqId = headers["x-request-id"] || headers["x-amzn-trace-id"];
+        const userAgent = headers["user-agent"];
+        const forwarded = headers["x-forwarded-for"] as string | undefined;
+        const ip = forwarded?.split(",")[0]?.trim() || req.socket?.remoteAddress;
+
+        return {
+          reqId,
+          userAgent,
+          ip,
+          statusCode: res.statusCode,
+          method: req.method,
+          url: req.url,
+        };
       },
       autoLogging: true,
     });

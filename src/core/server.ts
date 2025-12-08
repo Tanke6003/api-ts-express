@@ -42,16 +42,19 @@ export class Server {
     }
 
     async configureScalar() {
-
-            const { apiReference } = await import("@scalar/express-api-reference");
-            this.app.use(
-                "/api/scalar",
-                apiReference({
-                    url: "/api/openapi.json",
-                    theme: "purple",
-                })
-            );
-       
+        if ((process.env.DISABLE_SCALAR ?? "").toLowerCase() === "true") {
+            return;
+        }
+        // require en vez de import dinámico para evitar --experimental-vm-modules en runtimes cjs (tests)
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { apiReference } = require("@scalar/express-api-reference");
+        this.app.use(
+            "/api/scalar",
+            apiReference({
+                url: "/api/openapi.json",
+                theme: "purple",
+            })
+        );
     }
     async configureSwagger() {
         const swaggerSpec = swaggerJsdoc(getSwaggerOptions());

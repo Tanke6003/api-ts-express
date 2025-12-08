@@ -148,6 +148,18 @@ npm run build
 npm start
 ```
 
+### 🧪 Probar el handler en modo serverless
+
+```bash
+# Ejecuta el handler con un evento simulado (GET /health) sin abrir un puerto HTTP
+npm run demo:serverless
+
+# Verifica vía tests que el handler responde OK en modo serverless
+npm test -- tests/unit/serverless-handler.unit.test.ts
+```
+
+Ambos comandos fuerzan `SERVERLESS=true` y reutilizan el mismo `Server` que Express, pero sin llamar a `app.listen`, validando que el punto de entrada `src/handler.ts` funciona como función Lambda/API Gateway.
+
 ---
 
 ## ✅ Checklist rápido
