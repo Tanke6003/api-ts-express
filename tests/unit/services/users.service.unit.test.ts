@@ -67,10 +67,12 @@ describe("UsersService Unit Tests", () => {
     expect(mockRepository.getUserById).toHaveBeenCalledWith(1);
   });
 
-  it("should throw an error if user not found", async () => {
+  it("should return null if user not found", async () => {
     mockRepository.getUserById.mockResolvedValue(null);
 
-    await expect(usersService.getUserById(99)).rejects.toThrow("User not found");
+    const result = await usersService.getUserById(99);
+
+    expect(result).toBeNull();
     expect(mockRepository.getUserById).toHaveBeenCalledWith(99);
   });
 

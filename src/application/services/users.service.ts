@@ -15,16 +15,9 @@ export class UsersService implements IUsersService {
         
     }
     async getUserById(id: number): Promise<UserDTO | null> {
-        try {
-            const user = await this.repository.getUserById(id);
-            if (!user) {
-                throw new Error("User not found");
-            }
-            return this.toDTO(user);
-        } catch (error:any) {
-            throw new Error(error.message );
-        }
-        
+        const user = await this.repository.getUserById(id);
+        if (!user) return null;
+        return this.toDTO(user);
     }
 
     async createUser(user: UserDTO): Promise<boolean> {

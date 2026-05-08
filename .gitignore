@@ -3,6 +3,8 @@
 **/logs
 /dist
 .env
+.env.*
+!.env.template
 # Ignorar todo dentro de uploads
 **/uploads/*
 

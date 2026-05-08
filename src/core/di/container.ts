@@ -30,7 +30,7 @@ const envs:IEnvs = container.resolve("IEnvs");
 container.register<ILogger>("ILogger", {
   useValue: new PinoLoggerPlugin({
     service: "api-ts-express",
-    level: envs.getEnv("LOG_LEVEL") ?? "debug", // para ver más en dev
+    level: envs.getEnv("LOG_LEVEL") || "debug",
   }),
 });
 

@@ -1,28 +1,34 @@
-name: Run Tests
+name: Tests
 
 on:
   push:
-    branches:
-        - "**"
+    branches: ["**"]
   pull_request:
-    branches: [ "master" ]   # cuando hagan PR hacia master
+    branches: [master]
 
 jobs:
   test:
+    name: Unit & Integration Tests
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"   # versión que uses localmente
+          node-version: "20"
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run tests
         run: npm run test:repo
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: reports/coverage/
+          retention-days: 14

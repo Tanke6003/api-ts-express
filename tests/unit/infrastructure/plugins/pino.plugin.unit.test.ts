@@ -36,10 +36,11 @@ describe("PinoLoggerPlugin extra branches", () => {
         level: "info",
         base: expect.objectContaining({
           service: "api",
-          env: "dev",
+          env: "production",
           version: "dev",
         }),
-      })
+      }),
+      undefined   // no transport in non-dev mode
     );
   });
 

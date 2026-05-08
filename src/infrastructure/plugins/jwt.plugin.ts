@@ -9,7 +9,7 @@ export class JwtPlugin implements ITokenPlugin{
   private readonly secret: string;
   private envs:IEnvs = container.resolve("IEnvs")
   constructor(secret?: string) {
-    this.secret = secret ?? this.envs.getEnv("JWT_SECRET") ?? "super-secret-key";
+    this.secret = secret || this.envs.getEnv("JWT_SECRET") || "super-secret-key";
   }
 
   /**
