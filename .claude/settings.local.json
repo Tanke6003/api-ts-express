@@ -9,7 +9,13 @@
       "Bash(.\\\\node_modules\\\\.bin\\\\tsc *)",
       "PowerShell(.\\\\node_modules\\\\.bin\\\\tsc -p tsconfig.json 2>&1)",
       "PowerShell(& \".\\\\node_modules\\\\.bin\\\\tsc.cmd\" -p tsconfig.json 2>&1)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh workflow *)",
+      "PowerShell(gh workflow *)",
+      "Bash(npm test *)",
+      "Bash(git add *)"
     ]
   }
 }

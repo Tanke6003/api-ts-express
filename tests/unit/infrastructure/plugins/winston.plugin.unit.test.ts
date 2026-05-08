@@ -81,9 +81,11 @@ describe("WinstonPlugin", () => {
       }),
       statusCode: 200,
     };
+    const next = jest.fn();
 
-    plugin.http(req, res);
+    plugin.http()(req, res, next);
 
+    expect(next).toHaveBeenCalled();
     expect(mockLogger.log).toHaveBeenCalledWith(
       "http",
       "HTTP Request",
@@ -110,9 +112,11 @@ describe("WinstonPlugin", () => {
       }),
       statusCode: 404,
     };
+    const next = jest.fn();
 
-    plugin.http(req, res);
+    plugin.http()(req, res, next);
 
+    expect(next).toHaveBeenCalled();
     expect(mockLogger.log).toHaveBeenCalledWith(
       "http",
       "HTTP Request",
