@@ -82,22 +82,26 @@ export class WinstonPlugin implements ILogger{
   }
 
 
-  http(req: any, res: any) {
-    const { method, originalUrl, headers, ip } = req;
+  http() {
+    return (req: any, res: any, next: any) => {
+      const { method, originalUrl, headers, ip } = req;
 
-    res.on("finish", () => {
-      const { statusCode } = res;
+      res.on("finish", () => {
+        const { statusCode } = res;
 
-      this.log("http", "HTTP Request", {
-        timestamp: new Date().toISOString(),
-        type: "request",
-        ip,
-        method,
-        endpoint: originalUrl,
-        status: statusCode,
-        userAgent: headers["user-agent"],
+        this.log("http", "HTTP Request", {
+          timestamp: new Date().toISOString(),
+          type: "request",
+          ip,
+          method,
+          endpoint: originalUrl,
+          status: statusCode,
+          userAgent: headers["user-agent"],
+        });
       });
-    });
+
+      next();
+    };
   }
 
   info(message: string, meta: object = {}) {
