@@ -29,21 +29,28 @@ describe("UsersSqlServerDataSource Unit Tests", () => {
     dataSource = new UsersSqlServerDataSource(mockLogger, mockDb);
   });
 
-  it("should return all available users", async () => {
+  it("should return all available users with total count", async () => {
     const rows = [
       { PKUser: 1, Name: "Alice" },
       { PKUser: 2, Name: "Bob" },
     ];
-    mockDb.executeQuery.mockResolvedValue({ rows, metadata: 2 });
+    mockDb.executeQuery
+      .mockResolvedValueOnce({ rows: [{ total: 2 }], metadata: 0 }) // COUNT
+      .mockResolvedValueOnce({ rows, metadata: 2 });                 // Data
 
-    const result = await dataSource.getAllUsers();
+    const result = await dataSource.getAllUsers(1, 10);
 
-    expect(result).toEqual([
-      { pkUser: 1, name: "Alice" },
-      { pkUser: 2, name: "Bob" },
-    ]);
-    expect(mockLogger.debug).toHaveBeenCalledWith("✅ getAllUsers ejecutado", {
-      count: 2,
+    expect(result).toEqual({
+      users: [
+        { pkUser: 1, name: "Alice" },
+        { pkUser: 2, name: "Bob" },
+      ],
+      total: 2,
+    });
+    expect(mockLogger.debug).toHaveBeenCalledWith("getAllUsers ejecutado", {
+      page: 1,
+      limit: 10,
+      total: 2,
     });
   });
 
@@ -74,7 +81,7 @@ describe("UsersSqlServerDataSource Unit Tests", () => {
     const result = await dataSource.createUser(user);
 
     expect(result).toBe(true);
-    expect(mockLogger.info).toHaveBeenCalledWith("👤 Usuario creado", {
+    expect(mockLogger.info).toHaveBeenCalledWith("Usuario creado", {
       user,
       affected: 1,
     });
@@ -86,7 +93,7 @@ describe("UsersSqlServerDataSource Unit Tests", () => {
     const result = await dataSource.updateUser(1, { name: "Updated" });
 
     expect(result).toBe(true);
-    expect(mockLogger.info).toHaveBeenCalledWith("✏️ Usuario actualizado", {
+    expect(mockLogger.info).toHaveBeenCalledWith("Usuario actualizado", {
       id: 1,
       user: { name: "Updated" },
       affected: 1,
@@ -100,15 +107,25 @@ describe("UsersSqlServerDataSource Unit Tests", () => {
 
     expect(result).toBe(true);
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      "🗑 Usuario marcado como eliminado",
+      "Usuario marcado como eliminado",
       { id: 1, affected: 1 }
     );
+  });
+
+  it("should return total 0 when count query returns empty rows", async () => {
+    mockDb.executeQuery
+      .mockResolvedValueOnce({ rows: [], metadata: 0 }) // COUNT returns no row
+      .mockResolvedValueOnce({ rows: [], metadata: 0 }); // Data
+
+    const result = await dataSource.getAllUsers(1, 10);
+
+    expect(result).toEqual({ users: [], total: 0 });
   });
 
   it("should log and throw on DB error in getAllUsers", async () => {
     mockDb.executeQuery.mockRejectedValue(new Error("DB is down"));
 
-    await expect(dataSource.getAllUsers()).rejects.toThrow(
+    await expect(dataSource.getAllUsers(1, 10)).rejects.toThrow(
       "[DataSource] getAllUsers failed: DB is down"
     );
     expect(mockLogger.error).toHaveBeenCalled();

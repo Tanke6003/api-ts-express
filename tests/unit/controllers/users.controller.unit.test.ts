@@ -1,15 +1,24 @@
 // tests/unit/controllers/users.controller.unit.test.ts
 import { UsersController } from "../../../src/presentation/controllers/users.controller";
 import { IUsersService } from "../../../src/domain/interfaces/application/services/users.service.interface";
-import { UserDTO } from "../../../src/application/dtos/users.dtos";
+import { PaginatedDTO, UserDTO } from "../../../src/application/dtos/users.dtos";
+import { AppError } from "../../../src/core/errors/app-error";
 
 describe("UsersController", () => {
   let mockService: jest.Mocked<IUsersService>;
   let controller: UsersController;
   let mockReq: any;
   let mockRes: any;
+  let mockNext: jest.Mock;
 
   const fakeUser: UserDTO = { id: 1, name: "John Doe" };
+  const fakePaginated: PaginatedDTO<UserDTO> = {
+    data: [fakeUser],
+    total: 1,
+    page: 1,
+    limit: 10,
+    pages: 1,
+  };
 
   beforeEach(() => {
     mockService = {
@@ -28,28 +37,30 @@ describe("UsersController", () => {
       json: jest.fn().mockReturnThis(),
       send: jest.fn().mockReturnThis(),
     };
+    mockNext = jest.fn();
   });
 
   // =========================
   // getAllUsers
   // =========================
   describe("getAllUsers", () => {
-    it("should return 200 with all users", async () => {
-      mockService.getAllUsers.mockResolvedValue([fakeUser]);
+    it("should return 200 with paginated users", async () => {
+      mockService.getAllUsers.mockResolvedValue(fakePaginated);
 
-      await controller.getAllUsers(mockReq, mockRes);
+      await controller.getAllUsers(mockReq, mockRes, mockNext);
 
       expect(mockService.getAllUsers).toHaveBeenCalled();
-      expect(mockRes.json).toHaveBeenCalledWith([fakeUser]);
+      expect(mockRes.json).toHaveBeenCalledWith(fakePaginated);
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it("should return 500 if getAllUsers throws", async () => {
-      mockService.getAllUsers.mockRejectedValue(new Error("DB error"));
+    it("should call next with error if getAllUsers throws", async () => {
+      const err = new Error("DB error");
+      mockService.getAllUsers.mockRejectedValue(err);
 
-      await controller.getAllUsers(mockReq, mockRes);
+      await controller.getAllUsers(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "Internal server error" });
+      expect(mockNext).toHaveBeenCalledWith(err);
     });
   });
 
@@ -61,30 +72,42 @@ describe("UsersController", () => {
       mockReq.params.id = "1";
       mockService.getUserById.mockResolvedValue(fakeUser);
 
-      await controller.getUserById(mockReq, mockRes);
+      await controller.getUserById(mockReq, mockRes, mockNext);
 
       expect(mockService.getUserById).toHaveBeenCalledWith(1);
       expect(mockRes.json).toHaveBeenCalledWith(fakeUser);
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it("should return 404 if user not found", async () => {
+    it("should call next with 404 AppError if user not found", async () => {
       mockReq.params.id = "99";
       mockService.getUserById.mockResolvedValue(null);
 
-      await controller.getUserById(mockReq, mockRes);
+      await controller.getUserById(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "User not found" });
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 404, message: "User not found" })
+      );
     });
 
-    it("should return 500 if getUserById throws", async () => {
+    it("should call next with 400 AppError for invalid id", async () => {
+      mockReq.params.id = "abc";
+
+      await controller.getUserById(mockReq, mockRes, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 400 })
+      );
+    });
+
+    it("should call next with error if getUserById throws", async () => {
       mockReq.params.id = "1";
-      mockService.getUserById.mockRejectedValue(new Error("DB error"));
+      const err = new Error("DB error");
+      mockService.getUserById.mockRejectedValue(err);
 
-      await controller.getUserById(mockReq, mockRes);
+      await controller.getUserById(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "Internal server error" });
+      expect(mockNext).toHaveBeenCalledWith(err);
     });
   });
 
@@ -96,21 +119,22 @@ describe("UsersController", () => {
       mockReq.body = fakeUser;
       mockService.createUser.mockResolvedValue(true);
 
-      await controller.createUser(mockReq, mockRes);
+      await controller.createUser(mockReq, mockRes, mockNext);
 
       expect(mockService.createUser).toHaveBeenCalledWith(fakeUser);
       expect(mockRes.status).toHaveBeenCalledWith(201);
-      expect(mockRes.json).toHaveBeenCalledWith(true);
+      expect(mockRes.json).toHaveBeenCalledWith({ status: "ok", message: "User created" });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it("should return 500 if createUser throws", async () => {
+    it("should call next with error if createUser throws", async () => {
       mockReq.body = fakeUser;
-      mockService.createUser.mockRejectedValue(new Error("Insert error"));
+      const err = new Error("Insert error");
+      mockService.createUser.mockRejectedValue(err);
 
-      await controller.createUser(mockReq, mockRes);
+      await controller.createUser(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "Internal server error" });
+      expect(mockNext).toHaveBeenCalledWith(err);
     });
   });
 
@@ -118,37 +142,39 @@ describe("UsersController", () => {
   // updateUser
   // =========================
   describe("updateUser", () => {
-    it("should return updated user", async () => {
+    it("should return 200 with success message on update", async () => {
       mockReq.params.id = "1";
       mockReq.body = { name: "Jane Doe" };
       mockService.updateUser.mockResolvedValue(true);
 
-      await controller.updateUser(mockReq, mockRes);
+      await controller.updateUser(mockReq, mockRes, mockNext);
 
       expect(mockService.updateUser).toHaveBeenCalledWith(1, { name: "Jane Doe" });
-      expect(mockRes.json).toHaveBeenCalledWith(true);
+      expect(mockRes.json).toHaveBeenCalledWith({ status: "ok", message: "User updated" });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it("should return 404 if user not found", async () => {
+    it("should call next with 404 AppError if user not found", async () => {
       mockReq.params.id = "1";
       mockReq.body = { name: "Jane Doe" };
       mockService.updateUser.mockResolvedValue(false);
 
-      await controller.updateUser(mockReq, mockRes);
+      await controller.updateUser(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "User not found" });
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 404, message: "User not found" })
+      );
     });
 
-    it("should return 500 if updateUser throws", async () => {
+    it("should call next with error if updateUser throws", async () => {
       mockReq.params.id = "1";
       mockReq.body = { name: "Jane Doe" };
-      mockService.updateUser.mockRejectedValue(new Error("Update error"));
+      const err = new Error("Update error");
+      mockService.updateUser.mockRejectedValue(err);
 
-      await controller.updateUser(mockReq, mockRes);
+      await controller.updateUser(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "Internal server error" });
+      expect(mockNext).toHaveBeenCalledWith(err);
     });
   });
 
@@ -160,31 +186,33 @@ describe("UsersController", () => {
       mockReq.params.id = "1";
       mockService.deleteUser.mockResolvedValue(true);
 
-      await controller.deleteUser(mockReq, mockRes);
+      await controller.deleteUser(mockReq, mockRes, mockNext);
 
       expect(mockService.deleteUser).toHaveBeenCalledWith(1);
       expect(mockRes.status).toHaveBeenCalledWith(204);
       expect(mockRes.send).toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it("should return 404 if user not found", async () => {
+    it("should call next with 404 AppError if user not found", async () => {
       mockReq.params.id = "1";
       mockService.deleteUser.mockResolvedValue(false);
 
-      await controller.deleteUser(mockReq, mockRes);
+      await controller.deleteUser(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "User not found" });
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 404, message: "User not found" })
+      );
     });
 
-    it("should return 500 if deleteUser throws", async () => {
+    it("should call next with error if deleteUser throws", async () => {
       mockReq.params.id = "1";
-      mockService.deleteUser.mockRejectedValue(new Error("Delete error"));
+      const err = new Error("Delete error");
+      mockService.deleteUser.mockRejectedValue(err);
 
-      await controller.deleteUser(mockReq, mockRes);
+      await controller.deleteUser(mockReq, mockRes, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ message: "Internal server error" });
+      expect(mockNext).toHaveBeenCalledWith(err);
     });
   });
 });

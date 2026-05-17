@@ -1,8 +1,5 @@
-
-
 import { IUser } from "../../../../src/domain/models/users.model";
 import { UsersDummyDataSource } from "../../../../src/infrastructure/datasources/dummy/users.dummy.datasource";
-
 
 describe("UsersDummyDataSource", () => {
   let dataSource: UsersDummyDataSource;
@@ -12,16 +9,27 @@ describe("UsersDummyDataSource", () => {
   });
 
   // =========================
-  // ✅ getAllUsers
+  // getAllUsers
   // =========================
-  it("should return all available users", async () => {
-    const users = await dataSource.getAllUsers();
+  it("should return all available users with pagination metadata", async () => {
+    const { users, total } = await dataSource.getAllUsers(1, 10);
     expect(users.length).toBeGreaterThan(0);
-    expect(users.every((u:IUser) => u.available)).toBe(true);
+    expect(total).toBeGreaterThan(0);
+    expect(users.every((u: IUser) => u.available)).toBe(true);
+  });
+
+  it("should paginate results correctly", async () => {
+    const { users, total } = await dataSource.getAllUsers(1, 2);
+    expect(users.length).toBe(2);
+    expect(total).toBe(4);
+
+    const page2 = await dataSource.getAllUsers(2, 2);
+    expect(page2.users.length).toBe(2);
+    expect(page2.users[0].pkUser).not.toBe(users[0].pkUser);
   });
 
   // =========================
-  // ✅ getUserById
+  // getUserById
   // =========================
   it("should return a user by id if available", async () => {
     const user = await dataSource.getUserById(1);
@@ -41,7 +49,7 @@ describe("UsersDummyDataSource", () => {
   });
 
   // =========================
-  // ✅ createUser
+  // createUser
   // =========================
   it("should create a new user with autoincrement pkUser", async () => {
     const newUser: IUser = { pkUser: 0, name: "Charlie", available: true };
@@ -49,14 +57,14 @@ describe("UsersDummyDataSource", () => {
     const result = await dataSource.createUser(newUser);
     expect(result).toBe(true);
 
-    const allUsers = await dataSource.getAllUsers();
-    const created = allUsers.find((u: { name: string; }) => u.name === "Charlie");
+    const { users } = await dataSource.getAllUsers(1, 100);
+    const created = users.find((u) => u.name === "Charlie");
     expect(created).toBeDefined();
-    expect(created?.pkUser).toBeGreaterThan(4); // autoincremental
+    expect(created?.pkUser).toBeGreaterThan(4);
   });
 
   // =========================
-  // ✅ updateUser
+  // updateUser
   // =========================
   it("should update user name if user exists", async () => {
     const result = await dataSource.updateUser(1, { name: "Updated Name" });
@@ -72,7 +80,7 @@ describe("UsersDummyDataSource", () => {
   });
 
   // =========================
-  // ✅ deleteUser
+  // deleteUser
   // =========================
   it("should mark user as unavailable instead of removing", async () => {
     const result = await dataSource.deleteUser(3);
@@ -81,8 +89,8 @@ describe("UsersDummyDataSource", () => {
     const deleted = await dataSource.getUserById(3);
     expect(deleted).toBeNull();
 
-    const allUsers = await dataSource.getAllUsers();
-    expect(allUsers.find((u: { pkUser: number; }) => u.pkUser === 3)).toBeUndefined();
+    const { users } = await dataSource.getAllUsers(1, 100);
+    expect(users.find((u) => u.pkUser === 3)).toBeUndefined();
   });
 
   it("should return false when deleting non-existent user", async () => {

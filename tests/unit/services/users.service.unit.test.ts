@@ -4,7 +4,6 @@ import { IUsersRepository } from "../../../src/domain/interfaces/infrastructure/
 import { IUser } from "../../../src/domain/models/users.model";
 import { UserDTO } from "../../../src/application/dtos/users.dtos";
 
-// Mock del repositorio
 const mockRepository: jest.Mocked<IUsersRepository> = {
   getAllUsers: jest.fn(),
   getUserById: jest.fn(),
@@ -20,15 +19,7 @@ describe("UsersService Unit Tests", () => {
     jest.clearAllMocks();
     usersService = new UsersService(mockRepository);
   });
-  // // UsersService should have a property 'repository' of type IUsersRepository
-  // it("should have a property 'repository' of type IUsersRepository", () => {
-  //   expect((usersService as any).repository).toBe(mockRepository);
-  // });
 
-
-  // ======================================
-  // 🔹 Verificar contrato del repositorio
-  // ======================================
   it("should receive a repository implementing IUsersRepository", () => {
     expect((usersService as any).repository).toEqual(
       expect.objectContaining({
@@ -42,20 +33,36 @@ describe("UsersService Unit Tests", () => {
   });
 
   // ======================================
-  // 🔹 getAllUsers
+  // getAllUsers
   // ======================================
-  it("should return all users mapped to DTOs", async () => {
+  it("should return all users mapped to DTOs with pagination", async () => {
     const mockUsers: IUser[] = [{ pkUser: 1, name: "Test User", available: true }];
-    mockRepository.getAllUsers.mockResolvedValue(mockUsers);
+    mockRepository.getAllUsers.mockResolvedValue({ users: mockUsers, total: 1 });
 
-    const result = await usersService.getAllUsers();
+    const result = await usersService.getAllUsers({ page: 1, limit: 10 });
 
-    expect(result).toEqual([{ id: 1, name: "Test User" }]); // DTO
-    expect(mockRepository.getAllUsers).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      data: [{ id: 1, name: "Test User" }],
+      total: 1,
+      page: 1,
+      limit: 10,
+      pages: 1,
+    });
+    expect(mockRepository.getAllUsers).toHaveBeenCalledWith(1, 10);
+  });
+
+  it("should calculate pages correctly", async () => {
+    const mockUsers: IUser[] = [{ pkUser: 1, name: "A", available: true }];
+    mockRepository.getAllUsers.mockResolvedValue({ users: mockUsers, total: 25 });
+
+    const result = await usersService.getAllUsers({ page: 1, limit: 10 });
+
+    expect(result.pages).toBe(3);
+    expect(result.total).toBe(25);
   });
 
   // ======================================
-  // 🔹 getUserById
+  // getUserById
   // ======================================
   it("should return a user by ID mapped to DTO", async () => {
     const mockUser: IUser = { pkUser: 1, name: "Test User", available: true };
@@ -63,7 +70,7 @@ describe("UsersService Unit Tests", () => {
 
     const result = await usersService.getUserById(1);
 
-    expect(result).toEqual({ id: 1, name: "Test User" }); // DTO
+    expect(result).toEqual({ id: 1, name: "Test User" });
     expect(mockRepository.getUserById).toHaveBeenCalledWith(1);
   });
 
@@ -77,7 +84,7 @@ describe("UsersService Unit Tests", () => {
   });
 
   // ======================================
-  // 🔹 createUser
+  // createUser
   // ======================================
   it("should create a new user (DTO → Model)", async () => {
     mockRepository.createUser.mockResolvedValue(true);
@@ -86,14 +93,20 @@ describe("UsersService Unit Tests", () => {
     const result = await usersService.createUser(dto);
 
     expect(result).toBe(true);
-    expect(mockRepository.createUser).toHaveBeenCalledWith({
-      pkUser: 0,
-      name: "New User",
+    expect(mockRepository.createUser).toHaveBeenCalledWith({ pkUser: 0, name: "New User" });
+  });
+
+  it("should throw AppError if createUser returns false", async () => {
+    mockRepository.createUser.mockResolvedValue(false);
+
+    await expect(usersService.createUser({ id: 0, name: "Fail" })).rejects.toMatchObject({
+      statusCode: 500,
+      message: "Failed to create user",
     });
   });
 
   // ======================================
-  // 🔹 updateUser
+  // updateUser
   // ======================================
   it("should update a user (DTO → Model)", async () => {
     mockRepository.updateUser.mockResolvedValue(true);
@@ -102,14 +115,11 @@ describe("UsersService Unit Tests", () => {
     const result = await usersService.updateUser(1, dto);
 
     expect(result).toBe(true);
-    expect(mockRepository.updateUser).toHaveBeenCalledWith(1, {
-      pkUser: 1,
-      name: "Updated User",
-    });
+    expect(mockRepository.updateUser).toHaveBeenCalledWith(1, { pkUser: 1, name: "Updated User" });
   });
 
   // ======================================
-  // 🔹 deleteUser
+  // deleteUser
   // ======================================
   it("should delete a user", async () => {
     mockRepository.deleteUser.mockResolvedValue(true);
