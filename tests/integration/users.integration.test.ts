@@ -39,11 +39,23 @@ describe("GET /health", () => {
 // GET /api/users
 // ===========================
 describe("GET /api/users", () => {
-  it("returns 200 with an array of users", async () => {
+  it("returns 401 without Authorization header", async () => {
     const res = await request(app).get("/api/users");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 200 with paginated users when authenticated", async () => {
+    const res = await request(app)
+      .get("/api/users")
+      .set("Authorization", `Bearer ${bearerToken}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body).toHaveProperty("total");
+    expect(res.body).toHaveProperty("page");
+    expect(res.body).toHaveProperty("limit");
+    expect(res.body).toHaveProperty("pages");
   });
 });
 
@@ -97,9 +109,17 @@ describe("POST /api/users", () => {
 // PUT /api/users/:id
 // ===========================
 describe("PUT /api/users/:id", () => {
+  it("returns 401 without Authorization header", async () => {
+    const res = await request(app)
+      .put("/api/users/2")
+      .send({ name: "Updated Name" });
+    expect(res.status).toBe(401);
+  });
+
   it("returns 200 when updating an existing user", async () => {
     const res = await request(app)
       .put("/api/users/2")
+      .set("Authorization", `Bearer ${bearerToken}`)
       .send({ name: "Updated Name" });
     expect(res.status).toBe(200);
   });
@@ -107,6 +127,7 @@ describe("PUT /api/users/:id", () => {
   it("returns 404 when updating a non-existing user", async () => {
     const res = await request(app)
       .put("/api/users/9999")
+      .set("Authorization", `Bearer ${bearerToken}`)
       .send({ name: "Ghost" });
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ message: "User not found" });
@@ -117,19 +138,32 @@ describe("PUT /api/users/:id", () => {
 // DELETE /api/users/:id
 // ===========================
 describe("DELETE /api/users/:id", () => {
-  it("returns 204 when deleting an existing user", async () => {
+  it("returns 401 without Authorization header", async () => {
     const res = await request(app).delete("/api/users/4");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 204 when deleting an existing user", async () => {
+    const res = await request(app)
+      .delete("/api/users/4")
+      .set("Authorization", `Bearer ${bearerToken}`);
     expect(res.status).toBe(204);
   });
 
   it("returns 404 when deleting an already deleted user", async () => {
-    await request(app).delete("/api/users/3");
-    const res = await request(app).delete("/api/users/3");
+    await request(app)
+      .delete("/api/users/3")
+      .set("Authorization", `Bearer ${bearerToken}`);
+    const res = await request(app)
+      .delete("/api/users/3")
+      .set("Authorization", `Bearer ${bearerToken}`);
     expect(res.status).toBe(404);
   });
 
   it("returns 404 for a non-existing user", async () => {
-    const res = await request(app).delete("/api/users/9999");
+    const res = await request(app)
+      .delete("/api/users/9999")
+      .set("Authorization", `Bearer ${bearerToken}`);
     expect(res.status).toBe(404);
   });
 });
