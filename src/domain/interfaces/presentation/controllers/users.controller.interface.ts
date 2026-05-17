@@ -1,9 +1,11 @@
 // src/domain/interfaces/controllers/users.controller.interface.ts
 
+import { Request, Response, NextFunction } from "express";
+
 export interface IUsersController {
-    getAllUsers(req: any, res: any): Promise<void>;
-    getUserById(req: any, res: any): Promise<void>;
-    createUser(req: any, res: any): Promise<void>;
-    updateUser(req: any, res: any): Promise<void>;
-    deleteUser(req: any, res: any): Promise<void>;
+  getAllUsers(req: Request, res: Response, next: NextFunction): Promise<void>;
+  getUserById(req: Request, res: Response, next: NextFunction): Promise<void>;
+  createUser(req: Request, res: Response, next: NextFunction): Promise<void>;
+  updateUser(req: Request, res: Response, next: NextFunction): Promise<void>;
+  deleteUser(req: Request, res: Response, next: NextFunction): Promise<void>;
 }

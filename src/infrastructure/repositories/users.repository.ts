@@ -8,55 +8,53 @@ import { inject, injectable } from "tsyringe";
 
 @injectable()
 export class UsersRepository implements IUsersRepository {
-    constructor(
-        @inject("IUsersDataSource") private readonly dataSource: IUsersDataSource,
-        @inject("ILogger") private readonly logger: ILogger
-    ) {}
+  constructor(
+    @inject("IUsersDataSource") private readonly dataSource: IUsersDataSource,
+    @inject("ILogger") private readonly logger: ILogger
+  ) {}
 
-    public async getAllUsers(): Promise<IUser[]> {
-        try {
-            this.logger.debug("dooo")
-            return await this.dataSource.getAllUsers();
-
-        } catch (error) {
-            this.logger.error("Error in UsersRepository.getAllUsers", { error });
-            throw new Error("Failed to fetch users.");
-        }
+  public async getAllUsers(page: number, limit: number): Promise<{ users: IUser[]; total: number }> {
+    try {
+      return await this.dataSource.getAllUsers(page, limit);
+    } catch (error) {
+      this.logger.error("Error in UsersRepository.getAllUsers", { error });
+      throw new Error("Failed to fetch users.");
     }
+  }
 
-    public async getUserById(id: number): Promise<IUser | null> {
-        try {
-            return await this.dataSource.getUserById(id);
-        } catch (error) {
-            this.logger.error(`Error in UsersRepository.getUserById`, { id, error });
-            throw new Error("Failed to fetch user.");
-        }
+  public async getUserById(id: number): Promise<IUser | null> {
+    try {
+      return await this.dataSource.getUserById(id);
+    } catch (error) {
+      this.logger.error("Error in UsersRepository.getUserById", { id, error });
+      throw new Error("Failed to fetch user.");
     }
+  }
 
-    public async createUser(user: IUser): Promise<boolean> {
-        try {
-            return await this.dataSource.createUser(user);
-        } catch (error) {
-            this.logger.error("Error in UsersRepository.createUser", { user, error });
-            throw new Error("Failed to create user.");
-        }
+  public async createUser(user: IUser): Promise<boolean> {
+    try {
+      return await this.dataSource.createUser(user);
+    } catch (error) {
+      this.logger.error("Error in UsersRepository.createUser", { user, error });
+      throw new Error("Failed to create user.");
     }
+  }
 
-    public async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
-        try {
-            return await this.dataSource.updateUser(id, user);
-        } catch (error) {
-            this.logger.error("Error in UsersRepository.updateUser", { id, user, error });
-            throw new Error("Failed to update user.");
-        }
+  public async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
+    try {
+      return await this.dataSource.updateUser(id, user);
+    } catch (error) {
+      this.logger.error("Error in UsersRepository.updateUser", { id, user, error });
+      throw new Error("Failed to update user.");
     }
+  }
 
-    public async deleteUser(id: number): Promise<boolean> {
-        try {
-            return await this.dataSource.deleteUser(id);
-        } catch (error) {
-            this.logger.error("Error in UsersRepository.deleteUser", { id, error });
-            throw new Error("Failed to delete user.");
-        }
+  public async deleteUser(id: number): Promise<boolean> {
+    try {
+      return await this.dataSource.deleteUser(id);
+    } catch (error) {
+      this.logger.error("Error in UsersRepository.deleteUser", { id, error });
+      throw new Error("Failed to delete user.");
     }
+  }
 }

@@ -13,18 +13,20 @@ export class UsersDummyDataSource implements IUsersDataSource {
 
   private idCounter = this.users.length + 1;
 
-  public async getAllUsers(): Promise<IUser[]> {
-    // Solo devolvemos los que siguen disponibles
-    return this.users.filter(u => u.available);
+  public async getAllUsers(page: number, limit: number): Promise<{ users: IUser[]; total: number }> {
+    const available = this.users.filter((u) => u.available);
+    const total = available.length;
+    const offset = (page - 1) * limit;
+    const users = available.slice(offset, offset + limit);
+    return { users, total };
   }
 
   public async getUserById(id: number): Promise<IUser | null> {
-    const user = this.users.find(u => u.pkUser === id && u.available);
+    const user = this.users.find((u) => u.pkUser === id && u.available);
     return user || null;
   }
 
   public async createUser(user: IUser): Promise<boolean> {
-    // Asignamos PK autoincremental y disponible = true
     const newUser: IUser = {
       pkUser: this.idCounter++,
       name: user.name,
@@ -35,20 +37,16 @@ export class UsersDummyDataSource implements IUsersDataSource {
   }
 
   public async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
-    const record = this.users.find(u => u.pkUser === id && u.available);
-    if (!record) {
-      return false;
-    }
+    const record = this.users.find((u) => u.pkUser === id && u.available);
+    if (!record) return false;
     record.name = user.name ?? record.name;
     return true;
   }
 
   public async deleteUser(id: number): Promise<boolean> {
-    const record = this.users.find(u => u.pkUser === id && u.available);
-    if (!record) {
-      return false;
-    }
-    record.available = false; // Borrado lógico
+    const record = this.users.find((u) => u.pkUser === id && u.available);
+    if (!record) return false;
+    record.available = false;
     return true;
   }
 }
