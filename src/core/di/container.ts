@@ -55,9 +55,9 @@ container.register<ISqlConnectionPlugin>("TestDB", {
   ),
 });
 
-container.register<IFileStorage>("IFileStorage",{
- useValue: new NativeFileStoragePlugin()
-})
+container.register<IFileStorage>("IFileStorage", {
+  useValue: new NativeFileStoragePlugin(),
+});
 // ========== DataSources =================
 // La implementación se selecciona vía la env var DATA_SOURCE ("dummy" | "sqlserver"),
 // con "dummy" por defecto en desarrollo.

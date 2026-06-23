@@ -28,6 +28,7 @@ module.exports = {
     "src/**/*.ts",
     "!src/main.ts",
     "!src/**/index.ts",
+    "!src/**/*.d.ts",
     "!src/core/di/container.ts",
     "!src/**/*.interface.ts",
     "!src/**/config/*.ts",
