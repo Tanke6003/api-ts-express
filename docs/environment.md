@@ -41,9 +41,19 @@ In development (`NODE_ENV=development`), logs are pretty-printed via pino-pretty
 
 ---
 
+## Data source selection
+
+The `IUsersDataSource` implementation is selected at startup via `DATA_SOURCE`.
+
+| Variable | Type | Default | Required | Description |
+|----------|------|---------|----------|-------------|
+| `DATA_SOURCE` | string | `dummy` | No | `dummy` (in-memory, no DB needed) or `sqlserver` (uses Sequelize). An unknown value fails fast at startup. |
+
+---
+
 ## Database (Sequelize)
 
-Only required when using `UsersSqlServerDataSource` (switched in `src/core/di/container.ts`).
+Only required when `DATA_SOURCE=sqlserver`. When `DATA_SOURCE=sqlserver`, `DB_PASSWORD` becomes a required secret (validated at startup).
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|

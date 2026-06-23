@@ -4,7 +4,7 @@ import { container } from "tsyringe";
 import { WinstonPlugin } from "../../infrastructure/plugins/winston.plugin";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { IUsersDataSource } from "../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
-import { UsersSqlServerDataSource } from "../../infrastructure/datasources/sqlserver/users.sqlserver.datasource";
+import { resolveUsersDataSource } from "./datasource.factory";
 import { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
 import { UsersRepository } from "../../infrastructure/repositories/users.repository";
 import { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
@@ -17,10 +17,8 @@ import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/tok
 import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
 import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
 import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
-import { UsersDummyDataSource } from "../../infrastructure/datasources/dummy/users.dummy.datasource";
 import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
 import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
-import path from "path";
 import { PinoLoggerPlugin } from "../../infrastructure/plugins/pino.plugin";
 // ========== Plugins =================
 container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
@@ -55,7 +53,11 @@ container.register<IFileStorage>("IFileStorage",{
  useValue: new NativeFileStoragePlugin()
 })
 // ========== DataSources =================
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersDummyDataSource  });
+// La implementación se selecciona vía la env var DATA_SOURCE ("dummy" | "sqlserver"),
+// con "dummy" por defecto en desarrollo.
+container.register<IUsersDataSource>("IUsersDataSource", {
+  useClass: resolveUsersDataSource(envs.getEnv("DATA_SOURCE")),
+});
 
 // ========== Repositories =================
 
