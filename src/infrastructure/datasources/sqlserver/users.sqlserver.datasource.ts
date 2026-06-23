@@ -6,6 +6,17 @@ import { IUser } from "../../../domain/models/users.model";
 import { SequelizePlugin } from "../../plugins/sequelize.plugin";
 import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
+/** Forma de una fila de la tabla Users tal como la devuelve SQL Server. */
+interface UsersTableRow {
+  PKUser: number;
+  Name: string;
+  Available?: number;
+}
+
+function toMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 @injectable()
 export class UsersSqlServerDataSource implements IUsersDataSource {
   constructor(
@@ -14,71 +25,71 @@ export class UsersSqlServerDataSource implements IUsersDataSource {
   ) {
     this.db.authenticate().catch((err) => {
       this.logger.error("Error al autenticar con la base de datos", { err });
-      throw new Error(`[DataSource] Error al autenticar SequelizePlugin: ${err.message}`);
+      throw new Error(`[DataSource] Error al autenticar SequelizePlugin: ${toMessage(err)}`);
     });
   }
 
   async getAllUsers(page: number, limit: number): Promise<{ users: IUser[]; total: number }> {
     try {
       const offset = (page - 1) * limit;
-      const countResult = await this.db.executeQuery(
+      const countResult = await this.db.executeQuery<{ total: number }[]>(
         "SELECT COUNT(*) AS total FROM Users WHERE Available = 1"
       );
       const total = countResult.rows[0]?.total ?? 0;
 
       const query =
         "SELECT * FROM Users WHERE Available = 1 ORDER BY PKUser OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
-      const result = await this.db.executeQuery(query, [offset, limit]);
+      const result = await this.db.executeQuery<UsersTableRow[]>(query, [offset, limit]);
 
       this.logger.debug("getAllUsers ejecutado", { page, limit, total });
 
-      const users = result.rows.map((row: any) => ({
+      const users = result.rows.map((row) => ({
         pkUser: row.PKUser,
         name: row.Name,
       }));
 
       return { users, total };
-    } catch (err: any) {
+    } catch (err) {
       this.logger.error("Error en getAllUsers", { err });
-      throw new Error(`[DataSource] getAllUsers failed: ${err.message}`);
+      throw new Error(`[DataSource] getAllUsers failed: ${toMessage(err)}`);
     }
   }
 
   async getUserById(id: number): Promise<IUser | null> {
     try {
       const query = "SELECT * FROM Users WHERE PKUser = ? AND Available = 1";
-      const rows = await this.db.getDataTable(query, [id]);
+      const rows = await this.db.getDataTable<UsersTableRow>(query, [id]);
       if (rows.length === 0) return null;
       return { pkUser: rows[0].PKUser, name: rows[0].Name };
-    } catch (err: any) {
+    } catch (err) {
       this.logger.error("Error en getUserById", { id, err });
-      throw new Error(`[DataSource] getUserById failed for id=${id}: ${err.message}`);
+      throw new Error(`[DataSource] getUserById failed for id=${id}: ${toMessage(err)}`);
     }
   }
 
   async createUser(user: IUser): Promise<boolean> {
     try {
       const query = "INSERT INTO Users (Name) VALUES (?)";
-      const result = await this.db.executeQuery(query, [user.name]);
+      const result = await this.db.executeQuery<unknown, number>(query, [user.name]);
       const affected = result.metadata ?? 0;
       this.logger.info("Usuario creado", { user, affected });
       return affected > 0;
-    } catch (err: any) {
+    } catch (err) {
       this.logger.error("Error en createUser", { user, err });
-      throw new Error(`[DataSource] createUser failed: ${err.message}`);
+      throw new Error(`[DataSource] createUser failed: ${toMessage(err)}`);
     }
   }
 
   async updateUser(id: number, user: Partial<IUser>): Promise<boolean> {
     try {
       const query = "UPDATE Users SET Name = ? WHERE PKUser = ?";
-      const result = await this.db.executeQuery(query, [user.name, id]);
+      const result = await this.db.executeQuery<unknown, number>(query, [user.name, id]);
       const affected = result.metadata ?? 0;
       this.logger.info("Usuario actualizado", { id, user, affected });
       return affected > 0;
-    } catch (err: any) {
+    } catch (err) {
       this.logger.error("Error en updateUser", { id, user, err });
-      throw new Error(`[DataSource] updateUser failed for id=${id}: ${err.message}`);
+      throw new Error(`[DataSource] updateUser failed for id=${id}: ${toMessage(err)}`);
     }
   }
 
@@ -86,13 +97,13 @@ export class UsersSqlServerDataSource implements IUsersDataSource {
     try {
       const query =
         "UPDATE Users SET Available = 0 WHERE PKUser = ? AND Available = 1";
-      const result = await this.db.executeQuery(query, [id]);
+      const result = await this.db.executeQuery<unknown, number>(query, [id]);
       const affected = result.metadata ?? 0;
       this.logger.warn("Usuario marcado como eliminado", { id, affected });
       return affected > 0;
-    } catch (err: any) {
+    } catch (err) {
       this.logger.error("Error en deleteUser", { id, err });
-      throw new Error(`[DataSource] deleteUser failed for id=${id}: ${err.message}`);
+      throw new Error(`[DataSource] deleteUser failed for id=${id}: ${toMessage(err)}`);
     }
   }
 }

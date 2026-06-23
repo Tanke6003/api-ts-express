@@ -1,5 +1,5 @@
 // src/infrastructure/plugins/sequelize.connection.ts
-import { Sequelize, QueryTypes, Transaction, Options } from "sequelize";
+import { Sequelize, QueryTypes, Transaction, Options, QueryOptions } from "sequelize";
 import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
 
 export interface SequelizeConnectionConfig {
@@ -36,42 +36,43 @@ export class SequelizePlugin implements ISqlConnectionPlugin {
   }
 
   /**
-   * Equivalente a GetDataTable: devuelve un array de registros
+   * Equivalente a GetDataTable: devuelve un array de registros tipados.
    */
-  async getDataTable(query: string, replacements: any[] = []): Promise<any[]> {
-    return await this.connection.query(query, {
+  async getDataTable<TRow = Record<string, unknown>>(
+    query: string,
+    replacements: unknown[] = []
+  ): Promise<TRow[]> {
+    return (await this.connection.query(query, {
       replacements,
       type: QueryTypes.SELECT,
-    });
+    })) as TRow[];
   }
 
   /**
-   * Ejecuta query (con o sin parámetros), retorna resultado crudo
+   * Ejecuta query (con o sin parámetros), retorna las filas y la metadata.
    */
-  async executeQuery(
+  async executeQuery<TRow = unknown, TMeta = unknown>(
     query: string,
-    replacements: any[] = [],
-    options: any = {}
-  ): Promise<any> {
-  // separar el resultado y las filas afectadas
-   const [rowsOrResult,metadata] = await this.connection.query(query, { replacements, ...options });
+    replacements: unknown[] = [],
+    options: Record<string, unknown> = {}
+  ): Promise<{ rows: TRow; metadata: TMeta }> {
+    // separar el resultado y la metadata (p.ej. filas afectadas en UPDATE/DELETE/INSERT)
+    const result = (await this.connection.query(query, {
+      replacements,
+      ...options,
+    } as QueryOptions)) as unknown as [TRow, TMeta];
 
-
-
-  // UPDATE/DELETE/INSERT → objeto con affectedRows
-  return {
-    rows: rowsOrResult,
-    metadata: metadata
-  };  
+    const [rowsOrResult, metadata] = result;
+    return { rows: rowsOrResult, metadata };
   }
 
   /**
    * Ejecutar procedimiento almacenado con parámetros (multi-dialecto)
    */
-  async execStoredProcedure(
+  async execStoredProcedure<TRow = Record<string, unknown>>(
     spName: string,
-    params: any[] = []
-  ): Promise<any[]> {
+    params: unknown[] = []
+  ): Promise<TRow[]> {
     const placeholders = params.map(() => "?").join(", ");
 
     let sql: string;
@@ -90,10 +91,10 @@ export class SequelizePlugin implements ISqlConnectionPlugin {
         );
     }
 
-    return await this.connection.query(sql, {
+    return (await this.connection.query(sql, {
       replacements: params,
       type: QueryTypes.SELECT,
-    });
+    })) as TRow[];
   }
 
   /**

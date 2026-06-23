@@ -57,7 +57,7 @@ export class JwtPlugin implements ITokenPlugin{
 
     try {
       const decoded = jwt.verify(token, this.secret);
-      (req as any).user = decoded; // attach al request
+      req.user = decoded; // attach al request
       next();
     } catch (error) {
       res.status(401).json({ error: "Invalid or expired token" });

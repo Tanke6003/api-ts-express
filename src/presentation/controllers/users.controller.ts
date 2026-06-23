@@ -13,7 +13,7 @@ export class UsersController implements IUsersController {
 
   public getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { page, limit } = (req as any).validatedQuery ?? { page: 1, limit: 10 };
+      const { page, limit } = req.validatedQuery ?? { page: 1, limit: 10 };
       const result = await this.usersService.getAllUsers({ page, limit });
       res.json(result);
     } catch (err) {
