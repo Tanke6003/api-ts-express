@@ -2,6 +2,8 @@ import request from "supertest";
 import express from "express";
 import { container } from "tsyringe";
 import { IEnvs } from "../../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import { ITokenPlugin } from "../../../src/domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
 import { S3FileStoragePlugin } from "../../../src/infrastructure/plugins/s3FileStorage.plugin";
 import { TestRoutes } from "../../../src/presentation/routes/test.route";
 
@@ -24,6 +26,9 @@ describe("TestRoutes (unit)", () => {
         },
       },
     });
+
+    // El plugin de token se resuelve por DI desde las rutas
+    container.register<ITokenPlugin>("ITokenPlugin", { useClass: JwtPlugin });
 
     // Mock de S3FileStoragePlugin
     (S3FileStoragePlugin as jest.Mock).mockImplementation(() => ({

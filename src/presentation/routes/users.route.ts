@@ -1,6 +1,6 @@
 // src/presentation/routes/user.routes.ts
 
-import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
+import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
 import { container } from "tsyringe";
 import { validateBody, validateQuery } from "../middlewares/validate.middleware";
@@ -8,10 +8,11 @@ import { createUserSchema, paginationSchema, updateUserSchema } from "../../appl
 
 export class UsersRoutes {
   private usersController: IUsersController;
-  private jwtPlugin: JwtPlugin = new JwtPlugin();
+  private jwtPlugin: ITokenPlugin;
 
   constructor() {
     this.usersController = container.resolve<IUsersController>("IUsersController");
+    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
   }
 
   public register(app: any) {

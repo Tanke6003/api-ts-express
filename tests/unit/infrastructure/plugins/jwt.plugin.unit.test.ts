@@ -1,4 +1,3 @@
-import { container } from "tsyringe";
 import { JwtPlugin } from "../../../../src/infrastructure/plugins/jwt.plugin";
 import { Request, Response, NextFunction } from 'express';
 import { IEnvs } from "../../../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
@@ -6,21 +5,13 @@ import { IEnvs } from "../../../../src/domain/interfaces/infrastructure/plugins/
 describe("JWTPlugin", () => {
   let jwtPlugin: JwtPlugin;
 
+  // Mock de IEnvs inyectado por constructor (sin service locator)
+  const mockEnvs: IEnvs = {
+    getEnv: (key: string) => (key === "JWT_SECRET" ? "unit-test-secret" : ""),
+  };
+
   beforeEach(() => {
-    container.reset();
-
-    // Mock de IEnvs para devolver siempre un JWT_SECRET
-    container.register<IEnvs>("IEnvs", {
-      useValue: {
-        getEnv: (key: string) => {
-          if (key === "JWT_SECRET") return "unit-test-secret";
-          return "";
-        },
-      },
-    });
-
-    // ✅ Ahora sí instanciamos el JwtPlugin después del registro
-    jwtPlugin = new JwtPlugin();
+    jwtPlugin = new JwtPlugin(mockEnvs);
   });
 
   it("should create a token string", () => {

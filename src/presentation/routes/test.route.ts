@@ -1,15 +1,16 @@
 // src/presentation/routes/test.route.ts
 
-import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
+import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import { Request, Response } from "express";
 import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
 import Busboy from "busboy";
 import { S3FileStoragePlugin } from "../../infrastructure/plugins/s3FileStorage.plugin";
+import { container } from "tsyringe";
 
 export class TestRoutes {
-  private jwtPlugin: JwtPlugin;
+  private jwtPlugin: ITokenPlugin;
   constructor() {
-    this.jwtPlugin = new JwtPlugin();
+    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
   }
 
   public register(app: any) {

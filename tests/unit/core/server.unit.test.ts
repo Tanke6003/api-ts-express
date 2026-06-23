@@ -5,6 +5,8 @@ import { Server } from "../../../src/core/server";
 import { container } from "tsyringe";
 import { IEnvs } from "../../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import { ITokenPlugin } from "../../../src/domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
 
 jest.mock("swagger-jsdoc", () => jest.fn(() => ({ openapi: "3.0.0" })));
 jest.mock("swagger-ui-express", () => ({
@@ -36,6 +38,8 @@ describe("Server", () => {
         },
       },
     });
+
+    container.register<ITokenPlugin>("ITokenPlugin", { useClass: JwtPlugin });
 
     container.register("IUsersController", {
       useValue: {

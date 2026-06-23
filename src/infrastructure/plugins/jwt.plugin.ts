@@ -1,15 +1,16 @@
 // src/infrastructure/plugins/JwtPlugin.ts
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
+import { inject, injectable } from "tsyringe";
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
-import { container } from "tsyringe";
+import type { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 
+@injectable()
 export class JwtPlugin implements ITokenPlugin{
   private readonly secret: string;
-  private envs:IEnvs = container.resolve("IEnvs")
-  constructor(secret?: string) {
-    this.secret = secret || this.envs.getEnv("JWT_SECRET") || "super-secret-key";
+
+  constructor(@inject("IEnvs") private readonly envs: IEnvs) {
+    this.secret = this.envs.getEnv("JWT_SECRET") || "super-secret-key";
   }
 
   /**
