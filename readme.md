@@ -1,6 +1,6 @@
 # API Template — Node.js · Express 5 · TypeScript
 
-A production-ready REST API starter built with **Node.js**, **Express 5**, and **TypeScript**, following **Clean Architecture** principles. Swap databases, loggers, or storage backends by changing a single line in the DI container — every layer is independently testable.
+A production-ready REST API starter built with **Node.js**, **Express 5**, and **TypeScript**, following **Clean Architecture** principles. Swap the data source (`DATA_SOURCE`) or the logger (`LOG_DRIVER`) with a single environment variable — every layer is independently testable.
 
 ---
 
@@ -13,8 +13,8 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Architecture | Clean Architecture (Presentation → Application → Domain → Infrastructure) |
 | Dependency Injection | tsyringe |
 | Authentication | JWT (Bearer token) |
-| Database | Sequelize + Tedious (SQL Server) with dummy in-memory fallback |
-| Logging | Pino (structured JSON) with pino-pretty in development |
+| Database | Sequelize + Tedious (SQL Server) or dummy in-memory — selected via `DATA_SOURCE` |
+| Logging | Pino (structured JSON, pino-pretty in dev) or Winston — selected via `LOG_DRIVER` |
 | API Docs | Swagger UI + Scalar |
 | File Storage | Local filesystem or AWS S3 / MinIO |
 | Testing | Jest — unit, integration |
@@ -105,13 +105,15 @@ Copy `.env.template` to `.env.dev` (development) or `.env` (production) and fill
 | `NODE_ENV` | `development` | `development` / `production` / `test` |
 | `SERVICE_NAME` | `ApiTSExpress` | Service name in logs |
 | `API_VERSION` | `1.0.0` | Shown in Swagger |
-| `JWT_SECRET` | — | **Required.** Sign JWT tokens |
-| `LOG_LEVEL` | `trace` | Pino log level |
+| `JWT_SECRET` | — | **Required.** Sign JWT tokens. No insecure default — the app fails fast at startup if missing |
+| `DATA_SOURCE` | `dummy` | Users data source: `dummy` (in-memory) / `sqlserver` |
+| `LOG_DRIVER` | `pino` | Logger implementation: `pino` / `winston` |
+| `LOG_LEVEL` | `trace` | Log level |
 | `DB_DIALECT` | `mssql` | `mssql` / `mysql` / `postgres` |
 | `DB_HOST` | `localhost` | Database host |
 | `DB_PORT` | `1434` | Database port |
 | `DB_USER` | `sa` | Database user |
-| `DB_PASSWORD` | — | Database password |
+| `DB_PASSWORD` | — | Database password. Required (fails fast) when `DATA_SOURCE=sqlserver` |
 | `DB_NAME` | `testdb` | Database name |
 
 Full reference: **[docs/environment.md](docs/environment.md)**.
