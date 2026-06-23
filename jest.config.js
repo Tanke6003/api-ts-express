@@ -57,5 +57,5 @@ module.exports = {
     },
   },
 
-  setupFiles: ["reflect-metadata"],
+  setupFiles: ["reflect-metadata", "<rootDir>/tests/setup/test-env.ts"],
 };

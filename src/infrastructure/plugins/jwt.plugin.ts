@@ -10,7 +10,13 @@ export class JwtPlugin implements ITokenPlugin{
   private readonly secret: string;
 
   constructor(@inject("IEnvs") private readonly envs: IEnvs) {
-    this.secret = this.envs.getEnv("JWT_SECRET") || "super-secret-key";
+    const secret = this.envs.getEnv("JWT_SECRET");
+    if (!secret) {
+      throw new Error(
+        "[JwtPlugin] JWT_SECRET is not set. Refusing to sign tokens with an insecure default."
+      );
+    }
+    this.secret = secret;
   }
 
   /**

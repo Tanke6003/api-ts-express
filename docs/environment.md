@@ -27,7 +27,7 @@ Copy `.env.template` as a starting point.
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `JWT_SECRET` | string | — | **Yes** | Secret key for signing JWT tokens. Use a long random string in production. |
+| `JWT_SECRET` | string | — | **Yes** | Secret key for signing JWT tokens. Use a long random string in production. There is **no insecure default**: the app fails to start (loudly) if it is missing. |
 
 ---
 
@@ -95,11 +95,14 @@ JWT_SECRET=dev_secret_change_in_production
 # Logging
 LOG_LEVEL=trace
 
-# Database (only if using SQL Server datasource)
+# Data source: "dummy" (in-memory, default) or "sqlserver"
+DATA_SOURCE=dummy
+
+# Database (only if DATA_SOURCE=sqlserver)
 DB_DIALECT=mssql
 DB_HOST=localhost
 DB_PORT=1434
 DB_USER=sa
-DB_PASSWORD=StrongPassword123!
+DB_PASSWORD=change_me
 DB_NAME=testdb
 ```

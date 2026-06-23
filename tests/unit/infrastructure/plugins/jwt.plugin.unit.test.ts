@@ -14,6 +14,11 @@ describe("JWTPlugin", () => {
     jwtPlugin = new JwtPlugin(mockEnvs);
   });
 
+  it("should throw if JWT_SECRET is not set (no insecure default)", () => {
+    const envsWithoutSecret: IEnvs = { getEnv: () => "" };
+    expect(() => new JwtPlugin(envsWithoutSecret)).toThrow(/JWT_SECRET is not set/);
+  });
+
   it("should create a token string", () => {
     const token = jwtPlugin.generateToken({ userId: 1 });
     expect(typeof token).toBe("string");

@@ -5,6 +5,7 @@ import { WinstonPlugin } from "../../infrastructure/plugins/winston.plugin";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { IUsersDataSource } from "../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { resolveUsersDataSource } from "./datasource.factory";
+import { validateCriticalEnvs } from "../config/env.validation";
 import { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
 import { UsersRepository } from "../../infrastructure/repositories/users.repository";
 import { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
@@ -24,6 +25,11 @@ import { PinoLoggerPlugin } from "../../infrastructure/plugins/pino.plugin";
 container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
 
 const envs:IEnvs = container.resolve("IEnvs");
+
+// Falla de forma ruidosa si faltan secretos críticos, en vez de degradarse
+// silenciosamente con valores por defecto inseguros.
+validateCriticalEnvs(envs);
+
 // container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
 container.register<ILogger>("ILogger", {
   useValue: new PinoLoggerPlugin({
@@ -44,7 +50,7 @@ container.register<ISqlConnectionPlugin>("TestDB", {
     host: envs.getEnv("DB_HOST") || "localhost",
     port: Number(envs.getEnv("DB_PORT") || "1434"),
     username: envs.getEnv("DB_USER") || "sa",
-    password: envs.getEnv("DB_PASSWORD") || "StrongPassword123!",
+    password: envs.getEnv("DB_PASSWORD"),
     database: envs.getEnv("DB_NAME") || "testdb",
   }),
 });
