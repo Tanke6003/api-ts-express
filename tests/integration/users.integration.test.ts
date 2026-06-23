@@ -63,15 +63,24 @@ describe("GET /api/users", () => {
 // GET /api/users/:id
 // ===========================
 describe("GET /api/users/:id", () => {
-  it("returns 200 with user data for an existing user", async () => {
+  it("returns 401 without Authorization header", async () => {
     const res = await request(app).get("/api/users/1");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 200 with user data for an existing user when authenticated", async () => {
+    const res = await request(app)
+      .get("/api/users/1")
+      .set("Authorization", `Bearer ${bearerToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 1 });
     expect(res.body).toHaveProperty("name");
   });
 
   it("returns 404 for a non-existing user", async () => {
-    const res = await request(app).get("/api/users/9999");
+    const res = await request(app)
+      .get("/api/users/9999")
+      .set("Authorization", `Bearer ${bearerToken}`);
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ message: "User not found" });
   });

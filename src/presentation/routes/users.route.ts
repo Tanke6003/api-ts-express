@@ -63,6 +63,8 @@ export class UsersRoutes {
      *     tags:
      *       - Users
      *     summary: Get user by ID
+     *     security:
+     *       - bearerAuth: []
      *     parameters:
      *       - in: path
      *         name: id
@@ -76,10 +78,16 @@ export class UsersRoutes {
      *           application/json:
      *             schema:
      *               $ref: '#/components/schemas/User'
+     *       401:
+     *         description: Unauthorized
      *       404:
      *         description: User not found
      */
-    app.get("/users/:id", this.usersController.getUserById.bind(this.usersController));
+    app.get(
+      "/users/:id",
+      this.jwtPlugin.middleware,
+      this.usersController.getUserById.bind(this.usersController)
+    );
 
     /**
      * @openapi
