@@ -180,6 +180,15 @@ describe("WinstonPlugin", () => {
     expect(winston.transports.File).toHaveBeenCalled();
   });
 
+  it("should honor the level passed through options", () => {
+    (winston.createLogger as jest.Mock).mockClear();
+    new WinstonPlugin({ level: "debug", service: "svc" });
+
+    expect(winston.createLogger).toHaveBeenCalledWith(
+      expect.objectContaining({ level: "debug", defaultMeta: { service: "svc" } })
+    );
+  });
+
   // =========================
   // ✅ Console transport formatter (branch coverage)
   // =========================

@@ -1,10 +1,10 @@
 // src/core/di/container.ts
 import "reflect-metadata";
 import { container } from "tsyringe";
-import { WinstonPlugin } from "../../infrastructure/plugins/winston.plugin";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { IUsersDataSource } from "../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { resolveUsersDataSource } from "./datasource.factory";
+import { createLogger } from "./logger.factory";
 import { validateCriticalEnvs } from "../config/env.validation";
 import { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
 import { UsersRepository } from "../../infrastructure/repositories/users.repository";
@@ -20,7 +20,6 @@ import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plu
 import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
 import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
 import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
-import { PinoLoggerPlugin } from "../../infrastructure/plugins/pino.plugin";
 // ========== Plugins =================
 container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
 
@@ -30,12 +29,10 @@ const envs:IEnvs = container.resolve("IEnvs");
 // silenciosamente con valores por defecto inseguros.
 validateCriticalEnvs(envs);
 
-// container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
+// El logger se selecciona vía la env var LOG_DRIVER ("pino" | "winston"),
+// con "pino" por defecto. Winston queda disponible para conmutar cuando se quiera.
 container.register<ILogger>("ILogger", {
-  useValue: new PinoLoggerPlugin({
-    service: "api-ts-express",
-    level: envs.getEnv("LOG_LEVEL") || "debug",
-  }),
+  useValue: createLogger(envs),
 });
 
 

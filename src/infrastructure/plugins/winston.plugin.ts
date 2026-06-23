@@ -4,15 +4,25 @@ import path from "path";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { injectable } from "tsyringe";
 
+export interface WinstonLoggerOptions {
+  level?: string;
+  service?: string;
+  logDir?: string;
+}
+
 @injectable()
 export class WinstonPlugin implements ILogger{
   private logger: winston.Logger;
+  private readonly logDir: string;
 
-  constructor() {
-    const level = "info";
+  constructor(opts: WinstonLoggerOptions = {}) {
+    const level = opts.level || process.env.LOG_LEVEL || "info";
+    const service = opts.service || process.env.SERVICE_NAME || "api";
+    this.logDir = opts.logDir || path.resolve(process.cwd(), "logs");
 
     this.logger = winston.createLogger({
       level,
+      defaultMeta: { service },
       format: winston.format.combine(
         winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
         // Formato para consola: color + legible
@@ -27,7 +37,7 @@ export class WinstonPlugin implements ILogger{
   }
 
   private getTransports(): winston.transport[] {
-    const logDir = path.resolve(__dirname, "../../logs");
+    const logDir = this.logDir;
     const transports: winston.transport[] = [
       new winston.transports.Console({
         format: winston.format.combine(

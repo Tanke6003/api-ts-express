@@ -35,9 +35,10 @@ Copy `.env.template` as a starting point.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `LOG_LEVEL` | string | `trace` (dev) / `info` (prod) | Pino log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
+| `LOG_DRIVER` | string | `pino` | Logger implementation: `pino` (default, structured) or `winston`. An unknown value fails fast at startup. |
+| `LOG_LEVEL` | string | `trace` (dev) / `info` (prod) | Log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
 
-In development (`NODE_ENV=development`), logs are pretty-printed via pino-pretty. In other environments, logs are emitted as JSON.
+In development (`NODE_ENV=development`), Pino logs are pretty-printed via pino-pretty. In other environments, logs are emitted as JSON. Switching `LOG_DRIVER=winston` swaps the logger implementation without any code changes.
 
 ---
 
