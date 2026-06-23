@@ -37,7 +37,10 @@ export class UsersService implements IUsersService {
   }
 
   async updateUser(id: number, user: Partial<UserDTO>): Promise<boolean> {
-    return await this.repository.updateUser(id, this.toModel(user as UserDTO));
+    // El id de la ruta identifica al usuario; el payload solo aporta los campos
+    // a actualizar. Mapeamos únicamente lo presente para no inventar un pkUser 0
+    // ni escribir un name undefined en un update parcial.
+    return await this.repository.updateUser(id, this.toPartialModel(user));
   }
 
   async deleteUser(id: number): Promise<boolean> {
@@ -50,5 +53,11 @@ export class UsersService implements IUsersService {
 
   private toModel(userDTO: UserDTO): IUser {
     return { pkUser: userDTO.id || 0, name: userDTO.name };
+  }
+
+  private toPartialModel(userDTO: Partial<UserDTO>): Partial<IUser> {
+    const model: Partial<IUser> = {};
+    if (userDTO.name !== undefined) model.name = userDTO.name;
+    return model;
   }
 }

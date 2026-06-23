@@ -108,14 +108,34 @@ describe("UsersService Unit Tests", () => {
   // ======================================
   // updateUser
   // ======================================
-  it("should update a user (DTO → Model)", async () => {
+  it("should update a user mapping only the present fields (no pkUser in the change set)", async () => {
     mockRepository.updateUser.mockResolvedValue(true);
 
     const dto: UserDTO = { id: 1, name: "Updated User" };
     const result = await usersService.updateUser(1, dto);
 
     expect(result).toBe(true);
-    expect(mockRepository.updateUser).toHaveBeenCalledWith(1, { pkUser: 1, name: "Updated User" });
+    expect(mockRepository.updateUser).toHaveBeenCalledWith(1, { name: "Updated User" });
+  });
+
+  it("should not invent a pkUser 0 nor a name when updating with an empty payload", async () => {
+    mockRepository.updateUser.mockResolvedValue(true);
+
+    const result = await usersService.updateUser(5, {});
+
+    expect(result).toBe(true);
+    expect(mockRepository.updateUser).toHaveBeenCalledWith(5, {});
+    const [, partial] = mockRepository.updateUser.mock.calls[0];
+    expect(partial).not.toHaveProperty("pkUser");
+    expect(partial).not.toHaveProperty("name");
+  });
+
+  it("should map only the name on a partial update", async () => {
+    mockRepository.updateUser.mockResolvedValue(true);
+
+    await usersService.updateUser(7, { name: "Only Name" });
+
+    expect(mockRepository.updateUser).toHaveBeenCalledWith(7, { name: "Only Name" });
   });
 
   // ======================================
