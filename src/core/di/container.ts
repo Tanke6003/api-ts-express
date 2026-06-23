@@ -45,14 +45,17 @@ container.register<ITokenPlugin>("ITokenPlugin", {
 });
 
 container.register<ISqlConnectionPlugin>("TestDB", {
-  useValue: new SequelizePlugin({
-    dialect: envs.getEnv("DB_DIALECT") || "mssql",
-    host: envs.getEnv("DB_HOST") || "localhost",
-    port: Number(envs.getEnv("DB_PORT") || "1434"),
-    username: envs.getEnv("DB_USER") || "sa",
-    password: envs.getEnv("DB_PASSWORD"),
-    database: envs.getEnv("DB_NAME") || "testdb",
-  }),
+  useValue: new SequelizePlugin(
+    {
+      dialect: envs.getEnv("DB_DIALECT") || "mssql",
+      host: envs.getEnv("DB_HOST") || "localhost",
+      port: Number(envs.getEnv("DB_PORT") || "1434"),
+      username: envs.getEnv("DB_USER") || "sa",
+      password: envs.getEnv("DB_PASSWORD"),
+      database: envs.getEnv("DB_NAME") || "testdb",
+    },
+    container.resolve<ILogger>("ILogger")
+  ),
 });
 
 container.register<IFileStorage>("IFileStorage",{

@@ -1,22 +1,36 @@
 
 import { QueryTypes, Transaction } from "sequelize";
 import { SequelizePlugin  } from "../../../../src/infrastructure/plugins/sequelize.plugin";
+import { ILogger } from "../../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
 describe("SequelizePlugin (unit tests with mocks - MSSQL)", () => {
   let plugin: SequelizePlugin;
   let mockQuery: jest.Mock;
+  let mockLogger: jest.Mocked<ILogger>;
 
   beforeEach(() => {
     mockQuery = jest.fn();
 
-    plugin = new SequelizePlugin({
-      dialect: "mssql",
-      host: "localhost",
-      port: 1433,
-      username: "sa",
-      password: "yourStrong(!)Password",
-      database: "testdb",
-    });
+    mockLogger = {
+      info: jest.fn(),
+      debug: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      log: jest.fn(),
+      http: jest.fn(),
+    };
+
+    plugin = new SequelizePlugin(
+      {
+        dialect: "mssql",
+        host: "localhost",
+        port: 1433,
+        username: "sa",
+        password: "yourStrong(!)Password",
+        database: "testdb",
+      },
+      mockLogger
+    );
 
     // Sobreescribimos la conexión real con mocks
     (plugin as any).connection = {
@@ -31,8 +45,23 @@ describe("SequelizePlugin (unit tests with mocks - MSSQL)", () => {
     };
   });
 
-  it("should authenticate without errors", async () => {
+  it("should authenticate without errors and log via the injected logger", async () => {
     await expect(plugin.authenticate()).resolves.not.toThrow();
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      "Database connection established successfully."
+    );
+  });
+
+  it("should log the error and rethrow when authenticate fails", async () => {
+    (plugin as any).connection.authenticate = jest
+      .fn()
+      .mockRejectedValue(new Error("connection refused"));
+
+    await expect(plugin.authenticate()).rejects.toThrow("Database connection failed.");
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      "Unable to connect to the database",
+      expect.objectContaining({ error: expect.any(Error) })
+    );
   });
 
   it("should run getDataTable and return rows", async () => {

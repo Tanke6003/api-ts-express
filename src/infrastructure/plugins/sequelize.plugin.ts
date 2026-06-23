@@ -1,6 +1,7 @@
 // src/infrastructure/plugins/sequelize.connection.ts
 import { Sequelize, QueryTypes, Transaction, Options, QueryOptions } from "sequelize";
 import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
+import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
 export interface SequelizeConnectionConfig {
   dialect: "mssql" | "mysql" | "mariadb" | "postgres"|string;
@@ -14,11 +15,17 @@ export interface SequelizeConnectionConfig {
 export class SequelizePlugin implements ISqlConnectionPlugin {
   private connection: Sequelize;
 
-  constructor(config: SequelizeConnectionConfig) {
+  constructor(
+    config: SequelizeConnectionConfig,
+    private readonly logger: ILogger
+  ) {
     this.connection = new Sequelize({
       ...config,
       pool: { max: 10, min: 0, idle: 10000 },
-      logging: process.env.NODE_ENV != "production" ? console.log : false,
+      logging:
+        process.env.NODE_ENV !== "production"
+          ? (sql: string) => this.logger.debug(sql)
+          : false,
     } as Options);
   }
 
@@ -28,9 +35,9 @@ export class SequelizePlugin implements ISqlConnectionPlugin {
   async authenticate(): Promise<void> {
     try {
       await this.connection.authenticate();
-      console.log("✅ Database connection established successfully.");
+      this.logger.info("Database connection established successfully.");
     } catch (error) {
-      console.error("❌ Unable to connect to the database:", error);
+      this.logger.error("Unable to connect to the database", { error });
       throw new Error("Database connection failed.");
     }
   }
@@ -130,7 +137,7 @@ export class SequelizePlugin implements ISqlConnectionPlugin {
     `;
 
     await this.connection.query(sql, { replacements: values });
-    console.log(`✅ Bulk insert: ${records.length} rows inserted into ${table}`);
+    this.logger.info(`Bulk insert: ${records.length} rows inserted into ${table}`);
   }
 
   /**
@@ -138,6 +145,6 @@ export class SequelizePlugin implements ISqlConnectionPlugin {
    */
   async close(): Promise<void> {
     await this.connection.close();
-    console.log("🔒 Database connection closed.");
+    this.logger.info("Database connection closed.");
   }
 }
