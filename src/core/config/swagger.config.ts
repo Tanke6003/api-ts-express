@@ -24,7 +24,7 @@ export const getSwaggerOptions = (): Options => {
         securitySchemes: {
           bearerAuth: {
             description:
-              'JWT Authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"',
+              "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
             type: "http",
             scheme: "bearer",
             bearerFormat: "JWT",
