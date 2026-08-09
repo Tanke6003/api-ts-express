@@ -1,5 +1,6 @@
 // src/core/server.ts
 import express, { Application } from "express";
+import path from "path";
 import cors from "cors";
 import { IndexRoutes } from "../presentation/routes/index.route";
 import swaggerJsdoc from "swagger-jsdoc";
@@ -25,6 +26,9 @@ export class Server {
     this.app.use(cors());
     const logger: ILogger = container.resolve("ILogger");
     this.app.use(logger.http());
+
+    // Interfaz web de ejemplo (HTML + JS + Tailwind) servida desde /public.
+    this.app.use(express.static(path.resolve(process.cwd(), "public")));
   }
 
   async configureScalar() {
@@ -65,6 +69,8 @@ export class Server {
     this.app.get("/health", (_req, res) => {
       res.status(200).json({
         status: "ok",
+        // Útil para saber contra qué driver está corriendo la interfaz web.
+        dataSource: (process.env.DATA_SOURCE || "dummy").toLowerCase(),
         timestamp: new Date().toISOString(),
         uptime: Math.floor(process.uptime()),
       });
@@ -82,6 +88,7 @@ export class Server {
 
     this.app.listen(this.port, () => {
       console.log(`Server running on port ${this.port}`);
+      console.log(`UI:      http://localhost:${this.port}/`);
       console.log(`Users:   http://localhost:${this.port}/api/users`);
       console.log(`Swagger: http://localhost:${this.port}/api/swagger`);
       console.log(`Scalar:  http://localhost:${this.port}/api/scalar`);
