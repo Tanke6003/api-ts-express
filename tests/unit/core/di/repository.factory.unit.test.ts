@@ -66,6 +66,14 @@ describe("buildOracleConfig", () => {
     });
   });
 
+  // Cero conexiones ociosas es una elección legítima, no un valor inválido.
+  it("acepta un mínimo de pool de cero", () => {
+    expect(buildOracleConfig(envsWith({ ORACLE_POOL_MIN: "0" }))).toMatchObject({ poolMin: 0 });
+    expect(buildOracleConfig(envsWith({ ORACLE_POOL_INCREMENT: "0" }))).toMatchObject({
+      poolIncrement: 0,
+    });
+  });
+
   it("ignora tamaños de pool inservibles en vez de propagar un NaN", () => {
     const config = buildOracleConfig(
       envsWith({ ORACLE_POOL_MIN: "abc", ORACLE_POOL_MAX: "0", ORACLE_POOL_INCREMENT: "-3" })

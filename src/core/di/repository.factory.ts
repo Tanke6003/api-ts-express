@@ -78,9 +78,21 @@ export function isOracleDriver(dataSource?: string): boolean {
   return resolveDriver(dataSource) === "oracle";
 }
 
-const toInt = (value: string, fallback: number): number => {
+/**
+ * Entero de configuración con su mínimo aceptable.
+ *
+ * El mínimo es por parámetro y no uno global: `poolMin` y `poolIncrement`
+ * admiten 0 —cero conexiones ociosas, pool que no crece— mientras que un
+ * `poolMax` o un puerto en 0 no significan nada. Un valor fuera de rango cae al
+ * valor por defecto en vez de propagar un NaN.
+ */
+const toInt = (value: string, fallback: number, min = 1): number => {
+  // `Number("")` es 0, así que sin este corte una variable sin definir se leería
+  // como un cero configurado a propósito.
+  if (value.trim() === "") return fallback;
+
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed >= min ? parsed : fallback;
 };
 
 /** Configuración de Oracle, con valores por defecto alineados con docker-compose. */
@@ -89,9 +101,10 @@ export function buildOracleConfig(envs: IEnvs) {
     user: envs.getEnv("ORACLE_USER") || "appuser",
     password: envs.getEnv("ORACLE_PASSWORD"),
     connectString: envs.getEnv("ORACLE_CONNECT_STRING") || "localhost:1521/FREEPDB1",
-    poolMin: toInt(envs.getEnv("ORACLE_POOL_MIN"), 1),
+    // 0 es válido: significa no mantener ninguna conexión ociosa.
+    poolMin: toInt(envs.getEnv("ORACLE_POOL_MIN"), 1, 0),
     poolMax: toInt(envs.getEnv("ORACLE_POOL_MAX"), 10),
-    poolIncrement: toInt(envs.getEnv("ORACLE_POOL_INCREMENT"), 1),
+    poolIncrement: toInt(envs.getEnv("ORACLE_POOL_INCREMENT"), 1, 0),
   };
 }
 
