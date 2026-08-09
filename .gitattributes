@@ -1,0 +1,5 @@
+# Los scripts y el SQL que se montan dentro del contenedor de Oracle los ejecuta
+# Linux: con finales de línea CRLF, bash fallaría con "bad interpreter: ...^M".
+# Se fuerza LF pase lo que pase en la configuración local de core.autocrlf.
+*.sh   text eol=lf
+*.sql  text eol=lf

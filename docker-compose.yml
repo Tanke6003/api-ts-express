@@ -7,12 +7,41 @@ services:
     restart: always
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: ${DB_PASSWORD}
+      SA_PASSWORD: ${DB_PASSWORD:-StrongPassword123!}
     ports:
-      - "${DB_PORT}:1433"
+      - "${DB_PORT:-1434}:1433"
     volumes:
       - mssql_data:/var/opt/mssql
       - ./backup:/var/opt/mssql/backup
+
+  oracle:
+    # Imagen community de Gerald Venzl: Oracle Database 23ai Free, sin login en
+    # container-registry.oracle.com. La variante "faststart" trae la base ya
+    # creada, así que el primer arranque baja de ~10 min a ~1 min.
+    image: gvenzl/oracle-free:23-slim-faststart
+    container_name: test-oracle
+    restart: unless-stopped
+    environment:
+      # Password de SYS / SYSTEM.
+      ORACLE_PASSWORD: ${ORACLE_SYS_PASSWORD:-OraclePassword1}
+      # La imagen crea este usuario dentro del PDB FREEPDB1 y le da CONNECT +
+      # RESOURCE. Es el que usa la API; nunca conectamos como SYS.
+      APP_USER: ${ORACLE_USER:-appuser}
+      APP_USER_PASSWORD: ${ORACLE_PASSWORD:-AppPassword1}
+    ports:
+      - "${ORACLE_PORT:-1521}:1521"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      # Sólo el .sh vive en initdb.d: es el que decide con qué usuario y contra
+      # qué PDB se aplican los .sql (ver docker/oracle/init/00_init.sh).
+      - ./docker/oracle/init:/container-entrypoint-initdb.d
+      - ./docker/oracle/sql:/opt/appsql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 
   minio:
     image: minio/minio:latest
@@ -31,4 +60,5 @@ services:
 
 volumes:
   mssql_data:
+  oracle_data:
 
