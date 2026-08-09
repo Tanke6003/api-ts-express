@@ -42,7 +42,7 @@ describe("UsersService Unit Tests", () => {
     const result = await usersService.getAllUsers({ page: 1, limit: 10 });
 
     expect(result).toEqual({
-      data: [{ id: 1, name: "Test User" }],
+      data: [{ id: 1, name: "Test User", email: null, phone: null, isClient: true }],
       total: 1,
       page: 1,
       limit: 10,
@@ -70,7 +70,13 @@ describe("UsersService Unit Tests", () => {
 
     const result = await usersService.getUserById(1);
 
-    expect(result).toEqual({ id: 1, name: "Test User" });
+    expect(result).toEqual({
+      id: 1,
+      name: "Test User",
+      email: null,
+      phone: null,
+      isClient: true,
+    });
     expect(mockRepository.getUserById).toHaveBeenCalledWith(1);
   });
 
@@ -93,7 +99,13 @@ describe("UsersService Unit Tests", () => {
     const result = await usersService.createUser(dto);
 
     expect(result).toBe(true);
-    expect(mockRepository.createUser).toHaveBeenCalledWith({ pkUser: 0, name: "New User" });
+    expect(mockRepository.createUser).toHaveBeenCalledWith({
+      pkUser: 0,
+      name: "New User",
+      email: null,
+      phone: null,
+      isClient: true,
+    });
   });
 
   it("should throw AppError if createUser returns false", async () => {

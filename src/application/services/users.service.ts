@@ -48,16 +48,33 @@ export class UsersService implements IUsersService {
   }
 
   private toDTO(user: IUser): UserDTO {
-    return { id: user.pkUser, name: user.name };
+    return {
+      id: user.pkUser,
+      name: user.name,
+      email: user.email ?? null,
+      phone: user.phone ?? null,
+      // Los drivers sin esa columna (dummy heredado, SQL Server) no distinguen
+      // staff de clientes; se asume cliente para no romper el agendado.
+      isClient: user.isClient ?? true,
+    };
   }
 
   private toModel(userDTO: UserDTO): IUser {
-    return { pkUser: userDTO.id || 0, name: userDTO.name };
+    return {
+      pkUser: userDTO.id || 0,
+      name: userDTO.name,
+      email: userDTO.email ?? null,
+      phone: userDTO.phone ?? null,
+      isClient: userDTO.isClient ?? true,
+    };
   }
 
   private toPartialModel(userDTO: Partial<UserDTO>): Partial<IUser> {
     const model: Partial<IUser> = {};
     if (userDTO.name !== undefined) model.name = userDTO.name;
+    if (userDTO.email !== undefined) model.email = userDTO.email;
+    if (userDTO.phone !== undefined) model.phone = userDTO.phone;
+    if (userDTO.isClient !== undefined) model.isClient = userDTO.isClient;
     return model;
   }
 }

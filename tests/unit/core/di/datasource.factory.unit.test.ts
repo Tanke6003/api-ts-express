@@ -3,17 +3,23 @@ import {
   resolveUsersDataSource,
   USERS_DATASOURCES,
 } from "../../../../src/core/di/datasource.factory";
-import { UsersDummyDataSource } from "../../../../src/infrastructure/datasources/dummy/users.dummy.datasource";
+import { UsersGenericDataSource } from "../../../../src/infrastructure/datasources/generic/users.generic.datasource";
 import { UsersSqlServerDataSource } from "../../../../src/infrastructure/datasources/sqlserver/users.sqlserver.datasource";
 
 describe("resolveUsersDataSource", () => {
-  it("defaults to the dummy datasource when no value is provided", () => {
-    expect(resolveUsersDataSource(undefined)).toBe(UsersDummyDataSource);
-    expect(resolveUsersDataSource("")).toBe(UsersDummyDataSource);
+  it("defaults to the generic datasource when no value is provided", () => {
+    expect(resolveUsersDataSource(undefined)).toBe(UsersGenericDataSource);
+    expect(resolveUsersDataSource("")).toBe(UsersGenericDataSource);
   });
 
-  it("returns the dummy datasource for 'dummy'", () => {
-    expect(resolveUsersDataSource("dummy")).toBe(UsersDummyDataSource);
+  it("returns the generic datasource for 'dummy'", () => {
+    expect(resolveUsersDataSource("dummy")).toBe(UsersGenericDataSource);
+  });
+
+  // dummy y oracle comparten implementación: el repositorio genérico es el que
+  // cambia (memoria u Oracle), no el datasource.
+  it("returns the generic datasource for 'oracle'", () => {
+    expect(resolveUsersDataSource("oracle")).toBe(UsersGenericDataSource);
   });
 
   it("returns the SQL Server datasource for 'sqlserver'", () => {
@@ -22,17 +28,18 @@ describe("resolveUsersDataSource", () => {
 
   it("is case-insensitive", () => {
     expect(resolveUsersDataSource("SqlServer")).toBe(UsersSqlServerDataSource);
-    expect(resolveUsersDataSource("DUMMY")).toBe(UsersDummyDataSource);
+    expect(resolveUsersDataSource("ORACLE")).toBe(UsersGenericDataSource);
+    expect(resolveUsersDataSource("DUMMY")).toBe(UsersGenericDataSource);
   });
 
   it("throws a descriptive error for an unknown datasource", () => {
     expect(() => resolveUsersDataSource("mongodb")).toThrow(
       /Unknown DATA_SOURCE "mongodb"/
     );
-    expect(() => resolveUsersDataSource("mongodb")).toThrow(/dummy, sqlserver/);
+    expect(() => resolveUsersDataSource("mongodb")).toThrow(/dummy, oracle, sqlserver/);
   });
 
   it("exposes the available implementations", () => {
-    expect(Object.keys(USERS_DATASOURCES).sort()).toEqual(["dummy", "sqlserver"]);
+    expect(Object.keys(USERS_DATASOURCES).sort()).toEqual(["dummy", "oracle", "sqlserver"]);
   });
 });

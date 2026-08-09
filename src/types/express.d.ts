@@ -3,13 +3,17 @@
 //  - `user`: the decoded JWT payload set by the auth middleware (JwtPlugin).
 //  - `validatedQuery`: the parsed/validated query set by the validateQuery middleware.
 import type { JwtPayload } from "jsonwebtoken";
-import type { PaginationInput } from "../application/validators/users.validators";
 
 declare global {
   namespace Express {
     interface Request {
       user?: string | JwtPayload;
-      validatedQuery?: PaginationInput;
+      /**
+       * Salida del esquema que se pasó a `validateQuery`. Cada módulo usa un
+       * esquema distinto, así que el tipo concreto lo afirma el controlador que
+       * lo consume.
+       */
+      validatedQuery?: unknown;
     }
   }
 }

@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodSchema } from "zod";
-import type { PaginationInput } from "../../application/validators/users.validators";
 
 export function validateBody(schema: ZodSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -35,9 +34,9 @@ export function validateQuery(schema: ZodSchema) {
       });
       return;
     }
-    // validateQuery currently backs only the pagination query; the parsed
-    // output is typed as PaginationInput on the Request (see src/types/express.d.ts).
-    req.validatedQuery = result.data as PaginationInput;
+    // El tipo concreto depende del esquema recibido; lo afirma el controlador
+    // que lo consume (ver src/types/express.d.ts).
+    req.validatedQuery = result.data;
     next();
   };
 }

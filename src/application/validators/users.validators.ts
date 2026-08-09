@@ -1,11 +1,21 @@
 import { z } from "zod";
 
+// Campos opcionales: sólo el esquema de Oracle los tiene, los demás drivers los
+// ignoran sin fallar.
+const contactShape = {
+  email: z.string().email("El email no es válido").max(150).nullish(),
+  phone: z.string().max(30, "El teléfono es demasiado largo").nullish(),
+  isClient: z.boolean().optional(),
+};
+
 export const createUserSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name is too long"),
+  ...contactShape,
 });
 
 export const updateUserSchema = z.object({
   name: z.string().min(1, "Name cannot be empty").max(100, "Name is too long"),
+  ...contactShape,
 });
 
 export const paginationSchema = z.object({
