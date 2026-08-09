@@ -1,23 +1,19 @@
 // src/presentation/routes/identity.route.ts
 import { container } from "tsyringe";
-import type { Request, Response, Router } from "express";
+import type { Router } from "express";
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
 
 /**
  * Identidad de la petición: quién es el usuario según el token.
- *
- * Es el equivalente del `BaseApiController` de .NET, que expone los claims a
- * los controladores; aquí se publica como endpoint para poder comprobar qué
- * identidad resolvió la API —la misma que acaba en `CREATED_BY`—.
  */
 export class IdentityRoutes {
+  private identityController: IIdentityController;
   private jwtPlugin: ITokenPlugin;
-  private context: IRequestContext;
 
   constructor() {
+    this.identityController = container.resolve<IIdentityController>("IIdentityController");
     this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
-    this.context = container.resolve<IRequestContext>("IRequestContext");
   }
 
   public register(app: Router) {
@@ -43,7 +39,6 @@ export class IdentityRoutes {
      *               properties:
      *                 id:
      *                   type: string
-     *                   nullable: true
      *                   example: "7"
      *                 name:
      *                   type: string
@@ -57,15 +52,10 @@ export class IdentityRoutes {
      *       401:
      *         description: Unauthorized
      */
-    app.get("/me", this.jwtPlugin.middleware, (_req: Request, res: Response) => {
-      const user = this.context.getCurrentUser();
-
-      res.json({
-        id: this.context.getCurrentUserId(),
-        name: user?.name ?? null,
-        email: user?.email ?? null,
-        requestId: this.context.getRequestId(),
-      });
-    });
+    app.get(
+      "/me",
+      this.jwtPlugin.middleware,
+      this.identityController.me.bind(this.identityController)
+    );
   }
 }

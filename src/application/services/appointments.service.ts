@@ -20,6 +20,7 @@ import {
 } from "../dtos/appointments.dtos";
 import { PaginatedDTO } from "../dtos/common.dtos";
 import { loadRelated } from "../queries/include.query";
+import { appointmentMapper } from "../mapping/profiles";
 import { AppError } from "../../core/errors/app-error";
 
 const DEFAULT_DURATION_MIN = 30;
@@ -309,19 +310,13 @@ export class AppointmentsService implements IAppointmentsService {
       const client =
         appointment.fkClient != null ? clients.get(appointment.fkClient) ?? null : null;
 
+      // El mapeador cubre lo que sale de la propia cita; los nombres vienen de
+      // las relaciones ya resueltas y se añaden encima.
       return {
-        id: appointment.pkAppointment,
-        branchId: appointment.fkBranch,
+        ...appointmentMapper.toDTO(appointment),
         branchName: branch?.name ?? null,
-        clientId: appointment.fkClient ?? null,
         clientName: client?.name ?? null,
-        guestName: appointment.guestName ?? null,
         displayName: client?.name ?? appointment.guestName ?? "Sin nombre",
-        scheduledAt: new Date(appointment.scheduledAt).toISOString(),
-        durationMin: appointment.durationMin,
-        status: appointment.status,
-        details: appointment.details ?? null,
-        available: appointment.available,
       };
     });
   }

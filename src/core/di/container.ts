@@ -36,6 +36,8 @@ import { IBranchesController } from "../../domain/interfaces/presentation/contro
 import { BranchesController } from "../../presentation/controllers/branches.controller";
 import { IAppointmentsController } from "../../domain/interfaces/presentation/controllers/appointments.controller.interface";
 import { AppointmentsController } from "../../presentation/controllers/appointments.controller";
+import { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
+import { IdentityController } from "../../presentation/controllers/identity.controller";
 // ========== Plugins =================
 container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
 
@@ -121,6 +123,7 @@ container.register<IBranchesController>("IBranchesController", { useClass: Branc
 container.register<IAppointmentsController>("IAppointmentsController", {
   useClass: AppointmentsController,
 });
+container.register<IIdentityController>("IIdentityController", { useClass: IdentityController });
 
 /**
  * Comprueba la conexión al arrancar cuando el driver es Oracle, para que un

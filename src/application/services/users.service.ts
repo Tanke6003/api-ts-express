@@ -5,6 +5,7 @@ import { PaginatedDTO, PaginationDTO, UserDTO } from "../dtos/users.dtos";
 import { IUser } from "../../domain/models/users.model";
 import { inject, injectable } from "tsyringe";
 import { AppError } from "../../core/errors/app-error";
+import { userMapper } from "../mapping/profiles";
 
 @injectable()
 export class UsersService implements IUsersService {
@@ -48,33 +49,19 @@ export class UsersService implements IUsersService {
   }
 
   private toDTO(user: IUser): UserDTO {
-    return {
-      id: user.pkUser,
-      name: user.name,
-      email: user.email ?? null,
-      phone: user.phone ?? null,
-      // Los drivers sin esa columna (dummy heredado, SQL Server) no distinguen
-      // staff de clientes; se asume cliente para no romper el agendado.
-      isClient: user.isClient ?? true,
-    };
+    return userMapper.toDTO(user);
   }
 
+  /**
+   * El contrato heredado de `IUsersDataSource` pide un `IUser` completo, así
+   * que la PK se añade al resultado del mapeador (que la trata como sólo
+   * lectura, porque nunca debe venir del cuerpo de la petición).
+   */
   private toModel(userDTO: UserDTO): IUser {
-    return {
-      pkUser: userDTO.id || 0,
-      name: userDTO.name,
-      email: userDTO.email ?? null,
-      phone: userDTO.phone ?? null,
-      isClient: userDTO.isClient ?? true,
-    };
+    return { pkUser: userDTO.id || 0, ...userMapper.toEntity(userDTO) } as IUser;
   }
 
   private toPartialModel(userDTO: Partial<UserDTO>): Partial<IUser> {
-    const model: Partial<IUser> = {};
-    if (userDTO.name !== undefined) model.name = userDTO.name;
-    if (userDTO.email !== undefined) model.email = userDTO.email;
-    if (userDTO.phone !== undefined) model.phone = userDTO.phone;
-    if (userDTO.isClient !== undefined) model.isClient = userDTO.isClient;
-    return model;
+    return userMapper.toPartialEntity(userDTO);
   }
 }

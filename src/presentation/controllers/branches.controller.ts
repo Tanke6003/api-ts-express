@@ -6,12 +6,17 @@ import { IBranchesController } from "../../domain/interfaces/presentation/contro
 import type { BranchQueryInput } from "../../application/validators/branches.validators";
 import { AppError } from "../../core/errors/app-error";
 import { parseId } from "./parse-id";
+import { BaseController } from "./base.controller";
+import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 
 @injectable()
-export class BranchesController implements IBranchesController {
+export class BranchesController extends BaseController implements IBranchesController {
   constructor(
-    @inject("IBranchesService") private readonly branchesService: IBranchesService
-  ) {}
+    @inject("IBranchesService") private readonly branchesService: IBranchesService,
+    @inject("IRequestContext") context: IRequestContext
+  ) {
+    super(context);
+  }
 
   public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

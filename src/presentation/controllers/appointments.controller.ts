@@ -6,12 +6,17 @@ import { IAppointmentsController } from "../../domain/interfaces/presentation/co
 import type { AppointmentQueryInput } from "../../application/validators/appointments.validators";
 import { AppError } from "../../core/errors/app-error";
 import { parseId } from "./parse-id";
+import { BaseController } from "./base.controller";
+import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 
 @injectable()
-export class AppointmentsController implements IAppointmentsController {
+export class AppointmentsController extends BaseController implements IAppointmentsController {
   constructor(
-    @inject("IAppointmentsService") private readonly appointmentsService: IAppointmentsService
-  ) {}
+    @inject("IAppointmentsService") private readonly appointmentsService: IAppointmentsService,
+    @inject("IRequestContext") context: IRequestContext
+  ) {
+    super(context);
+  }
 
   public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

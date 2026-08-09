@@ -5,12 +5,17 @@ import type { IUsersService } from "../../domain/interfaces/application/services
 import { inject, injectable } from "tsyringe";
 import { AppError } from "../../core/errors/app-error";
 import type { PaginationInput } from "../../application/validators/users.validators";
+import { BaseController } from "./base.controller";
+import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 
 @injectable()
-export class UsersController implements IUsersController {
+export class UsersController extends BaseController implements IUsersController {
   constructor(
-    @inject("IUsersService") private readonly usersService: IUsersService
-  ) {}
+    @inject("IUsersService") private readonly usersService: IUsersService,
+    @inject("IRequestContext") context: IRequestContext
+  ) {
+    super(context);
+  }
 
   public getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

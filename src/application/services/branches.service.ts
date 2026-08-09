@@ -16,6 +16,7 @@ import {
 } from "../dtos/branches.dtos";
 import { PaginatedDTO } from "../dtos/common.dtos";
 import { AppError } from "../../core/errors/app-error";
+import { branchMapper } from "../mapping/profiles";
 
 @injectable()
 export class BranchesService implements IBranchesService {
@@ -149,24 +150,11 @@ export class BranchesService implements IBranchesService {
   }
 
   private toDTO(branch: IBranch): BranchDTO {
-    return {
-      id: branch.pkBranch,
-      name: branch.name,
-      address: branch.address ?? null,
-      phone: branch.phone ?? null,
-      opensAt: branch.opensAt,
-      closesAt: branch.closesAt,
-      available: branch.available,
-    };
+    return branchMapper.toDTO(branch);
   }
 
+  /** Sólo las claves presentes: un PUT parcial no debe borrar lo que no envía. */
   private toModel(branch: UpdateBranchDTO): Partial<IBranch> {
-    const model: Partial<IBranch> = {};
-    if (branch.name !== undefined) model.name = branch.name;
-    if (branch.address !== undefined) model.address = branch.address;
-    if (branch.phone !== undefined) model.phone = branch.phone;
-    if (branch.opensAt !== undefined) model.opensAt = branch.opensAt;
-    if (branch.closesAt !== undefined) model.closesAt = branch.closesAt;
-    return model;
+    return branchMapper.toPartialEntity(branch);
   }
 }

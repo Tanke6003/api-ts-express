@@ -7,6 +7,8 @@ import { IRequestContext } from "../../../src/domain/interfaces/infrastructure/p
 import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
 import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import { IdentityRoutes } from "../../../src/presentation/routes/identity.route";
+import { IIdentityController } from "../../../src/domain/interfaces/presentation/controllers/identity.controller.interface";
+import { IdentityController } from "../../../src/presentation/controllers/identity.controller";
 import { TestRoutes } from "../../../src/presentation/routes/test.route";
 import { requestContext } from "../../../src/presentation/middlewares/requestContext.middleware";
 import { errorHandler } from "../../../src/presentation/middlewares/errorHandler.middleware";
@@ -24,6 +26,7 @@ describe("GET /api/me", () => {
     });
     container.registerSingleton<IRequestContext>("IRequestContext", AsyncRequestContextPlugin);
     container.register<ITokenPlugin>("ITokenPlugin", { useClass: JwtPlugin });
+    container.register<IIdentityController>("IIdentityController", { useClass: IdentityController });
 
     app = express();
     app.use(requestContext(container.resolve<IRequestContext>("IRequestContext")));
