@@ -77,7 +77,7 @@ export class OraclePlugin implements IOracleConnectionPlugin {
           // la promesa rechazada cacheada para siempre.
           this.pending = null;
           this.logger.error("No se pudo crear el pool de Oracle", { err: toMessage(err) });
-          throw new Error(`[OraclePlugin] createPool failed: ${toMessage(err)}`);
+          throw new Error(`[OraclePlugin] createPool failed: ${toMessage(err)}`, { cause: err });
         });
     }
 
@@ -92,7 +92,7 @@ export class OraclePlugin implements IOracleConnectionPlugin {
       this.logger.info("Conexión con Oracle establecida correctamente.");
     } catch (err) {
       this.logger.error("No fue posible conectar con Oracle", { err: toMessage(err) });
-      throw new Error(`[OraclePlugin] authenticate failed: ${toMessage(err)}`);
+      throw new Error(`[OraclePlugin] authenticate failed: ${toMessage(err)}`, { cause: err });
     } finally {
       await connection.close();
     }
@@ -120,7 +120,7 @@ export class OraclePlugin implements IOracleConnectionPlugin {
       };
     } catch (err) {
       this.logger.error("Error ejecutando sentencia en Oracle", { sql, err: toMessage(err) });
-      throw new Error(`[OraclePlugin] execute failed: ${toMessage(err)}`);
+      throw new Error(`[OraclePlugin] execute failed: ${toMessage(err)}`, { cause: err });
     } finally {
       await connection.close();
     }
@@ -141,7 +141,7 @@ export class OraclePlugin implements IOracleConnectionPlugin {
       return result.rowsAffected ?? 0;
     } catch (err) {
       this.logger.error("Error en executeMany", { sql, err: toMessage(err) });
-      throw new Error(`[OraclePlugin] executeMany failed: ${toMessage(err)}`);
+      throw new Error(`[OraclePlugin] executeMany failed: ${toMessage(err)}`, { cause: err });
     } finally {
       await connection.close();
     }
@@ -212,7 +212,9 @@ export class OraclePlugin implements IOracleConnectionPlugin {
         spName,
         err: toMessage(err),
       });
-      throw new Error(`[OraclePlugin] execStoredProcedure ${spName} failed: ${toMessage(err)}`);
+      throw new Error(`[OraclePlugin] execStoredProcedure ${spName} failed: ${toMessage(err)}`, {
+        cause: err,
+      });
     } finally {
       await connection.close();
     }

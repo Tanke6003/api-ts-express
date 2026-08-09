@@ -21,6 +21,8 @@ import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plu
 import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
 import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
 import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
+import { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { AsyncRequestContextPlugin } from "../../infrastructure/plugins/asyncRequestContext.plugin";
 import { IUnitOfWork } from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import { IBranchesRepository } from "../../domain/interfaces/infrastructure/repositories/branches.repository.interface";
 import { BranchesRepository } from "../../infrastructure/repositories/branches.repository";
@@ -51,6 +53,12 @@ container.register<ILogger>("ILogger", {
 
 const logger = container.resolve<ILogger>("ILogger");
 
+// Contexto de la petición (AsyncLocalStorage). Se registra antes que nada más
+// porque de él salen el id de petición para los logs y el usuario que el
+// repositorio genérico escribe en las columnas de auditoría.
+container.registerSingleton<IRequestContext>("IRequestContext", AsyncRequestContextPlugin);
+const requestContext = container.resolve<IRequestContext>("IRequestContext");
+
 container.register<ITokenPlugin>("ITokenPlugin", {
   useClass: JwtPlugin
 });
@@ -76,7 +84,7 @@ container.register<IFileStorage>("IFileStorage", {
 // ========== Persistencia genérica =================
 // Un único punto construye los repositorios genéricos de todas las entidades y
 // la unidad de trabajo: sobre Oracle si DATA_SOURCE=oracle, en memoria si no.
-const persistence = createPersistenceLayer(envs, logger);
+const persistence = createPersistenceLayer(envs, logger, requestContext);
 
 container.register("UsersStore", { useValue: persistence.stores.users });
 container.register("BranchesStore", { useValue: persistence.stores.branches });

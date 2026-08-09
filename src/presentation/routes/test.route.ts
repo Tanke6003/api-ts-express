@@ -37,9 +37,16 @@ export class TestRoutes {
      *     security:
      *       - bearerAuth: []
      */
-    app.get("/api/generate-token", (_req: Request, res: Response) => {
-      // Lógica para generar un token (usualmente después de validar credenciales)
-      const token = this.jwtPlugin.generateToken({ userId: 1 });
+    app.get("/api/generate-token", (req: Request, res: Response) => {
+      // Lógica para generar un token (usualmente después de validar credenciales).
+      // El id va en `sub`, el claim estándar del sujeto: es lo que lee el
+      // contexto de la petición y lo que usan las reglas que dependen de quién
+      // pide. Los parámetros permiten simular distintos usuarios en desarrollo.
+      const userId = String(req.query.userId ?? "1");
+      const name = String(req.query.name ?? "Dev User");
+      const email = String(req.query.email ?? "dev@example.com");
+
+      const token = this.jwtPlugin.generateToken({ sub: userId, userId, name, email });
       res.json({ token });
     });
     /**

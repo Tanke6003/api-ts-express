@@ -37,7 +37,10 @@ export abstract class BaseModuleRepository<T extends object, TKey = number>
       return await work();
     } catch (error) {
       this.logger.error(`Error in ${this.context}.${operation}`, { ...meta, error });
-      throw new Error(`${this.context}.${operation} failed.`);
+      // El error original viaja en `cause`: hacia el cliente sale un mensaje
+      // neutro, pero el manejador global puede seguir reconociendo un ORA-00001
+      // y responder 409 en vez de un 500 genérico.
+      throw new Error(`${this.context}.${operation} failed.`, { cause: error });
     }
   }
 

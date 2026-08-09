@@ -2,6 +2,7 @@
 import type { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { IOracleConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/oracle.plugin.interface";
+import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import type { IGenericRepository } from "../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { IUnitOfWork } from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import { ENTITY_NAMES } from "../../domain/models/entity-names";
@@ -71,16 +72,27 @@ export function buildOracleConfig(envs: IEnvs) {
  *
  * En ambos casos los servicios reciben exactamente la misma interfaz.
  */
-export function createPersistenceLayer(envs: IEnvs, logger: ILogger): PersistenceLayer {
+export function createPersistenceLayer(
+  envs: IEnvs,
+  logger: ILogger,
+  /** Provee el usuario de las columnas de auditoría. */
+  context?: IRequestContext
+): PersistenceLayer {
   if (isOracleDriver(envs.getEnv("DATA_SOURCE"))) {
     const oracle = new OraclePlugin(buildOracleConfig(envs), logger);
 
-    const users = new OracleGenericRepository<IUser>(oracle, USERS_ENTITY, logger);
-    const branches = new OracleGenericRepository<IBranch>(oracle, BRANCHES_ENTITY, logger);
+    const users = new OracleGenericRepository<IUser>(oracle, USERS_ENTITY, logger, context);
+    const branches = new OracleGenericRepository<IBranch>(
+      oracle,
+      BRANCHES_ENTITY,
+      logger,
+      context
+    );
     const appointments = new OracleGenericRepository<IAppointment>(
       oracle,
       APPOINTMENTS_ENTITY,
-      logger
+      logger,
+      context
     );
 
     // El registro es heterogéneo por naturaleza: la unidad de trabajo lo indexa
@@ -104,7 +116,7 @@ export function createPersistenceLayer(envs: IEnvs, logger: ILogger): Persistenc
   }
 
   const memoryStore = <T extends object>(metadata: EntityMetadata<T>, seed: Partial<T>[]) =>
-    new MemoryGenericRepository<T>(metadata, seed);
+    new MemoryGenericRepository<T>(metadata, seed, context);
 
   const users = memoryStore(USERS_ENTITY, USERS_SEED);
   const branches = memoryStore(BRANCHES_ENTITY, BRANCHES_SEED);

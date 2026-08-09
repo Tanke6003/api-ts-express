@@ -8,7 +8,9 @@ import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 import { container, injectable } from "tsyringe";
 import { getSwaggerOptions } from "./config/swagger.config";
 import { ILogger } from "../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { errorHandler } from "../presentation/middlewares/errorHandler.middleware";
+import { errorHandler, notFoundHandler } from "../presentation/middlewares/errorHandler.middleware";
+import { requestContext } from "../presentation/middlewares/requestContext.middleware";
+import { IRequestContext } from "../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 
 @injectable()
 export class Server {
@@ -21,9 +23,16 @@ export class Server {
   }
 
   async configureMiddleware() {
+    // Lo primero de todo, incluso antes del parseo del cuerpo: asi hasta un
+    // JSON mal formado se rechaza con su id de peticion, y el resto de capas
+    // (logs, manejador de errores, auditoria) ven el contexto.
+    const context: IRequestContext = container.resolve("IRequestContext");
+    this.app.use(requestContext(context));
+
     this.app.use(express.json({ limit: "50mb" }));
     this.app.use(express.urlencoded({ limit: "50mb", extended: true }));
     this.app.use(cors());
+
     const logger: ILogger = container.resolve("ILogger");
     this.app.use(logger.http());
 
@@ -76,7 +85,15 @@ export class Server {
       });
     });
 
-    // Global error handler — must be registered last
+  }
+
+  /**
+   * 404 y manejador de errores. Se registra al final del todo, despues de las
+   * rutas de negocio y de Swagger/Scalar: un manejador de errores registrado
+   * antes de una ruta no cubre esa ruta, y el 404 se tragaria la documentacion.
+   */
+  configureErrorHandling() {
+    this.app.use(notFoundHandler);
     this.app.use(errorHandler);
   }
 
@@ -85,6 +102,7 @@ export class Server {
     await this.configureRoutes();
     await this.configureScalar();
     await this.configureSwagger();
+    this.configureErrorHandling();
 
     this.app.listen(this.port, () => {
       console.log(`Server running on port ${this.port}`);

@@ -26,9 +26,12 @@ export const USERS_ENTITY = defineEntity<IUser>({
     available: { name: "AVAILABLE", kind: "boolean" },
     createdAt: { name: "CREATED_AT", kind: "date", updatable: false },
     updatedAt: { name: "UPDATED_AT", kind: "date" },
+    createdBy: { name: "CREATED_BY", kind: "string", updatable: false },
+    updatedBy: { name: "UPDATED_BY", kind: "string" },
   },
   softDelete: { property: "available", activeValue: 1, deletedValue: 0 },
   timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
+  audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
 });
 
 export const BRANCHES_ENTITY = defineEntity<IBranch>({
@@ -45,9 +48,12 @@ export const BRANCHES_ENTITY = defineEntity<IBranch>({
     available: { name: "AVAILABLE", kind: "boolean" },
     createdAt: { name: "CREATED_AT", kind: "date", updatable: false },
     updatedAt: { name: "UPDATED_AT", kind: "date" },
+    createdBy: { name: "CREATED_BY", kind: "string", updatable: false },
+    updatedBy: { name: "UPDATED_BY", kind: "string" },
   },
   softDelete: { property: "available", activeValue: 1, deletedValue: 0 },
   timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
+  audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
 });
 
 export const APPOINTMENTS_ENTITY = defineEntity<IAppointment>({
@@ -71,7 +77,10 @@ export const APPOINTMENTS_ENTITY = defineEntity<IAppointment>({
     available: { name: "AVAILABLE", kind: "boolean" },
     createdAt: { name: "CREATED_AT", kind: "date", updatable: false },
     updatedAt: { name: "UPDATED_AT", kind: "date" },
+    createdBy: { name: "CREATED_BY", kind: "string", updatable: false },
+    updatedBy: { name: "UPDATED_BY", kind: "string" },
   },
   softDelete: { property: "available", activeValue: 1, deletedValue: 0 },
   timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
+  audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
 });

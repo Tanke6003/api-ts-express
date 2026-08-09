@@ -93,7 +93,7 @@ It implements the project's `ISqlConnectionPlugin`, so it coexists with `Sequeli
 
 ## 4. Schema
 
-Three tables sharing the convention the generic repository expects: numeric `IDENTITY` PK, an `AVAILABLE NUMBER(1)` soft-delete flag, and `CREATED_AT` / `UPDATED_AT` timestamps.
+Three tables sharing the convention the generic repository expects: numeric `IDENTITY` PK, an `AVAILABLE NUMBER(1)` soft-delete flag, `CREATED_AT` / `UPDATED_AT` timestamps and `CREATED_BY` / `UPDATED_BY` audit columns (filled from the token — see [errors-and-identity.md](errors-and-identity.md)).
 
 ```
 USERS                      BRANCHES                  APPOINTMENTS
@@ -106,8 +106,9 @@ IS_CLIENT                  OPENS_AT                  SCHEDULED_AT
 AVAILABLE                  CLOSES_AT                 DURATION_MIN
 CREATED_AT                 AVAILABLE                 STATUS
 UPDATED_AT                 CREATED_AT                DETAILS
-                           UPDATED_AT                AVAILABLE
-                                                     CREATED_AT / UPDATED_AT
+CREATED_BY                 UPDATED_AT                AVAILABLE
+UPDATED_BY                 CREATED_BY                CREATED_AT / UPDATED_AT
+                           UPDATED_BY                CREATED_BY / UPDATED_BY
 ```
 
 An appointment belongs either to a registered client (`FK_CLIENT`) or to someone who is not registered yet, in which case only the name it was booked under is stored (`GUEST_NAME`). The database enforces that at least one is present:

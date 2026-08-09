@@ -16,6 +16,8 @@ beforeAll(async () => {
   const server = new Server(port);
   await server.configureMiddleware();
   await server.configureRoutes();
+  // El 404 y el manejador de errores van al final, despues de las rutas.
+  server.configureErrorHandling();
   app = server.app;
 
   const tokenRes = await request(app).get("/api/generate-token");

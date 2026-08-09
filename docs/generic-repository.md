@@ -43,6 +43,7 @@ export const BRANCHES_ENTITY = defineEntity<IBranch>({
 | `kind` | Drives conversions: `boolean` ↔ `1/0`, `date` ↔ `Date`, `number`, `string`. |
 | `softDelete` | Omit it and the entity simply has no logical delete. |
 | `timestamps` | `createdAt`/`updatedAt` are written by the DB (`SYSTIMESTAMP`), not by the Node process clock. |
+| `audit` | `createdBy`/`updatedBy` are filled with the user from the token. See [errors-and-identity.md](errors-and-identity.md). |
 
 ---
 
@@ -219,7 +220,21 @@ Inside the block, `scope.repository(...)` returns the same generic repository bo
 
 ---
 
-## 8. Adding a new entity
+## 8. Who wrote it
+
+Declaring `audit` makes both repositories stamp the current user on every write:
+
+```typescript
+audit: { createdBy: "createdBy", updatedBy: "updatedBy" }
+```
+
+The value comes from the request context —the token— and never from the request body, so a client cannot claim to be someone else. Outside a request (seeds, startup) it is `System`. A logical delete counts as a modification and also stamps `updatedBy`.
+
+Full detail in **[errors-and-identity.md](errors-and-identity.md)**.
+
+---
+
+## 9. Adding a new entity
 
 1. Add the model interface in `src/domain/models/`.
 2. Add its name to `ENTITY_NAMES` (`src/domain/models/entity-names.ts`).

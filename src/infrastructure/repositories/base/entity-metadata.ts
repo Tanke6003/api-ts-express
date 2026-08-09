@@ -38,6 +38,16 @@ export interface TimestampMetadata<T> {
   updatedAt?: Extract<keyof T, string>;
 }
 
+/**
+ * Columnas que registran *quién* escribió, complemento de `timestamps`, que
+ * registra *cuándo*. El valor sale del contexto de la petición, así que ningún
+ * servicio tiene que arrastrar el usuario hasta el CRUD.
+ */
+export interface AuditMetadata<T> {
+  createdBy?: Extract<keyof T, string>;
+  updatedBy?: Extract<keyof T, string>;
+}
+
 export interface EntityMetadata<T> {
   table: string;
   primaryKey: Extract<keyof T, string>;
@@ -47,6 +57,8 @@ export interface EntityMetadata<T> {
   /** Si se omite, la entidad no soporta borrado lógico. */
   softDelete?: SoftDeleteMetadata<T>;
   timestamps?: TimestampMetadata<T>;
+  /** Si se omite, la entidad no guarda quién la creó o modificó. */
+  audit?: AuditMetadata<T>;
 }
 
 /**
@@ -110,6 +122,10 @@ export class EntitySchema<T> {
 
   get timestamps(): TimestampMetadata<T> | undefined {
     return this.metadata.timestamps;
+  }
+
+  get audit(): AuditMetadata<T> | undefined {
+    return this.metadata.audit;
   }
 
   get properties(): Extract<keyof T, string>[] {

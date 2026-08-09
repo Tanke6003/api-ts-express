@@ -54,3 +54,40 @@ export const SEED: Partial<ITestItem>[] = [
   { name: "beta", qty: 20, tag: null, flag: false, dueAt: new Date("2026-02-10T10:00:00Z") },
   { name: "gamma", qty: 30, tag: "y", flag: true, dueAt: new Date("2026-03-10T10:00:00Z") },
 ];
+
+/** Variante con columnas de auditoria de usuario. */
+export interface IAuditedItem {
+  pkItem: number;
+  name: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+}
+
+export const AUDITED_ENTITY = defineEntity<IAuditedItem>({
+  table: "AUDITED",
+  primaryKey: "pkItem",
+  identity: true,
+  columns: {
+    pkItem: { name: "PK_ITEM", kind: "number", insertable: false, updatable: false },
+    name: { name: "NAME", kind: "string" },
+    createdBy: { name: "CREATED_BY", kind: "string", updatable: false },
+    updatedBy: { name: "UPDATED_BY", kind: "string" },
+  },
+  audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
+});
+
+/** Igual que la anterior pero ademas con borrado logico. */
+export const AUDITED_SOFT_ENTITY = defineEntity<IAuditedItem & { active?: boolean }>({
+  table: "AUDITED_SOFT",
+  primaryKey: "pkItem",
+  identity: true,
+  columns: {
+    pkItem: { name: "PK_ITEM", kind: "number", insertable: false, updatable: false },
+    name: { name: "NAME", kind: "string" },
+    active: { name: "ACTIVE", kind: "boolean" },
+    createdBy: { name: "CREATED_BY", kind: "string", updatable: false },
+    updatedBy: { name: "UPDATED_BY", kind: "string" },
+  },
+  softDelete: { property: "active", activeValue: 1, deletedValue: 0 },
+  audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
+});

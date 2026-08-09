@@ -6,6 +6,8 @@ import type {
   QueryOptions,
   WhereFilter,
 } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { SYSTEM_USER } from "../../plugins/asyncRequestContext.plugin";
 import { EntityMetadata, EntitySchema } from "./entity-metadata";
 import { compareBy, matchesFilter } from "./memory.filter";
 import { QueryBuilder } from "./query-builder";
@@ -31,12 +33,22 @@ export class MemoryGenericRepository<T extends object, TKey = number>
   private readonly store: T[];
   private sequence = 0;
 
-  constructor(metadata: EntityMetadata<T>, seed: Partial<T>[] = []) {
+  constructor(
+    metadata: EntityMetadata<T>,
+    seed: Partial<T>[] = [],
+    /** Provee el usuario de auditoría. Sin él todo se escribe como "System". */
+    private readonly context?: IRequestContext
+  ) {
     this.schema = new EntitySchema(metadata);
     this.store = [];
     for (const entity of seed) {
       this.insertSync(entity);
     }
+  }
+
+  /** Usuario que queda registrado en las columnas de auditoría. */
+  private auditUser(): string {
+    return this.context?.getCurrentUserName() ?? SYSTEM_USER;
   }
 
   // ------------------------------------------------------------ helpers ----
@@ -165,8 +177,12 @@ export class MemoryGenericRepository<T extends object, TKey = number>
   /** Versión síncrona usada también para cargar el seed en el constructor. */
   private insertSync(entity: Partial<T>): T {
     const record: Record<string, unknown> = {};
+    const { createdBy, updatedBy } = this.schema.audit ?? {};
 
     for (const property of this.schema.properties) {
+      // La auditoría sale del contexto, nunca del cuerpo de la petición.
+      if (property === createdBy || property === updatedBy) continue;
+
       const value = (entity as Record<string, unknown>)[property];
       if (value !== undefined) record[property] = value;
     }
@@ -200,6 +216,9 @@ export class MemoryGenericRepository<T extends object, TKey = number>
     if (createdAt) record[createdAt] = new Date();
     if (updatedAt && record[updatedAt] === undefined) record[updatedAt] = null;
 
+    if (createdBy) record[createdBy] = this.auditUser();
+    if (updatedBy) record[updatedBy] = null;
+
     const stored = record as T;
     this.store.push(stored);
     return stored;
@@ -217,11 +236,12 @@ export class MemoryGenericRepository<T extends object, TKey = number>
   /** Aplica los cambios sobre el registro almacenado; devuelve si tocó algo. */
   private applyChanges(entity: T, changes: Partial<T>): boolean {
     const { updatedAt } = this.schema.timestamps ?? {};
+    const { createdBy, updatedBy } = this.schema.audit ?? {};
     const record = entity as Record<string, unknown>;
     let touched = false;
 
     for (const property of this.schema.updatableProperties()) {
-      if (property === updatedAt) continue;
+      if (property === updatedAt || property === createdBy || property === updatedBy) continue;
 
       const value = (changes as Record<string, unknown>)[property];
       if (value === undefined) continue;
@@ -231,6 +251,7 @@ export class MemoryGenericRepository<T extends object, TKey = number>
     }
 
     if (touched && updatedAt) record[updatedAt] = new Date();
+    if (touched && updatedBy) record[updatedBy] = this.auditUser();
     return touched;
   }
 
@@ -274,6 +295,10 @@ export class MemoryGenericRepository<T extends object, TKey = number>
 
     const { updatedAt } = this.schema.timestamps ?? {};
     if (updatedAt) record[updatedAt] = new Date();
+
+    // Un borrado lógico es una modificación: debe dejar rastro de quién la hizo.
+    const { updatedBy } = this.schema.audit ?? {};
+    if (updatedBy) record[updatedBy] = this.auditUser();
 
     return true;
   }

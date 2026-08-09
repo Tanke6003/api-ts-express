@@ -6,6 +6,8 @@ import { ITokenPlugin } from "../../../src/domain/interfaces/infrastructure/plug
 import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
 import { S3FileStoragePlugin } from "../../../src/infrastructure/plugins/s3FileStorage.plugin";
 import { TestRoutes } from "../../../src/presentation/routes/test.route";
+import { IRequestContext } from "../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 
 // mock del S3FileStoragePlugin
 jest.mock("../../../src/infrastructure/plugins/s3FileStorage.plugin");
@@ -26,6 +28,9 @@ describe("TestRoutes (unit)", () => {
         },
       },
     });
+
+    // JwtPlugin publica la identidad en el contexto de la peticion.
+    container.registerSingleton<IRequestContext>("IRequestContext", AsyncRequestContextPlugin);
 
     // El plugin de token se resuelve por DI desde las rutas
     container.register<ITokenPlugin>("ITokenPlugin", { useClass: JwtPlugin });

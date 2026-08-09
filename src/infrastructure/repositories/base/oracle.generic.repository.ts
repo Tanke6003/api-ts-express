@@ -10,6 +10,8 @@ import type {
 } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { IOracleExecutor } from "../../../domain/interfaces/infrastructure/plugins/oracle.plugin.interface";
 import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { SYSTEM_USER } from "../../plugins/asyncRequestContext.plugin";
 import { EntityMetadata, EntitySchema } from "./entity-metadata";
 import { OracleWhereCompiler } from "./oracle.where.compiler";
 import { QueryBuilder } from "./query-builder";
@@ -36,7 +38,9 @@ export class OracleGenericRepository<T extends object, TKey = number>
   constructor(
     private readonly db: IOracleExecutor,
     private readonly metadata: EntityMetadata<T>,
-    private readonly logger: ILogger
+    private readonly logger: ILogger,
+    /** Provee el usuario de auditoría. Sin él todo se escribe como "System". */
+    private readonly context?: IRequestContext
   ) {
     this.schema = new EntitySchema(metadata);
   }
@@ -46,7 +50,17 @@ export class OracleGenericRepository<T extends object, TKey = number>
    * el contexto de una transacción. Lo usa la unidad de trabajo.
    */
   withExecutor(executor: IOracleExecutor): OracleGenericRepository<T, TKey> {
-    return new OracleGenericRepository<T, TKey>(executor, this.metadata, this.logger);
+    return new OracleGenericRepository<T, TKey>(
+      executor,
+      this.metadata,
+      this.logger,
+      this.context
+    );
+  }
+
+  /** Usuario que queda registrado en las columnas de auditoría. */
+  private auditUser(): string {
+    return this.context?.getCurrentUserName() ?? SYSTEM_USER;
   }
 
   // ------------------------------------------------------------ helpers ----
@@ -190,14 +204,16 @@ export class OracleGenericRepository<T extends object, TKey = number>
 
   async insert(entity: Partial<T>): Promise<T> {
     const { createdAt } = this.schema.timestamps ?? {};
+    const { createdBy, updatedBy } = this.schema.audit ?? {};
     const columns: string[] = [];
     const values: string[] = [];
     const binds: Record<string, unknown> = {};
 
     for (const property of this.schema.insertableProperties()) {
       // Las marcas de tiempo las pone la base, para que no dependan del reloj
-      // del proceso Node.
-      if (property === createdAt) continue;
+      // del proceso Node. Las de auditoría salen del contexto y nunca del
+      // cuerpo de la petición: si no, el cliente podría falsear quién escribió.
+      if (property === createdAt || property === createdBy || property === updatedBy) continue;
 
       const value = (entity as Record<string, unknown>)[property];
       if (value === undefined) continue;
@@ -220,6 +236,12 @@ export class OracleGenericRepository<T extends object, TKey = number>
     if (createdAt) {
       columns.push(this.schema.columnOf(createdAt));
       values.push("SYSTIMESTAMP");
+    }
+
+    if (createdBy) {
+      columns.push(this.schema.columnOf(createdBy));
+      values.push(":auditUser");
+      binds.auditUser = this.auditUser();
     }
 
     let sql = `INSERT INTO ${this.schema.table} (${columns.join(", ")}) VALUES (${values.join(", ")})`;
@@ -253,12 +275,15 @@ export class OracleGenericRepository<T extends object, TKey = number>
     if (entities.length === 0) return 0;
 
     const { createdAt } = this.schema.timestamps ?? {};
+    const { createdBy, updatedBy } = this.schema.audit ?? {};
 
     // `executeMany` exige una única sentencia, así que se toma la unión de las
     // propiedades presentes y las que falten en una fila viajan como NULL.
     const properties = this.schema
       .insertableProperties()
-      .filter((property) => property !== createdAt)
+      .filter(
+        (property) => property !== createdAt && property !== createdBy && property !== updatedBy
+      )
       .filter((property) =>
         entities.some((entity) => (entity as Record<string, unknown>)[property] !== undefined)
       );
@@ -277,8 +302,14 @@ export class OracleGenericRepository<T extends object, TKey = number>
       placeholders.push("SYSTIMESTAMP");
     }
 
+    if (createdBy) {
+      columns.push(this.schema.columnOf(createdBy));
+      placeholders.push(":auditUser");
+    }
+
     const sql = `INSERT INTO ${this.schema.table} (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`;
 
+    const auditUser = this.auditUser();
     const rows = entities.map((entity) => {
       const row: Record<string, unknown> = {};
       properties.forEach((property, index) => {
@@ -287,6 +318,7 @@ export class OracleGenericRepository<T extends object, TKey = number>
           (entity as Record<string, unknown>)[property]
         );
       });
+      if (createdBy) row.auditUser = auditUser;
       return row;
     });
 
@@ -301,11 +333,12 @@ export class OracleGenericRepository<T extends object, TKey = number>
    */
   private buildSetClause(changes: Partial<T>): { sql: string; binds: Record<string, unknown> } | null {
     const { updatedAt } = this.schema.timestamps ?? {};
+    const { createdBy, updatedBy } = this.schema.audit ?? {};
     const assignments: string[] = [];
     const binds: Record<string, unknown> = {};
 
     for (const property of this.schema.updatableProperties()) {
-      if (property === updatedAt) continue;
+      if (property === updatedAt || property === createdBy || property === updatedBy) continue;
 
       const value = (changes as Record<string, unknown>)[property];
       if (value === undefined) continue;
@@ -319,6 +352,11 @@ export class OracleGenericRepository<T extends object, TKey = number>
 
     if (updatedAt) {
       assignments.push(`${this.schema.columnOf(updatedAt)} = SYSTIMESTAMP`);
+    }
+
+    if (updatedBy) {
+      assignments.push(`${this.schema.columnOf(updatedBy)} = :auditUser`);
+      binds.auditUser = this.auditUser();
     }
 
     return { sql: assignments.join(", "), binds };
@@ -382,6 +420,10 @@ export class OracleGenericRepository<T extends object, TKey = number>
     const assignments = [`${column} = :flag`];
     if (updatedAt) assignments.push(`${this.schema.columnOf(updatedAt)} = SYSTIMESTAMP`);
 
+    // Un borrado lógico es una modificación: debe dejar rastro de quién la hizo.
+    const { updatedBy } = this.schema.audit ?? {};
+    if (updatedBy) assignments.push(`${this.schema.columnOf(updatedBy)} = :auditUser`);
+
     // La condición sobre el estado previo hace la operación idempotente: borrar
     // dos veces devuelve `false` la segunda, en vez de fingir que hizo algo.
     const sql =
@@ -392,6 +434,7 @@ export class OracleGenericRepository<T extends object, TKey = number>
       flag: deleted ? this.schema.softDeleteDeletedValue : this.schema.softDeleteActiveValue,
       pk: id,
       previous: deleted ? this.schema.softDeleteActiveValue : this.schema.softDeleteDeletedValue,
+      ...(updatedBy ? { auditUser: this.auditUser() } : {}),
     });
 
     return result.rowsAffected > 0;

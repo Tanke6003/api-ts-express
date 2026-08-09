@@ -55,9 +55,12 @@ describe("JWTPlugin", () => {
 
     jwtPlugin.middleware(req, res, next);
 
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: "No token provided" });
-    expect(next).not.toHaveBeenCalled();
+    // Delega en el manejador global para que el 401 tenga el mismo formato que
+    // el resto de errores de la API.
+    expect(res.status).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 401, code: "NO_TOKEN" })
+    );
   });
 
   it("middleware should return 401 if token is invalid", () => {
@@ -67,8 +70,11 @@ describe("JWTPlugin", () => {
 
     jwtPlugin.middleware(req, res, next);
 
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: "Invalid or expired token" });
-    expect(next).not.toHaveBeenCalled();
+    // El error de jsonwebtoken viaja tal cual: el manejador global distingue
+    // "expirado" de "invalido" por su name.
+    expect(res.status).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "JsonWebTokenError" })
+    );
   });
 });

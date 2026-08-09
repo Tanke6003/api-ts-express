@@ -15,4 +15,7 @@ export interface IUser {
     available?: boolean; // borrado lógico
     createdAt?: Date | null;
     updatedAt?: Date | null;
+    /** Auditoria: la rellena el repositorio con el usuario del token. */
+    createdBy?: string | null;
+    updatedBy?: string | null;
 }
