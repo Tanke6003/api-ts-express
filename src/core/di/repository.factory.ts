@@ -8,6 +8,8 @@ import { ENTITY_NAMES } from "../../domain/models/entity-names";
 import type { IUser } from "../../domain/models/users.model";
 import type { IBranch } from "../../domain/models/branches.model";
 import type { IAppointment } from "../../domain/models/appointments.model";
+import type { IAuditLog } from "../../domain/models/audit-log.model";
+import type { IAuditTrail } from "../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
 import { OraclePlugin } from "../../infrastructure/plugins/oracle.plugin";
 import { SqlServerPlugin } from "../../infrastructure/plugins/sqlserver.plugin";
 import { EntityMetadata } from "../../infrastructure/repositories/base/entity-metadata";
@@ -22,9 +24,14 @@ import {
 } from "../../infrastructure/repositories/base/sql.unit-of-work";
 import {
   APPOINTMENTS_ENTITY,
+  AUDIT_LOG_ENTITY,
   BRANCHES_ENTITY,
   USERS_ENTITY,
 } from "../../infrastructure/repositories/entities";
+import {
+  MemoryAuditTrail,
+  SqlAuditTrail,
+} from "../../infrastructure/repositories/base/audit-trail";
 import {
   APPOINTMENTS_SEED,
   BRANCHES_SEED,
@@ -50,8 +57,12 @@ export interface PersistenceLayer {
     users: IGenericRepository<IUser>;
     branches: IGenericRepository<IBranch>;
     appointments: IGenericRepository<IAppointment>;
+    /** Sólo lectura desde la aplicación: la escribe el propio repositorio. */
+    auditLog: IGenericRepository<IAuditLog>;
   };
   unitOfWork: IUnitOfWork;
+  /** Bitácora de cambios que alimentan los repositorios. */
+  auditTrail: IAuditTrail;
   /** Ausente en memoria: no hay nada que abrir ni cerrar. */
   connection?: IManagedConnection;
 }
@@ -97,7 +108,8 @@ export function buildSqlServerConfig(envs: IEnvs) {
 
 /** Crea el repositorio de una entidad para el motor elegido. */
 type SqlRepositoryFactory = <T extends object>(
-  metadata: EntityMetadata<T>
+  metadata: EntityMetadata<T>,
+  auditTrail?: IAuditTrail
 ) => SqlGenericRepository<T>;
 
 /**
@@ -108,11 +120,17 @@ function buildSqlPersistence(
   driver: PersistenceDriver,
   runner: ISqlTransactionRunner,
   connection: IManagedConnection,
-  create: SqlRepositoryFactory
+  create: SqlRepositoryFactory,
+  context?: IRequestContext
 ): PersistenceLayer {
-  const users = create(USERS_ENTITY);
-  const branches = create(BRANCHES_ENTITY);
-  const appointments = create(APPOINTMENTS_ENTITY);
+  // La bitácora se construye primero y sin bitácora propia: registrarse a sí
+  // misma sería recursivo.
+  const auditLog = create<IAuditLog>(AUDIT_LOG_ENTITY);
+  const auditTrail = new SqlAuditTrail(auditLog);
+
+  const users = create(USERS_ENTITY, auditTrail);
+  const branches = create(BRANCHES_ENTITY, auditTrail);
+  const appointments = create(APPOINTMENTS_ENTITY, auditTrail);
 
   // El registro es heterogéneo por naturaleza: la unidad de trabajo lo indexa
   // por nombre de entidad y devuelve el tipo concreto en `repository<T>()`.
@@ -129,8 +147,9 @@ function buildSqlPersistence(
 
   return {
     driver,
-    stores: { users, branches, appointments },
+    stores: { users, branches, appointments, auditLog },
     unitOfWork: new SqlUnitOfWork(runner, registry),
+    auditTrail,
     connection,
   };
 }
@@ -159,8 +178,9 @@ export function createPersistenceLayer(
       driver,
       oracle,
       oracle,
-      <T extends object>(metadata: EntityMetadata<T>) =>
-        new OracleGenericRepository<T>(oracle, metadata, logger, context)
+      <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
+        new OracleGenericRepository<T>(oracle, metadata, logger, context, auditTrail),
+      context
     );
   }
 
@@ -170,17 +190,24 @@ export function createPersistenceLayer(
       driver,
       sqlServer,
       sqlServer,
-      <T extends object>(metadata: EntityMetadata<T>) =>
-        new SqlServerGenericRepository<T>(sqlServer, metadata, logger, context)
+      <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
+        new SqlServerGenericRepository<T>(sqlServer, metadata, logger, context, auditTrail),
+      context
     );
   }
 
-  const memoryStore = <T extends object>(metadata: EntityMetadata<T>, seed: Partial<T>[]) =>
-    new MemoryGenericRepository<T>(metadata, seed, context);
+  const memoryStore = <T extends object>(
+    metadata: EntityMetadata<T>,
+    seed: Partial<T>[],
+    trail?: IAuditTrail
+  ) => new MemoryGenericRepository<T>(metadata, seed, context, trail);
 
-  const users = memoryStore(USERS_ENTITY, USERS_SEED);
-  const branches = memoryStore(BRANCHES_ENTITY, BRANCHES_SEED);
-  const appointments = memoryStore(APPOINTMENTS_ENTITY, APPOINTMENTS_SEED);
+  const auditLog = memoryStore<IAuditLog>(AUDIT_LOG_ENTITY, []);
+  const auditTrail = new MemoryAuditTrail(auditLog);
+
+  const users = memoryStore(USERS_ENTITY, USERS_SEED, auditTrail);
+  const branches = memoryStore(BRANCHES_ENTITY, BRANCHES_SEED, auditTrail);
+  const appointments = memoryStore(APPOINTMENTS_ENTITY, APPOINTMENTS_SEED, auditTrail);
 
   const registry = new Map(
     [
@@ -195,7 +222,8 @@ export function createPersistenceLayer(
 
   return {
     driver,
-    stores: { users, branches, appointments },
+    stores: { users, branches, appointments, auditLog },
     unitOfWork: new MemoryUnitOfWork(registry),
+    auditTrail,
   };
 }

@@ -11,6 +11,7 @@ export const ENTITY_NAMES = {
   USERS: "USERS",
   BRANCHES: "BRANCHES",
   APPOINTMENTS: "APPOINTMENTS",
+  AUDIT_LOG: "AUDIT_LOG",
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];

@@ -69,6 +69,9 @@ describe("Server", () => {
 
     container.register("IBranchesController", { useValue: controllerStub() });
     container.register("IAppointmentsController", { useValue: controllerStub() });
+    container.register("IAuditController", {
+      useValue: { getAll: jest.fn((_req: any, res: any) => res.json({ data: [] })) },
+    });
     container.register("IIdentityController", {
       useValue: { me: jest.fn((_req: any, res: any) => res.json({ id: "1" })) },
     });

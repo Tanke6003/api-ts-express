@@ -180,3 +180,42 @@ ALTER TABLE BRANCHES ADD (CREATED_BY VARCHAR2(100) DEFAULT 'System' NOT NULL, UP
 or recreate the container with `docker compose down -v oracle && docker compose up -d oracle`.
 
 > Only the name is stored, matching the usual `CreatedByUser` convention. If you also need the id on the row, add a column, map it, and extend `AuditMetadata` — the repositories already have the id available through the context.
+
+---
+
+## 7. The audit trail
+
+The audit columns only keep the *last* writer. The `AUDIT_LOG` table keeps the whole history, including rows that were later deleted for good.
+
+An entity opts in with one flag:
+
+```typescript
+auditTrail: true,
+```
+
+From then on every write leaves a line, with no service having to remember anything:
+
+| Action | Recorded detail |
+|--------|-----------------|
+| `INSERT` | the values written |
+| `UPDATE` | `{ before, after }` |
+| `SOFT_DELETE` / `RESTORE` | the action alone |
+| `HARD_DELETE` | the row's last state — the reason the trail exists |
+| `*_MANY` | one line with the filter and how many rows it reached |
+
+Reads never produce a line, and a write that affected nothing doesn't either.
+
+```bash
+GET /api/audit?entity=BRANCHES&entityId=4
+GET /api/audit?requestId=407215bc-…    # todo lo que hizo una misma petición
+```
+
+The endpoint is read-only; there is no way to write a line through the API.
+
+### Two design points worth knowing
+
+**The identity is captured when the operation starts, not when the line is written.** By record time several database round-trips have happened, and a connection pool may resolve its callbacks in the context where the *pool* was created rather than the request's. Reading the user at that point silently attributes everything to `System` — which is exactly what happened before this was fixed. `captureActor()` takes the snapshot before the first `await`.
+
+**The line goes through the same executor as the audited operation.** Inside a transaction it lands in the same commit and disappears with a rollback. A failure to record fails the operation: a trail that silently drops entries is not a trail.
+
+`AUDIT_LOG` itself does not set `auditTrail` — auditing the audit would recurse — and it has no soft delete, because an audit line is not something you delete.

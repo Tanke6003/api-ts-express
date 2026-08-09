@@ -14,7 +14,7 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Dependency Injection | tsyringe |
 | Authentication | JWT (Bearer token), with the identity exposed per request via AsyncLocalStorage |
 | Error handling | Single global handler: stable codes, request id, driver-error mapping |
-| Database | Oracle 23ai (node-oracledb, thin mode), SQL Server (Sequelize) or in-memory — selected via `DATA_SOURCE` |
+| Database | Oracle 23ai (node-oracledb, thin mode), SQL Server 2022 (Sequelize + tedious) or in-memory — selected via `DATA_SOURCE`, all three on the same generic repository |
 | Data access | Generic repository with EF/LINQ-style CRUD, chainable queries, soft & hard delete, and a Unit of Work |
 | Logging | Pino (structured JSON, pino-pretty in dev) or Winston — selected via `LOG_DRIVER` |
 | API Docs | Swagger UI + Scalar |
@@ -50,6 +50,7 @@ The server starts on port **3001** by default.
 | `GET /api/swagger` | Swagger UI |
 | `GET /api/scalar` | Scalar API reference |
 | `GET /api/me` | Identity resolved from the token |
+| `GET /api/audit` | Change log (read-only) |
 | `GET /api/generate-token` | Generate a test JWT (`?userId=7&name=Ruben`) |
 
 Out of the box `DATA_SOURCE=dummy`, so everything above works with no database. To run against Oracle:
@@ -117,7 +118,7 @@ await branchesRepository.hardDelete(3);   // borrado físico
 
 The same interface runs on Oracle or in memory depending on `DATA_SOURCE`. Relations are composed in the service layer (EF-style `Include`), and transactions are opened only where a use case writes to more than one table.
 
-Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body.
+Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/audit`.
 
 Full reference: **[docs/generic-repository.md](docs/generic-repository.md)** · Oracle setup: **[docs/oracle.md](docs/oracle.md)** · Errors and identity: **[docs/errors-and-identity.md](docs/errors-and-identity.md)**.
 

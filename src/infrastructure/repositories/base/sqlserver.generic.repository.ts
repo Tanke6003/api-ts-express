@@ -3,6 +3,7 @@ import type { ISqlExecutor } from "../../../domain/interfaces/infrastructure/plu
 import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { EntityMetadata } from "./entity-metadata";
+import type { IAuditTrail } from "../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
 import { SqlGenericRepository } from "./sql.generic.repository";
 import { sqlServerDialect } from "./sql.dialect";
 
@@ -22,9 +23,10 @@ export class SqlServerGenericRepository<
     db: ISqlExecutor,
     metadata: EntityMetadata<T>,
     logger: ILogger,
-    context?: IRequestContext
+    context?: IRequestContext,
+    auditTrail?: IAuditTrail
   ) {
-    super(db, metadata, logger, sqlServerDialect, context);
+    super(db, metadata, logger, sqlServerDialect, context, auditTrail);
   }
 
   override withExecutor(executor: ISqlExecutor): SqlServerGenericRepository<T, TKey> {
@@ -32,7 +34,8 @@ export class SqlServerGenericRepository<
       executor,
       this.metadata,
       this.logger,
-      this.context
+      this.context,
+      this.auditTrail?.bindTo(executor)
     );
   }
 }

@@ -4,6 +4,7 @@ import { ENTITY_NAMES } from "../../domain/models/entity-names";
 import type { IUser } from "../../domain/models/users.model";
 import type { IBranch } from "../../domain/models/branches.model";
 import type { IAppointment } from "../../domain/models/appointments.model";
+import type { IAuditLog } from "../../domain/models/audit-log.model";
 
 /**
  * Mapeo entidad <-> tabla de los tres módulos de ejemplo.
@@ -32,6 +33,7 @@ export const USERS_ENTITY = defineEntity<IUser>({
   softDelete: { property: "available", activeValue: 1, deletedValue: 0 },
   timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
   audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
+  auditTrail: true,
 });
 
 export const BRANCHES_ENTITY = defineEntity<IBranch>({
@@ -54,6 +56,7 @@ export const BRANCHES_ENTITY = defineEntity<IBranch>({
   softDelete: { property: "available", activeValue: 1, deletedValue: 0 },
   timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
   audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
+  auditTrail: true,
 });
 
 export const APPOINTMENTS_ENTITY = defineEntity<IAppointment>({
@@ -83,4 +86,27 @@ export const APPOINTMENTS_ENTITY = defineEntity<IAppointment>({
   softDelete: { property: "available", activeValue: 1, deletedValue: 0 },
   timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
   audit: { createdBy: "createdBy", updatedBy: "updatedBy" },
+  auditTrail: true,
+});
+
+/**
+ * Bitácora de cambios. No activa `auditTrail`: registrar la propia bitácora
+ * sería recursivo. Tampoco tiene borrado lógico —una línea de auditoría no se
+ * borra— ni columnas de auditoría, porque el autor ya va en CHANGED_BY.
+ */
+export const AUDIT_LOG_ENTITY = defineEntity<IAuditLog>({
+  table: ENTITY_NAMES.AUDIT_LOG,
+  primaryKey: "pkAudit",
+  identity: true,
+  columns: {
+    pkAudit: { name: "PK_AUDIT", kind: "number", insertable: false, updatable: false },
+    entity: { name: "ENTITY", kind: "string" },
+    entityId: { name: "ENTITY_ID", kind: "string" },
+    action: { name: "ACTION", kind: "string" },
+    changedBy: { name: "CHANGED_BY", kind: "string" },
+    changedAt: { name: "CHANGED_AT", kind: "date", updatable: false },
+    requestId: { name: "REQUEST_ID", kind: "string" },
+    changes: { name: "CHANGES", kind: "string" },
+  },
+  timestamps: { createdAt: "changedAt" },
 });

@@ -26,6 +26,7 @@ GO
 -- Los DROP van en orden inverso a las FK (primero la hija, luego las padre) para
 -- que el script se pueda reaplicar a mano sobre un contenedor ya inicializado
 -- sin borrar el volumen ni pelearse con las dependencias.
+DROP TABLE IF EXISTS AUDIT_LOG;
 DROP TABLE IF EXISTS APPOINTMENTS;
 DROP TABLE IF EXISTS BRANCHES;
 DROP TABLE IF EXISTS USERS;
@@ -122,4 +123,26 @@ CREATE INDEX IX_APPT_BRANCH    ON APPOINTMENTS (FK_BRANCH);
 CREATE INDEX IX_APPT_CLIENT    ON APPOINTMENTS (FK_CLIENT);
 CREATE INDEX IX_APPT_SCHEDULED ON APPOINTMENTS (SCHEDULED_AT);
 CREATE INDEX IX_APPT_AVAILABLE ON APPOINTMENTS (AVAILABLE);
+GO
+
+-- =============================================================================
+-- AUDIT_LOG: bitacora de cambios. La escribe el repositorio generico despues de
+-- cada escritura, dentro de la misma transaccion que la operacion auditada.
+-- No tiene borrado logico a proposito: una linea de auditoria no se borra.
+-- =============================================================================
+CREATE TABLE AUDIT_LOG (
+  PK_AUDIT    INT IDENTITY(1,1)  NOT NULL,
+  ENTITY      NVARCHAR(50)       NOT NULL,
+  ENTITY_ID   NVARCHAR(50)       NULL,
+  ACTION      NVARCHAR(20)       NOT NULL,
+  CHANGED_BY  NVARCHAR(100)      NOT NULL CONSTRAINT DF_AUDIT_CHANGED_BY DEFAULT ('System'),
+  CHANGED_AT  DATETIME2          NOT NULL CONSTRAINT DF_AUDIT_CHANGED_AT DEFAULT (SYSDATETIME()),
+  REQUEST_ID  NVARCHAR(64)       NULL,
+  CHANGES     NVARCHAR(MAX)      NULL,
+  CONSTRAINT PK_AUDIT_LOG PRIMARY KEY (PK_AUDIT)
+);
+GO
+
+CREATE INDEX IX_AUDIT_ENTITY  ON AUDIT_LOG (ENTITY, ENTITY_ID);
+CREATE INDEX IX_AUDIT_REQUEST ON AUDIT_LOG (REQUEST_ID);
 GO

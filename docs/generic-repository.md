@@ -7,9 +7,10 @@ It ships with two interchangeable implementations behind the same interface:
 | Driver | Implementation | Used when |
 |--------|----------------|-----------|
 | Oracle | `OracleGenericRepository` | `DATA_SOURCE=oracle` |
+| SQL Server | `SqlServerGenericRepository` | `DATA_SOURCE=sqlserver` |
 | In-memory | `MemoryGenericRepository` | any other `DATA_SOURCE` |
 
-Both are exercised by the same tests and honour the same filter semantics, so a module developed against the in-memory driver behaves identically once you point it at Oracle.
+The two SQL drivers share a single `SqlGenericRepository`; a `SqlDialect` holds the only real differences — how a generated PK is recovered (`RETURNING … INTO` vs `OUTPUT INSERTED`) and the server's now expression. All three are exercised by the same tests and honour the same filter semantics, so a module developed against the in-memory driver behaves identically once you point it at a database.
 
 ---
 
@@ -44,6 +45,7 @@ export const BRANCHES_ENTITY = defineEntity<IBranch>({
 | `softDelete` | Omit it and the entity simply has no logical delete. |
 | `timestamps` | `createdAt`/`updatedAt` are written by the DB (`SYSTIMESTAMP`), not by the Node process clock. |
 | `audit` | `createdBy`/`updatedBy` are filled with the user from the token. See [errors-and-identity.md](errors-and-identity.md). |
+| `auditTrail` | `true` to log every write to `AUDIT_LOG`. Opt-in per entity. |
 
 ---
 

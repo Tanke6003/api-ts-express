@@ -8,6 +8,11 @@ import type {
 } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { SYSTEM_USER } from "../../plugins/asyncRequestContext.plugin";
+import type {
+  AuditActor,
+  IAuditTrail,
+} from "../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
+import type { AuditAction } from "../../../domain/models/audit-log.model";
 import { EntityMetadata, EntitySchema } from "./entity-metadata";
 import { compareBy, matchesFilter } from "./memory.filter";
 import { QueryBuilder } from "./query-builder";
@@ -37,7 +42,9 @@ export class MemoryGenericRepository<T extends object, TKey = number>
     metadata: EntityMetadata<T>,
     seed: Partial<T>[] = [],
     /** Provee el usuario de auditoría. Sin él todo se escribe como "System". */
-    private readonly context?: IRequestContext
+    private readonly context?: IRequestContext,
+    /** Bitácora de cambios; sólo actúa si la entidad la tiene activada. */
+    private readonly auditTrail?: IAuditTrail
   ) {
     this.schema = new EntitySchema(metadata);
     this.store = [];
@@ -49,6 +56,39 @@ export class MemoryGenericRepository<T extends object, TKey = number>
   /** Usuario que queda registrado en las columnas de auditoría. */
   private auditUser(): string {
     return this.context?.getCurrentUserName() ?? SYSTEM_USER;
+  }
+
+  /** La bitácora es opt-in por entidad, igual que en el repositorio SQL. */
+  private trailEnabled(): boolean {
+    return Boolean(this.auditTrail && this.schema.auditTrail);
+  }
+
+  /**
+   * Fotografía de quién pide, tomada antes del primer await de la operación.
+   * Después ya no es fiable: el pool del driver puede resolver sus callbacks
+   * en el contexto en que se creó y no en el de la petición.
+   */
+  private captureActor(): AuditActor {
+    return {
+      changedBy: this.auditUser(),
+      requestId: this.context?.getRequestId() ?? null,
+    };
+  }
+
+  private async recordAudit(
+    actor: AuditActor,
+    action: AuditAction,
+    entityId?: unknown,
+    changes?: Record<string, unknown>
+  ): Promise<void> {
+    if (!this.trailEnabled()) return;
+    await this.auditTrail!.record({
+      entity: this.schema.table,
+      actor,
+      entityId,
+      action,
+      changes,
+    });
   }
 
   // ------------------------------------------------------------ helpers ----
@@ -225,11 +265,18 @@ export class MemoryGenericRepository<T extends object, TKey = number>
   }
 
   async insert(entity: Partial<T>): Promise<T> {
-    return this.clone(this.insertSync(entity));
+    const actor = this.captureActor();
+    const created = this.clone(this.insertSync(entity));
+    await this.recordAudit(actor, "INSERT", (created as Record<string, unknown>)[this.schema.primaryKey], {
+      after: created as Record<string, unknown>,
+    });
+    return created;
   }
 
   async insertMany(entities: Partial<T>[]): Promise<number> {
+    const actor = this.captureActor();
     entities.forEach((entity) => this.insertSync(entity));
+    await this.recordAudit(actor, "INSERT_MANY", undefined, { affected: entities.length });
     return entities.length;
   }
 
@@ -256,20 +303,35 @@ export class MemoryGenericRepository<T extends object, TKey = number>
   }
 
   async update(id: TKey, changes: Partial<T>): Promise<T | null> {
+    const actor = this.captureActor();
     const entity = this.findEntity(id);
     if (!entity || !this.isActive(entity)) return null;
 
+    const before = this.trailEnabled() ? this.clone(entity) : null;
     this.applyChanges(entity, changes);
-    return this.clone(entity);
+    const updated = this.clone(entity);
+
+    await this.recordAudit(actor, "UPDATE", id, {
+      before: before as Record<string, unknown> | null,
+      after: updated as Record<string, unknown>,
+    });
+
+    return updated;
   }
 
   async updateWhere(where: WhereFilter<T>, changes: Partial<T>): Promise<number> {
+    const actor = this.captureActor();
     const targets = this.applyFilters({ where });
     let affected = 0;
 
     for (const entity of targets) {
       if (this.applyChanges(entity, changes)) affected += 1;
     }
+
+    await this.recordAudit(actor, "UPDATE_MANY", undefined, {
+      changes: changes as Record<string, unknown>,
+      affected,
+    });
 
     return affected;
   }
@@ -304,24 +366,38 @@ export class MemoryGenericRepository<T extends object, TKey = number>
   }
 
   async softDelete(id: TKey): Promise<boolean> {
-    return this.setSoftDeleteFlag(id, true);
+    const actor = this.captureActor();
+    const deleted = this.setSoftDeleteFlag(id, true);
+    if (deleted) await this.recordAudit(actor, "SOFT_DELETE", id);
+    return deleted;
   }
 
   async restore(id: TKey): Promise<boolean> {
-    return this.setSoftDeleteFlag(id, false);
+    const actor = this.captureActor();
+    const restored = this.setSoftDeleteFlag(id, false);
+    if (restored) await this.recordAudit(actor, "RESTORE", id);
+    return restored;
   }
 
   async hardDelete(id: TKey): Promise<boolean> {
+    const actor = this.captureActor();
     const index = this.store.findIndex(
       (entity) => (entity as Record<string, unknown>)[this.schema.primaryKey] === id
     );
     if (index === -1) return false;
 
+    // La fila desaparece: si hay bitácora, se guarda su último estado.
+    const before = this.trailEnabled() ? this.clone(this.store[index]) : null;
     this.store.splice(index, 1);
+
+    await this.recordAudit(actor, "HARD_DELETE", id, {
+      before: before as Record<string, unknown> | null,
+    });
     return true;
   }
 
   async hardDeleteWhere(where: WhereFilter<T>): Promise<number> {
+    const actor = this.captureActor();
     // `withDeleted` para alcanzar también a los borrados lógicamente.
     const targets = new Set(this.applyFilters({ where, withDeleted: true }));
     if (targets.size === 0) return 0;
@@ -329,6 +405,8 @@ export class MemoryGenericRepository<T extends object, TKey = number>
     const survivors = this.store.filter((entity) => !targets.has(entity));
     const removed = this.store.length - survivors.length;
     this.store.splice(0, this.store.length, ...survivors);
+
+    await this.recordAudit(actor, "HARD_DELETE_MANY", undefined, { affected: removed });
     return removed;
   }
 

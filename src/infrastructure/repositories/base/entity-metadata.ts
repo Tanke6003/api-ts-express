@@ -59,6 +59,12 @@ export interface EntityMetadata<T> {
   timestamps?: TimestampMetadata<T>;
   /** Si se omite, la entidad no guarda quién la creó o modificó. */
   audit?: AuditMetadata<T>;
+  /**
+   * `true` para que cada escritura deje una línea en la bitácora de cambios.
+   * Es opt-in: la propia tabla de bitácora no debe activarlo, y no toda entidad
+   * merece el coste de una fila extra por operación.
+   */
+  auditTrail?: boolean;
 }
 
 /**
@@ -126,6 +132,10 @@ export class EntitySchema<T> {
 
   get audit(): AuditMetadata<T> | undefined {
     return this.metadata.audit;
+  }
+
+  get auditTrail(): boolean {
+    return this.metadata.auditTrail === true;
   }
 
   get properties(): Extract<keyof T, string>[] {

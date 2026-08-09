@@ -19,6 +19,11 @@ import { SqlWhereCompiler } from "./sql.where.compiler";
 import { QueryBuilder } from "./query-builder";
 import { normalizeOrderBy } from "./filter.helpers";
 import type { SqlDialect } from "./sql.dialect";
+import type {
+  AuditActor,
+  IAuditTrail,
+} from "../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
+import type { AuditAction } from "../../../domain/models/audit-log.model";
 
 /**
  * Repositorio genérico sobre SQL.
@@ -45,9 +50,48 @@ export class SqlGenericRepository<T extends object, TKey = number>
     protected readonly logger: ILogger,
     protected readonly dialect: SqlDialect,
     /** Provee el usuario de auditoría. Sin él todo se escribe como "System". */
-    protected readonly context?: IRequestContext
+    protected readonly context?: IRequestContext,
+    /** Bitácora de cambios; sólo actúa si la entidad la tiene activada. */
+    protected readonly auditTrail?: IAuditTrail
   ) {
     this.schema = new EntitySchema(metadata);
+  }
+
+  /** La bitácora es opt-in por entidad, para no registrar tablas auxiliares. */
+  protected trailEnabled(): boolean {
+    return Boolean(this.auditTrail && this.schema.auditTrail);
+  }
+
+  /**
+   * Registra la operación. Va por el mismo executor, así que dentro de una
+   * transacción entra en el mismo commit; si falla, falla la operación entera.
+   */
+  /**
+   * Fotografía de quién pide, tomada antes del primer await de la operación.
+   * Después ya no es fiable: el pool del driver puede resolver sus callbacks
+   * en el contexto en que se creó y no en el de la petición.
+   */
+  protected captureActor(): AuditActor {
+    return {
+      changedBy: this.auditUser(),
+      requestId: this.context?.getRequestId() ?? null,
+    };
+  }
+
+  protected async recordAudit(
+    actor: AuditActor,
+    action: AuditAction,
+    entityId?: unknown,
+    changes?: Record<string, unknown>
+  ): Promise<void> {
+    if (!this.trailEnabled()) return;
+    await this.auditTrail!.record({
+      entity: this.schema.table,
+      actor,
+      entityId,
+      action,
+      changes,
+    });
   }
 
   /**
@@ -60,7 +104,10 @@ export class SqlGenericRepository<T extends object, TKey = number>
       this.metadata,
       this.logger,
       this.dialect,
-      this.context
+      this.context,
+      // La bitácora también se ata a la transacción: si ésta revierte, su
+      // línea desaparece con ella.
+      this.auditTrail?.bindTo(executor)
     );
   }
 
@@ -211,6 +258,7 @@ export class SqlGenericRepository<T extends object, TKey = number>
   // -------------------------------------------------------------- escritura -
 
   async insert(entity: Partial<T>): Promise<T> {
+    const actor = this.captureActor();
     const { createdAt } = this.schema.timestamps ?? {};
     const { createdBy, updatedBy } = this.schema.audit ?? {};
     const columns: string[] = [];
@@ -277,11 +325,14 @@ export class SqlGenericRepository<T extends object, TKey = number>
       );
     }
 
+    await this.recordAudit(actor, "INSERT", id, { after: created as Record<string, unknown> });
+
     this.logger.debug("Registro insertado", { table: this.schema.table, id });
     return created;
   }
 
   async insertMany(entities: Partial<T>[]): Promise<number> {
+    const actor = this.captureActor();
     if (entities.length === 0) return 0;
 
     const { createdAt } = this.schema.timestamps ?? {};
@@ -332,6 +383,8 @@ export class SqlGenericRepository<T extends object, TKey = number>
     });
 
     const affected = await this.db.executeMany(sql, rows);
+    await this.recordAudit(actor, "INSERT_MANY", undefined, { affected });
+
     this.logger.debug("Inserción masiva", { table: this.schema.table, affected });
     return affected;
   }
@@ -391,24 +444,45 @@ export class SqlGenericRepository<T extends object, TKey = number>
   }
 
   async update(id: TKey, changes: Partial<T>): Promise<T | null> {
+    const actor = this.captureActor();
     const setClause = this.buildSetClause(changes);
     // Un update vacío no es un error: simplemente devuelve el estado actual. Si
     // devolviéramos `null` el llamador lo leería como "no existe".
     if (!setClause) return this.getById(id);
+
+    // El estado previo sólo se lee si hay bitácora: si no, sobra una consulta.
+    const before = this.trailEnabled() ? await this.getById(id) : null;
 
     const affected = await this.executeUpdate(setClause, {
       [this.schema.primaryKey]: id,
     } as WhereFilter<T>);
 
     if (affected === 0) return null;
-    return this.getById(id);
+
+    const updated = await this.getById(id);
+    await this.recordAudit(actor, "UPDATE", id, {
+      before: before as Record<string, unknown> | null,
+      after: updated as Record<string, unknown> | null,
+    });
+
+    return updated;
   }
 
   /** Nota: no alcanza a los registros con borrado lógico. */
   async updateWhere(where: WhereFilter<T>, changes: Partial<T>): Promise<number> {
+    const actor = this.captureActor();
     const setClause = this.buildSetClause(changes);
     if (!setClause) return 0;
-    return this.executeUpdate(setClause, where);
+
+    const affected = await this.executeUpdate(setClause, where);
+    // En una operación masiva no se registra fila a fila: la bitácora saldría
+    // más cara que la propia operación. Se guarda qué se pidió y a cuántas alcanzó.
+    await this.recordAudit(actor, "UPDATE_MANY", undefined, {
+      changes: changes as Record<string, unknown>,
+      affected,
+    });
+
+    return affected;
   }
 
   // ---------------------------------------------------------------- borrado -
@@ -460,27 +534,45 @@ export class SqlGenericRepository<T extends object, TKey = number>
   }
 
   async softDelete(id: TKey): Promise<boolean> {
+    const actor = this.captureActor();
     const deleted = await this.setSoftDeleteFlag(id, true);
-    if (deleted) this.logger.warn("Borrado lógico", { table: this.schema.table, id });
+    if (deleted) {
+      await this.recordAudit(actor, "SOFT_DELETE", id);
+      this.logger.warn("Borrado lógico", { table: this.schema.table, id });
+    }
     return deleted;
   }
 
   async restore(id: TKey): Promise<boolean> {
+    const actor = this.captureActor();
     const restored = await this.setSoftDeleteFlag(id, false);
-    if (restored) this.logger.info("Registro restaurado", { table: this.schema.table, id });
+    if (restored) {
+      await this.recordAudit(actor, "RESTORE", id);
+      this.logger.info("Registro restaurado", { table: this.schema.table, id });
+    }
     return restored;
   }
 
   async hardDelete(id: TKey): Promise<boolean> {
+    const actor = this.captureActor();
+    // La fila está a punto de desaparecer: si hay bitácora, se guarda antes.
+    const before = this.trailEnabled() ? await this.getById(id, { withDeleted: true }) : null;
+
     const sql = `DELETE FROM ${this.schema.table} WHERE ${this.schema.columnOf(this.schema.primaryKey)} = :pk`;
     const result = await this.db.execute(sql, { pk: id }, { expects: "affected" });
 
     const deleted = result.rowsAffected > 0;
-    if (deleted) this.logger.warn("Borrado físico", { table: this.schema.table, id });
+    if (deleted) {
+      await this.recordAudit(actor, "HARD_DELETE", id, {
+        before: before as Record<string, unknown> | null,
+      });
+      this.logger.warn("Borrado físico", { table: this.schema.table, id });
+    }
     return deleted;
   }
 
   async hardDeleteWhere(where: WhereFilter<T>): Promise<number> {
+    const actor = this.captureActor();
     const compiler = new SqlWhereCompiler<T>(this.schema, "w", this.dialect.toBindValue);
     // Sin filtro de borrado lógico: aquí el objetivo es limpiar de verdad.
     const compiled = compiler.compile(where);
@@ -490,6 +582,9 @@ export class SqlGenericRepository<T extends object, TKey = number>
 
     const result = await this.db.execute(sql, compiled.binds, { expects: "affected" });
     if (result.rowsAffected > 0) {
+      await this.recordAudit(actor, "HARD_DELETE_MANY", undefined, {
+        affected: result.rowsAffected,
+      });
       this.logger.warn("Borrado físico masivo", {
         table: this.schema.table,
         affected: result.rowsAffected,

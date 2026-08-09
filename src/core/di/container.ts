@@ -38,6 +38,8 @@ import { IAppointmentsController } from "../../domain/interfaces/presentation/co
 import { AppointmentsController } from "../../presentation/controllers/appointments.controller";
 import { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
 import { IdentityController } from "../../presentation/controllers/identity.controller";
+import { IAuditController } from "../../domain/interfaces/presentation/controllers/audit.controller.interface";
+import { AuditController } from "../../presentation/controllers/audit.controller";
 // ========== Plugins =================
 container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
 
@@ -91,6 +93,7 @@ const persistence = createPersistenceLayer(envs, logger, requestContext);
 container.register("UsersStore", { useValue: persistence.stores.users });
 container.register("BranchesStore", { useValue: persistence.stores.branches });
 container.register("AppointmentsStore", { useValue: persistence.stores.appointments });
+container.register("AuditLogStore", { useValue: persistence.stores.auditLog });
 container.register<IUnitOfWork>("IUnitOfWork", { useValue: persistence.unitOfWork });
 
 
@@ -124,6 +127,7 @@ container.register<IAppointmentsController>("IAppointmentsController", {
   useClass: AppointmentsController,
 });
 container.register<IIdentityController>("IIdentityController", { useClass: IdentityController });
+container.register<IAuditController>("IAuditController", { useClass: AuditController });
 
 /**
  * Comprueba la conexión al arrancar cuando el driver es Oracle, para que un
