@@ -1,12 +1,12 @@
 import { EntitySchema } from "../../../../../src/infrastructure/repositories/base/entity-metadata";
-import { OracleWhereCompiler } from "../../../../../src/infrastructure/repositories/base/oracle.where.compiler";
+import { SqlWhereCompiler } from "../../../../../src/infrastructure/repositories/base/sql.where.compiler";
 import { ITestItem, TEST_ENTITY } from "./test-entity";
 
 const schema = new EntitySchema<ITestItem>(TEST_ENTITY);
-const compile = (filter: Parameters<OracleWhereCompiler<ITestItem>["compile"]>[0], prefix?: string) =>
-  new OracleWhereCompiler<ITestItem>(schema, prefix).compile(filter);
+const compile = (filter: Parameters<SqlWhereCompiler<ITestItem>["compile"]>[0], prefix?: string) =>
+  new SqlWhereCompiler<ITestItem>(schema, prefix).compile(filter);
 
-describe("OracleWhereCompiler", () => {
+describe("SqlWhereCompiler", () => {
   it("sin filtro no genera cláusula", () => {
     expect(compile(undefined)).toEqual({ sql: "", binds: {} });
     expect(compile({}).sql).toBe("");

@@ -5,7 +5,7 @@ import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.p
 import { IUsersDataSource } from "../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
 import { resolveUsersDataSource } from "./datasource.factory";
 import { createLogger } from "./logger.factory";
-import { createPersistenceLayer, isOracleDriver } from "./repository.factory";
+import { createPersistenceLayer } from "./repository.factory";
 import { validateCriticalEnvs } from "../config/env.validation";
 import { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
 import { UsersRepository } from "../../infrastructure/repositories/users.repository";
@@ -131,13 +131,12 @@ container.register<IIdentityController>("IIdentityController", { useClass: Ident
  * primera petición del usuario.
  */
 export async function warmUpConnections(): Promise<void> {
-  if (!isOracleDriver(envs.getEnv("DATA_SOURCE")) || !persistence.oracle) return;
-  await persistence.oracle.authenticate();
+  await persistence.connection?.authenticate();
 }
 
 /** Cierra los recursos abiertos (pool de Oracle) en un apagado ordenado. */
 export async function shutdownConnections(): Promise<void> {
-  await persistence.oracle?.close();
+  await persistence.connection?.close();
 }
 
 export { container };

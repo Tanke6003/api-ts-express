@@ -1,13 +1,15 @@
-// tests/unit/infrastructure/repositories/base/fake-oracle-executor.ts
+// tests/unit/infrastructure/repositories/base/fake-sql-executor.ts
 import type {
-  IOracleExecutor,
-  OracleBinds,
-  OracleExecuteResult,
-} from "../../../../../src/domain/interfaces/infrastructure/plugins/oracle.plugin.interface";
+  ISqlExecutor,
+  SqlExecuteOptions,
+  SqlExecuteResult,
+} from "../../../../../src/domain/interfaces/infrastructure/plugins/sql-executor.interface";
 
 export interface RecordedCall {
   sql: string;
-  binds: OracleBinds;
+  binds: Record<string, unknown> | Record<string, unknown>[];
+  /** Qué esperaba el repositorio de la sentencia: filas o filas afectadas. */
+  expects?: SqlExecuteOptions["expects"];
 }
 
 /**
@@ -15,12 +17,12 @@ export interface RecordedCall {
  * preparadas. Permite comprobar exactamente qué sentencia y qué binds produce el
  * repositorio genérico sin necesidad de una base de datos.
  */
-export class FakeOracleExecutor implements IOracleExecutor {
+export class FakeSqlExecutor implements ISqlExecutor {
   readonly calls: RecordedCall[] = [];
-  private readonly responses: OracleExecuteResult[] = [];
+  private readonly responses: SqlExecuteResult[] = [];
 
   /** Encola la respuesta de la siguiente llamada a `execute`. */
-  queue(response: Partial<OracleExecuteResult>): this {
+  queue(response: Partial<SqlExecuteResult>): this {
     this.responses.push({
       rows: response.rows ?? [],
       rowsAffected: response.rowsAffected ?? 0,
@@ -31,11 +33,12 @@ export class FakeOracleExecutor implements IOracleExecutor {
 
   async execute<TRow = Record<string, unknown>>(
     sql: string,
-    binds: OracleBinds = {}
-  ): Promise<OracleExecuteResult<TRow>> {
-    this.calls.push({ sql, binds });
+    binds: Record<string, unknown> = {},
+    options: SqlExecuteOptions = {}
+  ): Promise<SqlExecuteResult<TRow>> {
+    this.calls.push({ sql, binds, expects: options.expects });
     const next = this.responses.shift();
-    return (next ?? { rows: [], rowsAffected: 0, outBinds: {} }) as OracleExecuteResult<TRow>;
+    return (next ?? { rows: [], rowsAffected: 0, outBinds: {} }) as SqlExecuteResult<TRow>;
   }
 
   async executeMany(sql: string, binds: Record<string, unknown>[]): Promise<number> {

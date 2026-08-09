@@ -1,4 +1,4 @@
-// src/infrastructure/repositories/base/oracle.where.compiler.ts
+// src/infrastructure/repositories/base/sql.where.compiler.ts
 import type {
   FieldOperators,
   WhereFilter,
@@ -13,7 +13,7 @@ export interface CompiledWhere {
 }
 
 /**
- * Traduce un `WhereFilter<T>` a SQL de Oracle.
+ * Traduce un `WhereFilter<T>` a SQL estandar, valido para Oracle y SQL Server.
  *
  * Dos invariantes de seguridad:
  *  - los nombres de columna salen siempre de `EntitySchema.columnOf`, que lanza
@@ -22,7 +22,7 @@ export interface CompiledWhere {
  *
  * Cada compilador es de un solo uso: acumula sus binds internamente.
  */
-export class OracleWhereCompiler<T> {
+export class SqlWhereCompiler<T> {
   private index = 0;
   private readonly binds: Record<string, unknown> = {};
 
@@ -32,7 +32,12 @@ export class OracleWhereCompiler<T> {
    */
   constructor(
     private readonly schema: EntitySchema<T>,
-    private readonly prefix = "w"
+    private readonly prefix = "w",
+    /**
+     * Ajuste final del valor antes de enlazarlo, propio del motor. Lo aporta el
+     * dialecto; sin él, los valores viajan tal cual.
+     */
+    private readonly toBindValue: (value: unknown) => unknown = (value) => value
   ) {}
 
   compile(filter?: WhereFilter<T>): CompiledWhere {
@@ -42,7 +47,7 @@ export class OracleWhereCompiler<T> {
 
   private bind(property: string, value: unknown): string {
     const name = `${this.prefix}${this.index++}`;
-    this.binds[name] = this.schema.toColumnValue(property, value);
+    this.binds[name] = this.toBindValue(this.schema.toColumnValue(property, value));
     return `:${name}`;
   }
 

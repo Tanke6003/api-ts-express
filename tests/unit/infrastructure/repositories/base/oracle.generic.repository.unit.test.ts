@@ -1,5 +1,5 @@
 import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/oracle.generic.repository";
-import { FakeOracleExecutor, silentLogger } from "./fake-oracle-executor";
+import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
 import { ITestItem, IPlainItem, PLAIN_ENTITY, TEST_ENTITY } from "./test-entity";
 
 const ROW = {
@@ -15,11 +15,11 @@ const ROW = {
 };
 
 describe("OracleGenericRepository", () => {
-  let db: FakeOracleExecutor;
+  let db: FakeSqlExecutor;
   let repository: OracleGenericRepository<ITestItem>;
 
   beforeEach(() => {
-    db = new FakeOracleExecutor();
+    db = new FakeSqlExecutor();
     repository = new OracleGenericRepository<ITestItem>(db, TEST_ENTITY, silentLogger);
   });
 
@@ -99,13 +99,13 @@ describe("OracleGenericRepository", () => {
   // ==========================================================  escritura  ===
   describe("INSERT", () => {
     it("escribe columnas, deja la fecha a la base y recupera la PK", async () => {
-      db.queue({ rowsAffected: 1, outBinds: { outpk: [42] } }).queue({ rows: [ROW] });
+      db.queue({ rowsAffected: 1, outBinds: { insertedId: [42] } }).queue({ rows: [ROW] });
 
       const created = await repository.insert({ name: "alpha", qty: 10 });
 
       expect(db.sqlAt(0)).toBe(
         "INSERT INTO ITEMS (NAME, QTY, CREATED_AT) VALUES (:b0, :b1, SYSTIMESTAMP) " +
-          "RETURNING PK_ITEM INTO :outpk"
+          "RETURNING PK_ITEM INTO :insertedId"
       );
       expect(db.calls[0].binds).toMatchObject({ b0: "alpha", b1: 10 });
       // La relectura usa la PK devuelta por RETURNING.
@@ -114,7 +114,7 @@ describe("OracleGenericRepository", () => {
     });
 
     it("convierte los booleanos a 1/0", async () => {
-      db.queue({ outBinds: { outpk: [1] } }).queue({ rows: [ROW] });
+      db.queue({ outBinds: { insertedId: [1] } }).queue({ rows: [ROW] });
       await repository.insert({ name: "x", flag: false });
 
       expect(db.calls[0].binds).toMatchObject({ b1: 0 });
@@ -125,7 +125,7 @@ describe("OracleGenericRepository", () => {
     });
 
     it("lanza si la fila insertada no se puede releer", async () => {
-      db.queue({ outBinds: { outpk: [42] } }).queue({ rows: [] });
+      db.queue({ outBinds: { insertedId: [42] } }).queue({ rows: [] });
       await expect(repository.insert({ name: "x" })).rejects.toThrow(/no se pudo releer/);
     });
 
@@ -252,7 +252,7 @@ describe("OracleGenericRepository", () => {
   });
 
   it("withExecutor clona el repositorio contra otra conexión", async () => {
-    const other = new FakeOracleExecutor();
+    const other = new FakeSqlExecutor();
     await repository.withExecutor(other).getAll();
 
     expect(other.calls).toHaveLength(1);

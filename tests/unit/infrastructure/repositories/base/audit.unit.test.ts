@@ -2,7 +2,7 @@ import { MemoryGenericRepository } from "../../../../../src/infrastructure/repos
 import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/oracle.generic.repository";
 import { AsyncRequestContextPlugin } from "../../../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import type { IRequestContext } from "../../../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
-import { FakeOracleExecutor, silentLogger } from "./fake-oracle-executor";
+import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
 import { AUDITED_ENTITY, AUDITED_SOFT_ENTITY, IAuditedItem } from "./test-entity";
 
 /** Ejecuta `fn` como si la petición viniera de ese usuario. */
@@ -90,11 +90,11 @@ describe("auditoría de usuario en el repositorio genérico", () => {
 
   // ===============================================================  Oracle  ==
   describe("OracleGenericRepository", () => {
-    let db: FakeOracleExecutor;
+    let db: FakeSqlExecutor;
     let repository: OracleGenericRepository<IAuditedItem>;
 
     beforeEach(() => {
-      db = new FakeOracleExecutor();
+      db = new FakeSqlExecutor();
       repository = new OracleGenericRepository<IAuditedItem>(
         db,
         AUDITED_ENTITY,
@@ -104,12 +104,12 @@ describe("auditoría de usuario en el repositorio genérico", () => {
     });
 
     it("añade CREATED_BY al INSERT como bind", async () => {
-      db.queue({ outBinds: { outpk: [1] } }).queue({ rows: [{ PK_ITEM: 1, NAME: "uno" }] });
+      db.queue({ outBinds: { insertedId: [1] } }).queue({ rows: [{ PK_ITEM: 1, NAME: "uno" }] });
 
       await asUser(context, "Ruben", () => repository.insert({ name: "uno" }));
 
       expect(db.sqlAt(0)).toBe(
-        "INSERT INTO AUDITED (NAME, CREATED_BY) VALUES (:b0, :auditUser) RETURNING PK_ITEM INTO :outpk"
+        "INSERT INTO AUDITED (NAME, CREATED_BY) VALUES (:b0, :auditUser) RETURNING PK_ITEM INTO :insertedId"
       );
       expect(db.calls[0].binds).toMatchObject({ auditUser: "Ruben" });
     });
@@ -153,8 +153,8 @@ describe("auditoría de usuario en el repositorio genérico", () => {
     });
 
     it("withExecutor conserva el contexto dentro de la transacción", async () => {
-      const tx = new FakeOracleExecutor();
-      tx.queue({ outBinds: { outpk: [1] } }).queue({ rows: [{ PK_ITEM: 1 }] });
+      const tx = new FakeSqlExecutor();
+      tx.queue({ outBinds: { insertedId: [1] } }).queue({ rows: [{ PK_ITEM: 1 }] });
 
       await asUser(context, "Ruben", () => repository.withExecutor(tx).insert({ name: "uno" }));
 
@@ -162,7 +162,7 @@ describe("auditoría de usuario en el repositorio genérico", () => {
     });
 
     it("sin petición en curso escribe System", async () => {
-      db.queue({ outBinds: { outpk: [1] } }).queue({ rows: [{ PK_ITEM: 1 }] });
+      db.queue({ outBinds: { insertedId: [1] } }).queue({ rows: [{ PK_ITEM: 1 }] });
 
       await repository.insert({ name: "seed" });
 

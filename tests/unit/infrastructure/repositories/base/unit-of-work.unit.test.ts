@@ -1,8 +1,8 @@
 import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/memory.generic.repository";
 import { MemoryUnitOfWork } from "../../../../../src/infrastructure/repositories/base/memory.unit-of-work";
 import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/oracle.generic.repository";
-import { OracleUnitOfWork } from "../../../../../src/infrastructure/repositories/base/oracle.unit-of-work";
-import { FakeOracleExecutor, silentLogger } from "./fake-oracle-executor";
+import { SqlUnitOfWork } from "../../../../../src/infrastructure/repositories/base/sql.unit-of-work";
+import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
 import { ITestItem, SEED, TEST_ENTITY } from "./test-entity";
 
 describe("MemoryUnitOfWork", () => {
@@ -50,22 +50,22 @@ describe("MemoryUnitOfWork", () => {
   });
 });
 
-describe("OracleUnitOfWork", () => {
-  let executor: FakeOracleExecutor;
-  let transactionExecutor: FakeOracleExecutor;
+describe("SqlUnitOfWork", () => {
+  let executor: FakeSqlExecutor;
+  let transactionExecutor: FakeSqlExecutor;
   let repository: OracleGenericRepository<ITestItem>;
   let db: any;
-  let unitOfWork: OracleUnitOfWork;
+  let unitOfWork: SqlUnitOfWork;
 
   beforeEach(() => {
-    executor = new FakeOracleExecutor();
-    transactionExecutor = new FakeOracleExecutor();
+    executor = new FakeSqlExecutor();
+    transactionExecutor = new FakeSqlExecutor();
     repository = new OracleGenericRepository<ITestItem>(executor, TEST_ENTITY, silentLogger);
 
     // Sustituto del pool: entrega el contexto de transacción al bloque.
     db = { transaction: jest.fn((work: any) => work(transactionExecutor)) };
 
-    unitOfWork = new OracleUnitOfWork(db, new Map([["ITEMS", repository as never]]));
+    unitOfWork = new SqlUnitOfWork(db, new Map([["ITEMS", repository as never]]));
   });
 
   it("ejecuta el bloque dentro de una transacción del driver", async () => {

@@ -79,7 +79,8 @@ describe("createPersistenceLayer", () => {
   it("en memoria devuelve las tres entidades con su seed", async () => {
     const persistence = createPersistenceLayer(envsWith({ DATA_SOURCE: "dummy" }), logger);
 
-    expect(persistence.oracle).toBeUndefined();
+    expect(persistence.driver).toBe("memory");
+    expect(persistence.connection).toBeUndefined();
     expect(persistence.stores.users).toBeInstanceOf(MemoryGenericRepository);
     expect(await persistence.stores.users.count()).toBe(4);
     expect(await persistence.stores.branches.count()).toBe(3);
@@ -102,7 +103,8 @@ describe("createPersistenceLayer", () => {
       logger
     );
 
-    expect(persistence.oracle).toBeDefined();
+    expect(persistence.driver).toBe("oracle");
+    expect(persistence.connection).toBeDefined();
     expect(persistence.stores.users).toBeInstanceOf(OracleGenericRepository);
     expect(persistence.stores.branches).toBeInstanceOf(OracleGenericRepository);
     expect(persistence.stores.appointments).toBeInstanceOf(OracleGenericRepository);

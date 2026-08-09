@@ -4,7 +4,6 @@ import {
   USERS_DATASOURCES,
 } from "../../../../src/core/di/datasource.factory";
 import { UsersGenericDataSource } from "../../../../src/infrastructure/datasources/generic/users.generic.datasource";
-import { UsersSqlServerDataSource } from "../../../../src/infrastructure/datasources/sqlserver/users.sqlserver.datasource";
 
 describe("resolveUsersDataSource", () => {
   it("defaults to the generic datasource when no value is provided", () => {
@@ -22,12 +21,14 @@ describe("resolveUsersDataSource", () => {
     expect(resolveUsersDataSource("oracle")).toBe(UsersGenericDataSource);
   });
 
-  it("returns the SQL Server datasource for 'sqlserver'", () => {
-    expect(resolveUsersDataSource("sqlserver")).toBe(UsersSqlServerDataSource);
+  // Los tres drivers comparten datasource: lo que cambia por debajo es el
+  // repositorio genérico, no el CRUD de usuarios.
+  it("returns the generic datasource for 'sqlserver'", () => {
+    expect(resolveUsersDataSource("sqlserver")).toBe(UsersGenericDataSource);
   });
 
   it("is case-insensitive", () => {
-    expect(resolveUsersDataSource("SqlServer")).toBe(UsersSqlServerDataSource);
+    expect(resolveUsersDataSource("SqlServer")).toBe(UsersGenericDataSource);
     expect(resolveUsersDataSource("ORACLE")).toBe(UsersGenericDataSource);
     expect(resolveUsersDataSource("DUMMY")).toBe(UsersGenericDataSource);
   });

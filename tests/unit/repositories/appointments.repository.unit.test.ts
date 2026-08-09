@@ -7,9 +7,9 @@ import { APPOINTMENTS_SEED, BRANCHES_SEED } from "../../../src/infrastructure/re
 import { IAppointment } from "../../../src/domain/models/appointments.model";
 import { IBranch } from "../../../src/domain/models/branches.model";
 import {
-  FakeOracleExecutor,
+  FakeSqlExecutor,
   silentLogger,
-} from "../infrastructure/repositories/base/fake-oracle-executor";
+} from "../infrastructure/repositories/base/fake-sql-executor";
 
 describe("AppointmentsRepository", () => {
   const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } as never;
@@ -40,11 +40,11 @@ describe("AppointmentsRepository", () => {
   });
 
   describe("countByStatus sobre Oracle", () => {
-    let db: FakeOracleExecutor;
+    let db: FakeSqlExecutor;
     let repository: AppointmentsRepository;
 
     beforeEach(() => {
-      db = new FakeOracleExecutor();
+      db = new FakeSqlExecutor();
       const store = new OracleGenericRepository<IAppointment>(
         db,
         APPOINTMENTS_ENTITY,

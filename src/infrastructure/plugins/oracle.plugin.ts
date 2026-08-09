@@ -100,6 +100,8 @@ export class OraclePlugin implements IOracleConnectionPlugin {
 
   // ----------------------------------------------------------- ejecución ----
 
+  // El tercer parámetro forma parte del contrato `ISqlExecutor` pero Oracle no
+  // lo necesita: devuelve filas y filas afectadas en la misma respuesta.
   async execute<TRow = Record<string, unknown>>(
     sql: string,
     binds: OracleBinds = {}

@@ -8,7 +8,7 @@ import type { IGenericRepository } from "../../domain/interfaces/infrastructure/
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { AppointmentStatus, IAppointment } from "../../domain/models/appointments.model";
 import { BaseModuleRepository } from "./base/module.repository";
-import { OracleGenericRepository } from "./base/oracle.generic.repository";
+import { SqlGenericRepository } from "./base/sql.generic.repository";
 import { APPOINTMENTS_ENTITY } from "./entities";
 
 /**
@@ -16,10 +16,10 @@ import { APPOINTMENTS_ENTITY } from "./entities";
  * genérico; lo único propio es `countByStatus`, que necesita un `GROUP BY`.
  *
  * Ese método tiene dos caminos porque la agregación sí depende del driver:
- * contra Oracle baja a SQL por la vía de escape del repositorio genérico, y en
- * modo memoria se calcula sobre lo que ese mismo repositorio devuelve. Así el
- * módulo funciona igual en los dos modos sin obligar a levantar Docker para
- * desarrollar.
+ * contra un motor SQL —Oracle o SQL Server— baja a la vía de escape del
+ * repositorio genérico, y en modo memoria se calcula sobre lo que ese mismo
+ * repositorio devuelve. Así el módulo funciona igual en los tres modos sin
+ * obligar a levantar Docker para desarrollar.
  */
 @injectable()
 export class AppointmentsRepository
@@ -37,7 +37,7 @@ export class AppointmentsRepository
     return this.guard(
       "countByStatus",
       async () =>
-        this.store instanceof OracleGenericRepository
+        this.store instanceof SqlGenericRepository
           ? this.countByStatusSql(this.store, fkBranch)
           : this.countByStatusInMemory(fkBranch),
       { fkBranch }
@@ -45,7 +45,7 @@ export class AppointmentsRepository
   }
 
   private async countByStatusSql(
-    store: OracleGenericRepository<IAppointment>,
+    store: SqlGenericRepository<IAppointment>,
     fkBranch?: number
   ): Promise<AppointmentStatusCount[]> {
     // Los nombres físicos salen del mapeo, no se escriben a mano aquí.
