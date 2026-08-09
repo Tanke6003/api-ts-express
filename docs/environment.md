@@ -44,11 +44,13 @@ In development (`NODE_ENV=development`), Pino logs are pretty-printed via pino-p
 
 ## Data source selection
 
-The `IUsersDataSource` implementation is selected at startup via `DATA_SOURCE`.
+`DATA_SOURCE` selects, at startup, both the `IUsersDataSource` implementation and the driver behind the generic repository (branches, appointments).
 
 | Variable | Type | Default | Required | Description |
 |----------|------|---------|----------|-------------|
-| `DATA_SOURCE` | string | `dummy` | No | `dummy` (in-memory, no DB needed) or `sqlserver` (uses Sequelize). An unknown value fails fast at startup. |
+| `DATA_SOURCE` | string | `dummy` | No | `dummy` (in-memory, no DB needed), `oracle` (node-oracledb, thin mode) or `sqlserver` (Sequelize). An unknown value fails fast at startup. |
+
+`dummy` and `oracle` share the same code path — the generic repository — backed by memory or by Oracle respectively. See **[docs/generic-repository.md](generic-repository.md)**.
 
 ---
 
@@ -64,6 +66,32 @@ Only required when `DATA_SOURCE=sqlserver`. When `DATA_SOURCE=sqlserver`, `DB_PA
 | `DB_USER` | string | `sa` | Database username |
 | `DB_PASSWORD` | string | — | Database password |
 | `DB_NAME` | string | `testdb` | Database name |
+
+---
+
+## Database (Oracle)
+
+Only required when `DATA_SOURCE=oracle`, in which case `ORACLE_PASSWORD` becomes a required secret (validated at startup). Defaults match `docker-compose.yml`, so `docker compose up -d oracle` needs no extra configuration.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `ORACLE_USER` | string | `appuser` | Schema owner. The API never connects as `SYS`. |
+| `ORACLE_PASSWORD` | string | — | **Required** when `DATA_SOURCE=oracle` |
+| `ORACLE_CONNECT_STRING` | string | `localhost:1521/FREEPDB1` | Easy Connect: `host:port/service` |
+| `ORACLE_POOL_MIN` | number | `1` | Minimum pooled connections |
+| `ORACLE_POOL_MAX` | number | `10` | Maximum pooled connections |
+| `ORACLE_POOL_INCREMENT` | number | `1` | Connections added when the pool grows |
+
+Unusable pool sizes (non-numeric, zero, negative) fall back to the defaults instead of propagating a `NaN`.
+
+These two are read by `docker-compose.yml` only, never by the app:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ORACLE_SYS_PASSWORD` | `OraclePassword1` | `SYS` / `SYSTEM` password used to bootstrap the container |
+| `ORACLE_PORT` | `1521` | Host port mapped to the container |
+
+Full guide: **[docs/oracle.md](oracle.md)**.
 
 ---
 
@@ -96,7 +124,7 @@ JWT_SECRET=dev_secret_change_in_production
 # Logging
 LOG_LEVEL=trace
 
-# Data source: "dummy" (in-memory, default) or "sqlserver"
+# Data source: "dummy" (in-memory, default), "oracle" or "sqlserver"
 DATA_SOURCE=dummy
 
 # Database (only if DATA_SOURCE=sqlserver)
@@ -106,4 +134,9 @@ DB_PORT=1434
 DB_USER=sa
 DB_PASSWORD=change_me
 DB_NAME=testdb
+
+# Oracle (only if DATA_SOURCE=oracle)
+ORACLE_USER=appuser
+ORACLE_PASSWORD=change_me
+ORACLE_CONNECT_STRING=localhost:1521/FREEPDB1
 ```

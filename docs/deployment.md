@@ -95,17 +95,17 @@ docker run -p 3001:3001 --env-file .env api-ts-express
 
 ## Switching the datasource
 
-By default the app uses an **in-memory dummy datasource**. To use SQL Server, edit `src/core/di/container.ts`:
+The driver is selected at startup by the `DATA_SOURCE` environment variable — no code changes:
 
-```typescript
-// Replace this line:
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersDummyDataSource });
-
-// With:
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersSqlServerDataSource });
+```env
+DATA_SOURCE=dummy       # en memoria, sin base de datos (por defecto)
+DATA_SOURCE=oracle      # Oracle 23ai vía node-oracledb (thin mode)
+DATA_SOURCE=sqlserver   # SQL Server vía Sequelize
 ```
 
-Update the database environment variables and restart.
+Set the matching credentials and restart. An unknown value fails fast at startup, and each driver's required secret (`ORACLE_PASSWORD`, `DB_PASSWORD`) is validated before the server boots — the app refuses to start with insecure defaults.
+
+See **[environment.md](environment.md)** for the full variable list and **[oracle.md](oracle.md)** for the Oracle setup.
 
 ---
 

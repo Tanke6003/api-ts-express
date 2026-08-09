@@ -123,28 +123,37 @@ This runs unit + integration tests and generates coverage under `reports/`.
 
 ## 7. (Optional) Start local services with Docker
 
-If you want to use SQL Server or MinIO locally:
+By default `DATA_SOURCE=dummy`, so the API runs with an in-memory store and needs no database at all.
+
+To run against a real database, start it and flip one environment variable — there is no code to change:
 
 ```bash
-docker compose up -d
+docker compose up -d oracle     # Oracle 23ai Free; schema + seed applied on first boot
+docker compose up -d            # todo (Oracle, SQL Server y MinIO)
 ```
 
-Then update `.env.dev` with the database connection values (see [deployment.md](deployment.md)).
-
-To switch from the dummy datasource to SQL Server, edit `src/core/di/container.ts`:
-
-```typescript
-// Before (default)
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersDummyDataSource });
-
-// After (SQL Server)
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersSqlServerDataSource });
+```env
+# .env.dev
+DATA_SOURCE=oracle              # o "sqlserver"
+ORACLE_PASSWORD=AppPassword1
 ```
+
+Restart the server; the boot log should show `Conexión con Oracle establecida correctamente.` and `GET /health` will report `"dataSource":"oracle"`.
+
+Full guide: **[oracle.md](oracle.md)**.
+
+---
+
+## The web UI
+
+Open **http://localhost:3001/** for a small HTML + Tailwind interface over the same API: appointments (with or without a registered client), branches and users, including logical delete, restore and hard delete. It lives in `public/` and is served as static files.
 
 ---
 
 ## Next steps
 
+- Understand the generic repository → [generic-repository.md](generic-repository.md)
+- Run against Oracle → [oracle.md](oracle.md)
 - Add a new resource → [add-new-module.md](add-new-module.md)
 - Understand the architecture → [architecture.md](architecture.md)
 - Write tests → [testing.md](testing.md)

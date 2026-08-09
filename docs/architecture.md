@@ -48,29 +48,32 @@ src/
 │   └── routes/
 │       ├── index.route.ts           # Mounts all routers under /api
 │       ├── users.route.ts           # OpenAPI-annotated CRUD routes
+│       ├── branches.route.ts        # Sucursales
+│       ├── appointments.route.ts    # Citas
 │       └── test.route.ts            # Token generation & file upload (dev)
 │
 ├── application/                     # Business logic — knows Domain only
-│   ├── dtos/
-│   │   └── users.dtos.ts            # Request/response shapes (OpenAPI schemas)
-│   └── services/
-│       └── users.service.ts         # Orchestrates domain operations via repository
+│   ├── dtos/                        # Request/response shapes (OpenAPI schemas)
+│   ├── queries/
+│   │   └── include.query.ts         # loadRelated — EF-style Include, batched
+│   ├── services/                    # Business rules & compound queries
+│   └── validators/                  # Zod schemas per module
 │
 ├── domain/                          # Core — zero external dependencies
 │   ├── interfaces/
-│   │   ├── application/services/    # IUsersService
+│   │   ├── application/services/    # IUsersService, IBranchesService, IAppointmentsService
 │   │   ├── infrastructure/
 │   │   │   ├── datasources/         # IUsersDataSource
-│   │   │   ├── plugins/             # ILogger, IEnvs, ITokenPlugin, IFileStorage, ISqlConnectionPlugin
-│   │   │   └── repositories/        # IUsersRepository
-│   │   └── presentation/controllers/ # IUsersController
-│   └── models/
-│       └── users.model.ts           # IUser domain entity
+│   │   │   ├── plugins/             # ILogger, IEnvs, ITokenPlugin, IFileStorage,
+│   │   │   │                        #   ISqlConnectionPlugin, IOracleConnectionPlugin
+│   │   │   └── repositories/        # IGenericRepository, IUnitOfWork, per-module contracts
+│   │   └── presentation/controllers/
+│   └── models/                      # IUser, IBranch, IAppointment, ENTITY_NAMES
 │
 └── infrastructure/                  # Concrete implementations
     ├── datasources/
-    │   ├── dummy/
-    │   │   └── users.dummy.datasource.ts  # In-memory with soft delete
+    │   ├── generic/
+    │   │   └── users.generic.datasource.ts  # Sobre el repositorio genérico
     │   └── sqlserver/
     │       └── users.sqlserver.datasource.ts # SQL Server via Sequelize
     ├── plugins/
@@ -79,11 +82,25 @@ src/
     │   ├── pino.plugin.ts           # Structured logger (primary)
     │   ├── winston.plugin.ts        # Alternative logger
     │   ├── sequelize.plugin.ts      # SQL connection + query helpers
+    │   ├── oracle.plugin.ts         # node-oracledb (thin mode) pool + transactions
     │   ├── nativeFileStorage.plugin.ts # Local filesystem storage
     │   └── s3FileStorage.plugin.ts  # AWS S3 / MinIO storage
     └── repositories/
-        └── users.repository.ts      # Logs + delegates to datasource
+        ├── base/                    # El repositorio genérico y su soporte
+        │   ├── entity-metadata.ts        # Mapeo entidad ↔ tabla
+        │   ├── oracle.where.compiler.ts  # Filtro declarativo → SQL con binds
+        │   ├── memory.filter.ts          # El mismo filtro, evaluado en memoria
+        │   ├── query-builder.ts          # IQueryable<T> encadenable (LINQ)
+        │   ├── oracle.generic.repository.ts
+        │   ├── memory.generic.repository.ts
+        │   ├── module.repository.ts      # Base de los repositorios de módulo
+        │   └── *.unit-of-work.ts         # Transacciones (Oracle / memoria)
+        ├── entities.ts              # Mapeo de USERS, BRANCHES y APPOINTMENTS
+        ├── seed-data.ts             # Datos de ejemplo del modo en memoria
+        └── *.repository.ts          # Repositorios de módulo
 ```
+
+The generic repository is documented in **[generic-repository.md](generic-repository.md)**; the Oracle setup in **[oracle.md](oracle.md)**.
 
 ---
 
@@ -102,17 +119,20 @@ Route handler  (users.route.ts)
 Controller  (users.controller.ts)
     │  validates params, calls service
     ▼
-Service  (users.service.ts)
-    │  maps DTO ↔ domain model, calls repository
+Service  (appointments.service.ts)
+    │  business rules, compound queries, Include of related aggregates,
+    │  opens a transaction when the use case writes to more than one table
     ▼
-Repository  (users.repository.ts)
-    │  logs, wraps errors, calls datasource
+Repository  (appointments.repository.ts)
+    │  logs, wraps errors, delegates to the generic repository
     ▼
-DataSource  (dummy or SQL Server)
-    │  executes query / in-memory operation
+Generic repository  (Oracle or in-memory)
+    │  builds the SQL from the entity mapping — all values as binds
     ▼
 Returns up the chain → JSON response
 ```
+
+Users still go through `IUsersDataSource`; on `dummy` and `oracle` that datasource is itself backed by the generic repository, so the CRUD is written once.
 
 ---
 
