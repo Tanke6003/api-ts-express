@@ -16,6 +16,10 @@ import {
   SequelizeDbPlugin,
   SequelizeEngine,
 } from "../../infrastructure/plugins/sequelize-db.plugin";
+import {
+  MongoConnectionConfig,
+  MongoDbPlugin,
+} from "../../infrastructure/plugins/mongo-db.plugin";
 import type { DbEngine } from "../../domain/interfaces/infrastructure/plugins/db.plugin.interface";
 import {
   mysqlDialect,
@@ -27,11 +31,13 @@ import {
 import { EntityMetadata } from "../../infrastructure/repositories/base/entity-metadata";
 import { MemoryGenericRepository } from "../../infrastructure/repositories/base/drivers/memory.generic.repository";
 import { SqlGenericRepository } from "../../infrastructure/repositories/base/drivers/sql.generic.repository";
+import { MongoGenericRepository } from "../../infrastructure/repositories/base/drivers/mongo.generic.repository";
 import { MemoryUnitOfWork } from "../../infrastructure/repositories/base/unit-of-work/memory.unit-of-work";
 import {
   ISqlTransactionRunner,
   SqlUnitOfWork,
 } from "../../infrastructure/repositories/base/unit-of-work/sql.unit-of-work";
+import { MongoUnitOfWork } from "../../infrastructure/repositories/base/unit-of-work/mongo.unit-of-work";
 import {
   APPOINTMENTS_ENTITY,
   AUDIT_LOG_ENTITY,
@@ -40,6 +46,7 @@ import {
 } from "../../infrastructure/repositories/entities";
 import {
   MemoryAuditTrail,
+  MongoAuditTrail,
   SqlAuditTrail,
 } from "../../infrastructure/repositories/base/audit-trail";
 import {
@@ -93,6 +100,8 @@ const DRIVER_ALIASES: Record<string, PersistenceDriver> = {
   postgresql: "postgres",
   mysql: "mysql",
   mariadb: "mysql",
+  mongodb: "mongodb",
+  mongo: "mongodb",
 };
 
 export function resolveDriver(dataSource?: string): PersistenceDriver {
@@ -177,6 +186,22 @@ export function buildSequelizeConfig(
   };
 }
 
+/**
+ * Configuración de MongoDB, con valores por defecto alineados con el
+ * docker-compose. Usuario y contraseña quedan vacíos si no se definen: el
+ * contenedor de desarrollo corre sin autenticación, y una cadena vacía en el
+ * usuario es la forma de decirle al conector que no escriba credenciales.
+ */
+export function buildMongoConfig(envs: IEnvs): MongoConnectionConfig {
+  return {
+    host: envs.getEnv("MONGO_HOST") || "localhost",
+    port: toInt(envs.getEnv("MONGO_PORT"), 27017),
+    database: envs.getEnv("MONGO_DB") || "testdb",
+    username: envs.getEnv("MONGO_USER") || undefined,
+    password: envs.getEnv("MONGO_PASSWORD") || undefined,
+  };
+}
+
 /** Dialecto de cada motor que habla Sequelize. */
 const SEQUELIZE_DIALECTS: Record<SequelizeEngine, SqlDialect> = {
   mssql: sqlServerDialect,
@@ -236,11 +261,12 @@ function buildSqlPersistence(
  * Construye la capa de persistencia según `DATA_SOURCE`.
  *
  * - `oracle`: repositorios genéricos sobre el pool de Oracle, transacciones reales.
- * - `sqlserver`: los mismos repositorios sobre SQL Server (Sequelize + tedious).
- * - cualquier otro valor: repositorios en memoria con los mismos datos de ejemplo,
- *   para poder desarrollar y correr los tests sin levantar Docker.
+ * - `sqlserver` / `postgres` / `mysql`: los mismos repositorios sobre Sequelize.
+ * - `mongodb`: repositorios documentales, con transacciones sobre la réplica.
+ * - `dummy`: repositorios en memoria con los mismos datos de ejemplo, para poder
+ *   desarrollar y correr los tests sin levantar Docker.
  *
- * En los tres casos los servicios reciben exactamente la misma interfaz.
+ * En todos los casos los servicios reciben exactamente la misma interfaz.
  */
 export function createPersistenceLayer(
   envs: IEnvs,
@@ -276,6 +302,43 @@ export function createPersistenceLayer(
         new SqlGenericRepository<T>(plugin, metadata, logger, dialect, context, auditTrail),
       context
     );
+  }
+
+  // MongoDB no comparte el repositorio de los cuatro motores SQL —no hay
+  // sentencias que generar—, pero sí el contrato, así que a partir de aquí todo
+  // se monta exactamente igual.
+  if (driver === "mongodb") {
+    const mongo = new MongoDbPlugin(buildMongoConfig(envs), logger);
+    const create = <T extends object>(metadata: EntityMetadata<T>, trail?: IAuditTrail) =>
+      new MongoGenericRepository<T>(mongo, metadata, logger, context, trail);
+
+    // La bitácora se construye primero y sin bitácora propia: registrarse a sí
+    // misma sería recursivo.
+    const auditLog = create<IAuditLog>(AUDIT_LOG_ENTITY);
+    const auditTrail = new MongoAuditTrail(auditLog);
+
+    const users = create(USERS_ENTITY, auditTrail);
+    const branches = create(BRANCHES_ENTITY, auditTrail);
+    const appointments = create(APPOINTMENTS_ENTITY, auditTrail);
+
+    const registry = new Map(
+      [
+        [ENTITY_NAMES.USERS, users],
+        [ENTITY_NAMES.BRANCHES, branches],
+        [ENTITY_NAMES.APPOINTMENTS, appointments],
+      ].map(([name, repository]) => [
+        name as string,
+        repository as unknown as MongoGenericRepository<never, never>,
+      ])
+    );
+
+    return {
+      driver,
+      stores: { users, branches, appointments, auditLog },
+      unitOfWork: new MongoUnitOfWork(mongo, registry),
+      auditTrail,
+      connection: mongo,
+    };
   }
 
   const memoryStore = <T extends object>(

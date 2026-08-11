@@ -1,11 +1,14 @@
 import { SqlGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
 import "reflect-metadata";
 import {
+  buildMongoConfig,
   buildOracleConfig,
   createPersistenceLayer,
   isOracleDriver,
+  resolveDriver,
 } from "../../../../src/core/di/repository.factory";
 import { MemoryGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { MongoGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/mongo.generic.repository";
 import { ENTITY_NAMES } from "../../../../src/domain/models/entity-names";
 
 const envsWith = (values: Record<string, string>) => ({
@@ -83,6 +86,57 @@ describe("buildOracleConfig", () => {
   });
 });
 
+describe("buildMongoConfig", () => {
+  it("usa los valores por defecto alineados con el docker-compose", () => {
+    // Sin credenciales: el contenedor de desarrollo corre sin autenticación, y
+    // `undefined` es lo que hace que el conector no las escriba en la URI.
+    expect(buildMongoConfig(envsWith({}))).toEqual({
+      host: "localhost",
+      port: 27017,
+      database: "testdb",
+      username: undefined,
+      password: undefined,
+    });
+  });
+
+  it("respeta lo configurado", () => {
+    expect(
+      buildMongoConfig(
+        envsWith({
+          MONGO_HOST: "mongo",
+          MONGO_PORT: "27018",
+          MONGO_DB: "otra",
+          MONGO_USER: "root",
+          MONGO_PASSWORD: "secreto",
+        })
+      )
+    ).toEqual({
+      host: "mongo",
+      port: 27018,
+      database: "otra",
+      username: "root",
+      password: "secreto",
+    });
+  });
+
+  it("ignora un puerto inservible en vez de propagar un NaN", () => {
+    expect(buildMongoConfig(envsWith({ MONGO_PORT: "abc" }))).toMatchObject({ port: 27017 });
+  });
+});
+
+describe("resolveDriver", () => {
+  it("acepta los dos alias de MongoDB", () => {
+    expect(resolveDriver("mongodb")).toBe("mongodb");
+    expect(resolveDriver("mongo")).toBe("mongodb");
+  });
+
+  it("rechaza un DATA_SOURCE desconocido en vez de caer a memoria en silencio", () => {
+    // Un `postgress` mal escrito arrancaría en memoria y el fallo aparecería
+    // mucho después, en forma de datos que no persisten.
+    expect(() => resolveDriver("postgress")).toThrow(/Unknown DATA_SOURCE/);
+  });
+});
+
 describe("createPersistenceLayer", () => {
   it("en memoria devuelve las tres entidades con su seed", async () => {
     const persistence = createPersistenceLayer(envsWith({ DATA_SOURCE: "dummy" }), logger);
@@ -116,6 +170,19 @@ describe("createPersistenceLayer", () => {
     expect(persistence.stores.users).toBeInstanceOf(SqlGenericRepository);
     expect(persistence.stores.branches).toBeInstanceOf(SqlGenericRepository);
     expect(persistence.stores.appointments).toBeInstanceOf(SqlGenericRepository);
+  });
+
+  it("con MongoDB construye repositorios documentales sin conectarse todavía", async () => {
+    // El cliente es perezoso: montar la capa no debe abrir ninguna conexión, o
+    // los tests y el arranque dependerían de tener el contenedor levantado.
+    const persistence = createPersistenceLayer(envsWith({ DATA_SOURCE: "mongodb" }), logger);
+
+    expect(persistence.driver).toBe("mongodb");
+    expect(persistence.connection).toBeDefined();
+    expect(persistence.stores.users).toBeInstanceOf(MongoGenericRepository);
+    expect(persistence.stores.branches).toBeInstanceOf(MongoGenericRepository);
+    expect(persistence.stores.appointments).toBeInstanceOf(MongoGenericRepository);
+    expect(persistence.stores.auditLog).toBeInstanceOf(MongoGenericRepository);
   });
 
   it("cada modo tiene su propio almacén: dos capas no comparten estado", async () => {

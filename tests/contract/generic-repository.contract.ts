@@ -11,6 +11,7 @@
 // Sólo cubre comportamiento observable a través del contrato. Lo propio de cada
 // motor (qué SQL se genera, cómo vuelve una PK) se prueba en su propio test.
 import type { IGenericRepository } from "../../src/domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import { defineEntity } from "../../src/infrastructure/repositories/base/entity-metadata";
 
 /** Entidad mínima que la batería necesita para operar. */
 export interface ContractItem {
@@ -20,6 +21,25 @@ export interface ContractItem {
   tag?: string | null;
   active?: boolean;
 }
+
+/**
+ * Entidad de la batería, con la convención de la plantilla: PK autonumérica y
+ * columna de borrado lógico. Vive aquí para que cada driver la importe sin
+ * arrastrar el test de otro.
+ */
+export const CONTRACT_ENTITY = defineEntity<ContractItem>({
+  table: "CONTRACT_ITEMS",
+  primaryKey: "pkItem",
+  identity: true,
+  columns: {
+    pkItem: { name: "PK_ITEM", kind: "number", insertable: false, updatable: false },
+    name: { name: "NAME", kind: "string" },
+    qty: { name: "QTY", kind: "number" },
+    tag: { name: "TAG", kind: "string" },
+    active: { name: "ACTIVE", kind: "boolean" },
+  },
+  softDelete: { property: "active", activeValue: 1, deletedValue: 0 },
+});
 
 export interface ContractSetup {
   /** Repositorio vacío y aislado para cada prueba. */

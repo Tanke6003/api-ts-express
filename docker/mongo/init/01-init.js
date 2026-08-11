@@ -106,20 +106,20 @@ db.USERS.createIndex({ AVAILABLE: 1 }, { name: "IX_USERS_AVAILABLE" });
 //
 // OPENS_AT / CLOSES_AT siguen siendo texto 'HH:MM': la hora de apertura es un
 // horario de rótulo, no un instante, y así viaja al JSON sin conversiones.
+//
+// Son las dos únicas columnas NOT NULL que aquí no van en `required`. En SQL
+// llevan DEFAULT ('09:00' y '18:00'), así que un alta que no las envíe —como la
+// del endpoint de sucursales— es perfectamente válida y el motor las rellena.
+// Un $jsonSchema valida pero no rellena, de modo que exigirlas rechazaría un
+// insert que los otros cuatro motores aceptan. El resto de columnas con DEFAULT
+// (AVAILABLE, CREATED_AT, CREATED_BY, STATUS, DURATION_MIN) sí siguen siendo
+// obligatorias porque el repositorio o el servicio las escriben siempre.
 // =============================================================================
 db.createCollection("BRANCHES", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
-      required: [
-        "PK_BRANCH",
-        "NAME",
-        "OPENS_AT",
-        "CLOSES_AT",
-        "AVAILABLE",
-        "CREATED_AT",
-        "CREATED_BY",
-      ],
+      required: ["PK_BRANCH", "NAME", "AVAILABLE", "CREATED_AT", "CREATED_BY"],
       properties: {
         PK_BRANCH: { bsonType: NUMBER },
         NAME: { bsonType: "string", maxLength: 100 },

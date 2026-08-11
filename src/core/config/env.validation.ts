@@ -35,6 +35,11 @@ export function validateCriticalEnvs(envs: IEnvs): void {
     if (!envs.getEnv("MYSQL_PASSWORD")) missing.push("MYSQL_PASSWORD");
   }
 
+  // MongoDB no aparece aquí a propósito: su contenedor de desarrollo corre sin
+  // autenticación —a diferencia de los otros cuatro motores—, así que exigir
+  // MONGO_PASSWORD impediría arrancar en el escenario normal. Si el despliegue
+  // tiene credenciales, se pasan por MONGO_USER/MONGO_PASSWORD.
+
   if (dataSource === "oracle") {
     // El usuario y el connect string tienen valor por defecto alineado con el
     // docker-compose; la contraseña no puede tenerlo.
