@@ -46,7 +46,7 @@ export class Server {
       "/api/scalar",
       apiReference({
         url: "/api/openapi.json",
-        theme: "purple",
+        theme: "deepSpace",
       })
     );
   }
