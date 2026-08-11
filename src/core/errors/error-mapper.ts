@@ -34,48 +34,75 @@ export function causeChain(error: unknown, maxDepth = 10): unknown[] {
   return chain;
 }
 
-/** Texto de toda la cadena, para buscar en él códigos del motor. */
-function chainText(error: unknown): string {
-  return causeChain(error)
-    .map((link) => (link instanceof Error ? link.message : String(link)))
-    .join(" | ");
+// ===========================================================  motores  ======
+//
+// Un fallo que provoca el cliente —un duplicado, una referencia que no existe—
+// tiene que responderse igual venga del motor que venga: si en Oracle es un 409
+// y en PostgreSQL un 500, la promesa de que el módulo se comporta igual sobre
+// cualquier motor se rompe justo donde más se nota.
+//
+// Por eso el mapeo no es "un caso por código de driver" sino seis resultados
+// comunes, y cada motor traduce los suyos a ellos.
+
+interface DriverFailure {
+  statusCode: number;
+  code: string;
+  message: string;
 }
 
-/**
- * Errores de Oracle que corresponden a algo que hizo el cliente, y por tanto no
- * deben responderse como un 500 genérico. El resto cae al `default`.
- */
-const ORACLE_ERRORS: Record<string, { statusCode: number; code: string; message: string }> = {
-  "00001": {
-    statusCode: 409,
-    code: "DB_UNIQUE_VIOLATION",
-    message: "Ya existe un registro con esos datos.",
-  },
-  "01400": {
-    statusCode: 400,
-    code: "DB_NOT_NULL_VIOLATION",
-    message: "Falta un campo obligatorio.",
-  },
-  "02290": {
-    statusCode: 400,
-    code: "DB_CHECK_VIOLATION",
-    message: "Los datos no cumplen una restricción de la tabla.",
-  },
-  "02291": {
-    statusCode: 400,
-    code: "DB_REFERENCE_NOT_FOUND",
-    message: "La referencia indicada no existe.",
-  },
-  "02292": {
-    statusCode: 409,
-    code: "DB_REFERENCE_IN_USE",
-    message: "No se puede eliminar: hay registros que dependen de este.",
-  },
-  "12899": {
-    statusCode: 400,
-    code: "DB_VALUE_TOO_LARGE",
-    message: "Un valor excede la longitud permitida.",
-  },
+const UNIQUE: DriverFailure = {
+  statusCode: 409,
+  code: "DB_UNIQUE_VIOLATION",
+  message: "Ya existe un registro con esos datos.",
+};
+const NOT_NULL: DriverFailure = {
+  statusCode: 400,
+  code: "DB_NOT_NULL_VIOLATION",
+  message: "Falta un campo obligatorio.",
+};
+const CHECK: DriverFailure = {
+  statusCode: 400,
+  code: "DB_CHECK_VIOLATION",
+  message: "Los datos no cumplen una restricción de la tabla.",
+};
+const REFERENCE_NOT_FOUND: DriverFailure = {
+  statusCode: 400,
+  code: "DB_REFERENCE_NOT_FOUND",
+  message: "La referencia indicada no existe.",
+};
+const REFERENCE_IN_USE: DriverFailure = {
+  statusCode: 409,
+  code: "DB_REFERENCE_IN_USE",
+  message: "No se puede eliminar: hay registros que dependen de este.",
+};
+const VALUE_TOO_LARGE: DriverFailure = {
+  statusCode: 400,
+  code: "DB_VALUE_TOO_LARGE",
+  message: "Un valor excede la longitud permitida.",
+};
+
+const UNAVAILABLE: DriverFailure = {
+  statusCode: 503,
+  code: "DB_UNAVAILABLE",
+  message: "La base de datos no está disponible en este momento.",
+};
+
+/** Lo que no es culpa de quien llama: esquema, permisos, SQL mal formado. */
+const OUR_FAULT: NormalizedError = {
+  statusCode: 500,
+  code: "DB_ERROR",
+  message: "Error al acceder a la base de datos.",
+  isOperational: false,
+};
+
+/** Oracle, por número de ORA. */
+const ORACLE_ERRORS: Record<string, DriverFailure> = {
+  "00001": UNIQUE,
+  "01400": NOT_NULL,
+  "02290": CHECK,
+  "02291": REFERENCE_NOT_FOUND,
+  "02292": REFERENCE_IN_USE,
+  "12899": VALUE_TOO_LARGE,
 };
 
 /** Códigos que significan "la base no está disponible", no "el cliente falló". */
@@ -89,32 +116,178 @@ const ORACLE_UNAVAILABLE = new Set([
   "12541",
 ]);
 
-function fromOracle(error: unknown): NormalizedError | null {
-  const match = /ORA-(\d{5})/.exec(chainText(error));
-  if (!match) return null;
+/** PostgreSQL, por SQLSTATE. */
+const POSTGRES_ERRORS: Record<string, DriverFailure> = {
+  "23505": UNIQUE,
+  "23502": NOT_NULL,
+  "23514": CHECK,
+  "22001": VALUE_TOO_LARGE,
+  "57P03": UNAVAILABLE,
+  "08000": UNAVAILABLE,
+  "08001": UNAVAILABLE,
+  "08003": UNAVAILABLE,
+  "08004": UNAVAILABLE,
+  "08006": UNAVAILABLE,
+};
 
-  const [, oracleCode] = match;
+/** MySQL / MariaDB, por `errno`. A diferencia de PostgreSQL sí distingue el
+ *  sentido de la violación de clave ajena, igual que Oracle. */
+const MYSQL_ERRORS: Record<number, DriverFailure> = {
+  1062: UNIQUE,
+  1169: UNIQUE,
+  1048: NOT_NULL,
+  1364: NOT_NULL,
+  3819: CHECK,
+  1452: REFERENCE_NOT_FOUND,
+  1451: REFERENCE_IN_USE,
+  1406: VALUE_TOO_LARGE,
+  1042: UNAVAILABLE,
+  1043: UNAVAILABLE,
+};
 
-  const known = ORACLE_ERRORS[oracleCode];
-  if (known) return { ...known, isOperational: true };
+/** SQL Server, por número de error de T-SQL. */
+const SQLSERVER_ERRORS: Record<number, DriverFailure> = {
+  2627: UNIQUE,
+  2601: UNIQUE,
+  515: NOT_NULL,
+  547: CHECK, // se afina abajo: 547 cubre CHECK y ambos sentidos de la FK
+  8152: VALUE_TOO_LARGE,
+  2628: VALUE_TOO_LARGE,
+  4060: UNAVAILABLE,
+  40613: UNAVAILABLE,
+};
 
-  if (ORACLE_UNAVAILABLE.has(oracleCode)) {
-    return {
-      statusCode: 503,
-      code: "DB_UNAVAILABLE",
-      message: "La base de datos no está disponible en este momento.",
-      isOperational: true,
-    };
+/** MongoDB, por código de servidor. */
+const MONGO_ERRORS: Record<number, DriverFailure> = {
+  11000: UNIQUE,
+  11001: UNIQUE,
+  121: CHECK, // el validador $jsonSchema rechazó el documento
+};
+
+/**
+ * PostgreSQL y SQL Server usan un mismo código para las dos direcciones de una
+ * clave ajena, mientras que Oracle y MySQL las distinguen. Insertar apuntando a
+ * un padre que no existe es un 400 —lo que mandó el cliente es inválido— y
+ * borrar un padre que aún tiene hijos es un 409. Sin este matiz el mismo caso
+ * respondería distinto según el motor, que es justo lo que se quiere evitar.
+ */
+function referenceDirection(text: string): DriverFailure {
+  return /still referenced|DELETE statement conflicted|REFERENCE constraint/i.test(text)
+    ? REFERENCE_IN_USE
+    : REFERENCE_NOT_FOUND;
+}
+
+/** Errores de conexión de Sequelize y del driver de Mongo, por nombre de clase. */
+const UNAVAILABLE_NAMES =
+  /^(SequelizeConnection|SequelizeHostNotFound|SequelizeAccessDenied|MongoNetwork|MongoServerSelection|MongoNotConnected)/;
+
+/** Códigos de sistema: el proceso ni siquiera llegó a hablar con la base. */
+const UNAVAILABLE_SYSTEM = new Set(["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EHOSTUNREACH"]);
+
+interface DriverErrorShape {
+  name?: string;
+  code?: unknown;
+  errno?: unknown;
+  number?: unknown;
+}
+
+/**
+ * Identifica un eslabón de la cadena por lo que trae, no por el motor
+ * configurado: cada driver deja una huella distinta y reconocible.
+ */
+function fromDriverLink(link: unknown): NormalizedError | null {
+  if (!(link instanceof Error)) return null;
+
+  const { name, code, errno, number: tsqlNumber } = link as unknown as DriverErrorShape;
+  const text = link.message ?? "";
+
+  if (name && UNAVAILABLE_NAMES.test(name)) return { ...UNAVAILABLE, isOperational: true };
+  if (typeof code === "string" && UNAVAILABLE_SYSTEM.has(code)) {
+    return { ...UNAVAILABLE, isOperational: true };
   }
 
-  // Cualquier otro ORA es un problema nuestro (esquema, permisos, SQL mal
-  // formado): 500 y sin exponer el código al cliente.
-  return {
-    statusCode: 500,
-    code: "DB_ERROR",
-    message: "Error al acceder a la base de datos.",
-    isOperational: false,
-  };
+  // Oracle: el código viaja en `code` ("ORA-00001") y también en el mensaje.
+  const oracle = /ORA-(\d{5})/.exec(typeof code === "string" ? code : "") ?? /ORA-(\d{5})/.exec(text);
+  if (oracle) {
+    const known = ORACLE_ERRORS[oracle[1]];
+    if (known) return { ...known, isOperational: true };
+    if (ORACLE_UNAVAILABLE.has(oracle[1])) return { ...UNAVAILABLE, isOperational: true };
+    return OUR_FAULT;
+  }
+
+  // SQL Server (tedious): `code` genérico y el número real en `number`.
+  if (code === "EREQUEST" && typeof tsqlNumber === "number") {
+    const known = SQLSERVER_ERRORS[tsqlNumber];
+    if (!known) return OUR_FAULT;
+    return { ...(tsqlNumber === 547 ? referenceDirection(text) : known), isOperational: true };
+  }
+
+  // MySQL / MariaDB (mysql2): `errno` numérico y un `code` que empieza por ER_.
+  if (typeof errno === "number" && typeof code === "string" && code.startsWith("ER_")) {
+    const known = MYSQL_ERRORS[errno];
+    return known ? { ...known, isOperational: true } : OUR_FAULT;
+  }
+
+  // PostgreSQL (pg): `code` es el SQLSTATE de cinco caracteres.
+  if (typeof code === "string" && /^\d{2}[0-9A-Z]{3}$/.test(code)) {
+    if (code === "23503") return { ...referenceDirection(text), isOperational: true };
+    const known = POSTGRES_ERRORS[code];
+    return known ? { ...known, isOperational: true } : OUR_FAULT;
+  }
+
+  // MongoDB: el driver usa códigos numéricos y nombres propios.
+  if (typeof name === "string" && name.startsWith("Mongo") && typeof code === "number") {
+    const known = MONGO_ERRORS[code];
+    return known ? { ...known, isOperational: true } : OUR_FAULT;
+  }
+
+  return null;
+}
+
+/**
+ * Sequelize envuelve el error del driver y lo deja en `parent` y `original`, no
+ * en `cause`, así que la cadena de causas no basta para llegar hasta él.
+ */
+function driverChain(error: unknown): unknown[] {
+  const vistos = new Set<unknown>();
+  const pendientes = [...causeChain(error)];
+  const cadena: unknown[] = [];
+
+  while (pendientes.length > 0) {
+    const actual = pendientes.shift();
+    if (actual === undefined || actual === null || vistos.has(actual)) continue;
+    vistos.add(actual);
+    cadena.push(actual);
+
+    if (actual instanceof Error) {
+      const bruto = actual as unknown as Record<string, unknown>;
+      pendientes.push(bruto.cause, bruto.parent, bruto.original);
+    }
+  }
+
+  return cadena;
+}
+
+/**
+ * Recorre la cadena entera y devuelve el primer eslabón que se reconoce. Se
+ * empieza por fuera, pero el que manda es el más específico: el envoltorio de
+ * Sequelize sólo dice "hay un error de conexión" o nada, y el del driver dice
+ * exactamente cuál.
+ */
+function fromDriver(error: unknown): NormalizedError | null {
+  let generico: NormalizedError | null = null;
+
+  for (const link of driverChain(error)) {
+    const identificado = fromDriverLink(link);
+    if (!identificado) continue;
+    if (identificado.code === "DB_ERROR") {
+      generico ??= identificado;
+      continue;
+    }
+    return identificado;
+  }
+
+  return generico;
 }
 
 function fromZod(error: ZodError): NormalizedError {
@@ -217,9 +390,10 @@ export function normalizeError(error: unknown): NormalizedError {
     const expressError = fromExpress(error);
     if (expressError) return expressError;
 
-    // Se busca en toda la cadena: el error del driver puede venir envuelto.
-    const oracleError = fromOracle(error);
-    if (oracleError) return oracleError;
+    // Se busca en toda la cadena: el error del driver viene envuelto por el
+    // repositorio y, en los motores que pasan por Sequelize, también por él.
+    const driverError = fromDriver(error);
+    if (driverError) return driverError;
   }
 
   return {
