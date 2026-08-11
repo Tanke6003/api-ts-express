@@ -2,7 +2,7 @@
 
 This guide shows how to add a complete CRUD resource on top of the **generic repository** — no SQL, no hand-written datasource. We use `Products` as the example. The `Branches` module in this repo is the same thing, end to end, if you prefer reading finished code.
 
-Read **[generic-repository.md](generic-repository.md)** first if you haven't; this guide assumes its vocabulary.
+Read **[data-access.md](data-access.md)** first if you haven't; this guide assumes its vocabulary.
 
 ---
 
@@ -77,7 +77,7 @@ export const PRODUCTS_ENTITY = defineEntity<IProduct>({
 
 TypeScript requires every property of `IProduct` to appear in `columns`.
 
-Add sample rows for the in-memory mode in `src/infrastructure/repositories/seed-data.ts`, and the table in `docker/oracle/sql/01_schema.sql` following the same convention (identity PK, `AVAILABLE NUMBER(1)`, `CREATED_AT` / `UPDATED_AT`).
+Add sample rows for the in-memory driver in `src/infrastructure/repositories/seed-data.ts`, and the table to the engines you actually use — `docker/<engine>/` holds a schema and a seed for each one, all deliberate twins of `docker/oracle/sql/01_schema.sql`. Follow the same convention (identity PK, `AVAILABLE` as 0/1, `CREATED_AT` / `UPDATED_AT`), because the entity mapping is shared: one column named differently on one engine breaks the SQL the generic repository generates for it.
 
 ---
 
@@ -114,15 +114,15 @@ export class ProductsRepository
   implements IProductsRepository
 {
   constructor(
-    @inject("ProductsStore") store: IGenericRepository<IProduct>,
-    @inject("ILogger") logger: ILogger
+    @inject(TOKENS.ProductsStore) store: IGenericRepository<IProduct>,
+    @inject(TOKENS.ILogger) logger: ILogger
   ) {
     super(store, logger, "ProductsRepository");
   }
 }
 ```
 
-`BaseModuleRepository` forwards every generic method and adds the error logging, so there is no per-method `try/catch`. For extra SQL, use `OracleGenericRepository.executeRaw()` — `AppointmentsRepository.countByStatus` is the worked example, including the in-memory fallback.
+`BaseModuleRepository` forwards every generic method and adds the error logging, so there is no per-method `try/catch`. For extra SQL, use `SqlGenericRepository.executeRaw()` — `AppointmentsRepository.countByStatus` is the worked example, including the fallback for the drivers that are not SQL.
 
 ---
 
@@ -332,10 +332,11 @@ new ProductsRoutes().register(apiRouter);
 
 ## Step 9 — DI registration
 
-In `src/core/di/repository.factory.ts`, add the store to both branches (Oracle and memory) and to the unit-of-work registry:
+In `src/core/di/repository.factory.ts`, add the store to each builder — SQL, MongoDB and memory — and to the unit-of-work registry. The builders differ only in which driver class they instantiate:
 
 ```typescript
-const products = new OracleGenericRepository<IProduct>(oracle, PRODUCTS_ENTITY, logger);
+// buildSqlPersistence — covers Oracle, SQL Server, PostgreSQL and MySQL
+const products = new SqlGenericRepository<IProduct>(executor, dialect, PRODUCTS_ENTITY, logger);
 // ...
 [ENTITY_NAMES.PRODUCTS, products],
 ```
@@ -396,7 +397,7 @@ The generic repository itself is already covered; you don't need to retest CRUD.
 ## Checklist
 
 - [ ] Model in `domain/models/` + name in `ENTITY_NAMES`
-- [ ] Mapping in `repositories/entities.ts` (+ `seed-data.ts`, + Oracle DDL)
+- [ ] Mapping in `repositories/entities.ts` (+ `seed-data.ts`, + the DDL of each engine you use)
 - [ ] Repository contract (`IGenericRepository<T>`, plus extra methods only if needed)
 - [ ] `XRepository extends BaseModuleRepository<T>`
 - [ ] DTOs with `@openapi` annotations

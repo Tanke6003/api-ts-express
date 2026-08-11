@@ -120,7 +120,7 @@ The same interface runs on Oracle or in memory depending on `DATA_SOURCE`. Relat
 
 Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/audit`.
 
-Full reference: **[docs/generic-repository.md](docs/generic-repository.md)** · Connectors: **[docs/connectors.md](docs/connectors.md)** · Oracle setup: **[docs/oracle.md](docs/oracle.md)** · Errors and identity: **[docs/errors-and-identity.md](docs/errors-and-identity.md)**.
+Full reference: **[docs/data-access.md](docs/data-access.md)** — the repository, the filter language, the six engines and how to set each one up. Errors, identity and the audit trail: **[docs/architecture.md](docs/architecture.md)**.
 
 ---
 
@@ -166,20 +166,18 @@ Copy `.env.template` to `.env.dev` (development) or `.env` (production) and fill
 | `SERVICE_NAME` | `ApiTSExpress` | Service name in logs |
 | `API_VERSION` | `1.0.0` | Shown in Swagger |
 | `JWT_SECRET` | — | **Required.** Sign JWT tokens. No insecure default — the app fails fast at startup if missing |
-| `DATA_SOURCE` | `dummy` | Data source: `dummy` (in-memory) / `oracle` / `sqlserver` |
+| `DATA_SOURCE` | `dummy` | `dummy` (in-memory) / `oracle` / `sqlserver` / `postgres` / `mysql` / `mongodb`. An unknown value fails at startup instead of falling back to memory |
 | `LOG_DRIVER` | `pino` | Logger implementation: `pino` / `winston` |
-| `LOG_LEVEL` | `trace` | Log level |
-| `DB_DIALECT` | `mssql` | `mssql` / `mysql` / `postgres` |
-| `DB_HOST` | `localhost` | Database host |
-| `DB_PORT` | `1434` | Database port |
-| `DB_USER` | `sa` | Database user |
-| `DB_PASSWORD` | — | Database password. Required (fails fast) when `DATA_SOURCE=sqlserver` |
-| `DB_NAME` | `testdb` | Database name |
-| `ORACLE_USER` | `appuser` | Oracle schema owner |
-| `ORACLE_PASSWORD` | — | Oracle password. Required (fails fast) when `DATA_SOURCE=oracle` |
-| `ORACLE_CONNECT_STRING` | `localhost:1521/FREEPDB1` | Easy Connect: `host:port/service` |
+| `LOG_LEVEL` | `trace` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |
+| `DB_*` | — | SQL Server: host, port, user, password, database |
+| `ORACLE_*` | — | Oracle: user, password, connect string, pool sizes |
+| `POSTGRES_*` | — | PostgreSQL: host, port, user, password, database |
+| `MYSQL_*` | — | MySQL / MariaDB: host, port, user, password, database |
+| `MONGO_*` | — | MongoDB: host, port, database, and optional credentials |
 
-Full reference: **[docs/environment.md](docs/environment.md)**.
+Only the block for the active `DATA_SOURCE` is required, and its password is checked before the server boots: the app refuses to start with a missing secret rather than failing on the first request.
+
+Full reference: **[docs/getting-started.md](docs/getting-started.md)**.
 
 ---
 
@@ -214,19 +212,26 @@ curl -X POST http://localhost:3001/api/users \
 
 ## Docker (optional local services)
 
-Start SQL Server and MinIO (S3-compatible) locally:
+Every engine has a service, with its schema and seed applied on first boot. Start only the one you need:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres      # or oracle, sqlserver, mysql, mongo
 ```
 
-| Service | Port | Credentials |
-|---------|------|-------------|
+| Service | Host port | Credentials |
+|---------|-----------|-------------|
+| Oracle 23ai Free | `1521` | `appuser / AppPassword1`, service `FREEPDB1` |
 | SQL Server 2022 | `1434` | `sa / StrongPassword123!` |
-| MinIO API | `9100` | `minioadmin / minioadmin` |
-| MinIO Console | `9101` | `minioadmin / minioadmin` |
+| PostgreSQL 16 | `5433` | `appuser / AppPassword1` |
+| MySQL 8 | `3307` | `appuser / AppPassword1` |
+| MongoDB 7 | `27017` | no auth, replica set `rs0` |
+| MinIO API / Console | `9100` / `9101` | `minioadmin / minioadmin` |
 
-Full deployment guide: **[docs/deployment.md](docs/deployment.md)**.
+PostgreSQL, MySQL and SQL Server are published off their standard ports because a local install usually owns 5432, 3306 and 1433 — and when it does, the API connects to the wrong server and the failure looks like bad credentials. Override with `POSTGRES_PORT`, `MYSQL_PORT` or `DB_PORT`.
+
+MongoDB runs as a single-node replica set: transactions need one, so without it the unit of work cannot open a session.
+
+Full deployment guide: **[docs/getting-started.md](docs/getting-started.md)**.
 
 ---
 
