@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -13,6 +11,37 @@ services:
     volumes:
       - mssql_data:/var/opt/mssql
       - ./backup:/var/opt/mssql/backup
+    healthcheck:
+      # -C acepta el certificado autofirmado de la imagen; sin él sqlcmd 18 se
+      # niega a conectar y el healthcheck nunca pasaría a healthy.
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$SA_PASSWORD\" -C -b -Q 'SELECT 1' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # Esta imagen es la única de las cinco sin initdb.d, así que el esquema y el
+  # seed los aplica este contenedor auxiliar: espera a que el servidor esté
+  # sano, ejecuta los .sql si aún no están y termina. Levantarlo arrastra al
+  # propio SQL Server, así que basta con `docker compose up -d mssql-init`.
+  mssql-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: test-mssql-init
+    restart: "no"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      SA_PASSWORD: ${DB_PASSWORD:-StrongPassword123!}
+      DB_HOST: mssql
+    volumes:
+      - ./docker/sqlserver/sql:/sql:ro
+      - ./docker/sqlserver/init:/init:ro
+    entrypoint: ["/bin/bash", "/init/00_init.sh"]
 
   oracle:
     # Imagen community de Gerald Venzl: Oracle Database 23ai Free, sin login en

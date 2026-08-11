@@ -470,7 +470,7 @@ DB_PASSWORD=StrongPassword123!
 DB_NAME=testdb
 ```
 
-SQL Server is the one engine whose schema is not applied on first boot: its image has no `initdb.d` hook, so `docker/sqlserver/sql/01_schema.sql` and `02_seed.sql` have to be run by hand with any client once the container is up. The script creates `testdb` only if it is missing, so it can be re-applied against an instance that already has it.
+SQL Server is the one image without an `initdb.d` hook, so its schema and seed are applied by the `mssql-init` companion container instead — `docker compose up -d mssql-init` brings up both. The script creates `testdb` only if it is missing and the companion skips the whole job when `BRANCHES` is already there, so neither is harmful to re-run.
 
 SQL Server also does not report affected rows in its response, so the connector appends `SELECT @@ROWCOUNT` to writes and reads it back as a result set.
 

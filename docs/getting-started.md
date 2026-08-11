@@ -246,7 +246,7 @@ docker compose up -d minio
 | Service | Compose name | Host port | Credentials | Schema + seed |
 |---------|--------------|-----------|-------------|---------------|
 | Oracle 23ai Free | `oracle` | `1521` | `appuser / AppPassword1` (`SYS`: `OraclePassword1`) | On first boot |
-| SQL Server 2022 | `mssql` | `1434` | `sa / StrongPassword123!` | Manual |
+| SQL Server 2022 | `mssql` | `1434` | `sa / StrongPassword123!` | On first boot, via `mssql-init` |
 | PostgreSQL 16 | `postgres` | `5433` | `appuser / AppPassword1` | On first boot |
 | MySQL 8 | `mysql` | `3307` | `appuser / AppPassword1` | On first boot |
 | MongoDB 7 | `mongo` | `27017` | none — runs without authentication | On first boot |
@@ -255,7 +255,11 @@ docker compose up -d minio
 
 **The non-standard ports are deliberate.** A locally installed SQL Server on 1433, PostgreSQL on 5432 or MySQL on 3306 silently wins over the Docker mapping on `localhost`, and the symptom is a confusing authentication failure against a database you never configured. Publishing on 1434, 5433 and 3307 removes the collision; the app defaults match, so nothing extra to configure.
 
-Schemas and seeds live under `docker/<engine>/` and mirror the same three example tables plus `AUDIT_LOG`. SQL Server is the exception: its image has no `initdb.d` hook, so `docker/sqlserver/sql/01_schema.sql` and `02_seed.sql` have to be applied by hand with any client once the container is up.
+Schemas and seeds live under `docker/<engine>/` and mirror the same three example tables plus `AUDIT_LOG`. Four of the five images apply them from their own `initdb.d`. SQL Server has no such hook, so a companion container does the job: `mssql-init` waits for the server to report healthy, applies `01_schema.sql` and `02_seed.sql`, and exits. It checks whether `BRANCHES` already exists first, so bringing it up again does not duplicate the seed, and starting it pulls SQL Server up with it:
+
+```bash
+docker compose up -d mssql-init
+```
 
 Compose reads its defaults from the same variable names the app uses (`DB_PASSWORD`, `ORACLE_PASSWORD`, `POSTGRES_PASSWORD`, `MYSQL_PASSWORD`, and the `*_PORT` ones), so container and application cannot drift apart. Note that Compose reads `.env`, not `.env.dev` — with only `.env.dev` present the containers come up on the defaults in the table above, which is exactly what `.env.template` ships.
 

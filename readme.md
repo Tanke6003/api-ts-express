@@ -215,7 +215,8 @@ curl -X POST http://localhost:3001/api/users \
 Every engine has a service, with its schema and seed applied on first boot. Start only the one you need:
 
 ```bash
-docker compose up -d postgres      # or oracle, sqlserver, mysql, mongo
+docker compose up -d postgres      # or oracle, mysql, mongo
+docker compose up -d mssql-init    # SQL Server: the companion applies its schema
 ```
 
 | Service | Host port | Credentials |
