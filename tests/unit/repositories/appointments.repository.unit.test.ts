@@ -1,7 +1,7 @@
 import { AppointmentsRepository } from "../../../src/infrastructure/repositories/appointments.repository";
 import { BranchesRepository } from "../../../src/infrastructure/repositories/branches.repository";
-import { MemoryGenericRepository } from "../../../src/infrastructure/repositories/base/memory.generic.repository";
-import { OracleGenericRepository } from "../../../src/infrastructure/repositories/base/oracle.generic.repository";
+import { MemoryGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { OracleGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { APPOINTMENTS_ENTITY, BRANCHES_ENTITY } from "../../../src/infrastructure/repositories/entities";
 import { APPOINTMENTS_SEED, BRANCHES_SEED } from "../../../src/infrastructure/repositories/seed-data";
 import { IAppointment } from "../../../src/domain/models/appointments.model";

@@ -1,6 +1,6 @@
 // src/infrastructure/repositories/base/sql.dialect.ts
 import oracledb from "oracledb";
-import type { SqlExecuteResult } from "../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
+import type { SqlExecuteResult } from "../../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
 
 export interface BuildInsertParams {
   table: string;

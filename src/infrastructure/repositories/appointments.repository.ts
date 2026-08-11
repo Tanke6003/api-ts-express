@@ -8,7 +8,7 @@ import type { IGenericRepository } from "../../domain/interfaces/infrastructure/
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { AppointmentStatus, IAppointment } from "../../domain/models/appointments.model";
 import { BaseModuleRepository } from "./base/module.repository";
-import { SqlGenericRepository } from "./base/sql.generic.repository";
+import { SqlGenericRepository } from "./base/drivers/sql.generic.repository";
 import { APPOINTMENTS_ENTITY } from "./entities";
 
 /**

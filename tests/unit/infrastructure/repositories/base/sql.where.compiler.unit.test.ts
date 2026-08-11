@@ -1,5 +1,5 @@
 import { EntitySchema } from "../../../../../src/infrastructure/repositories/base/entity-metadata";
-import { SqlWhereCompiler } from "../../../../../src/infrastructure/repositories/base/sql.where.compiler";
+import { SqlWhereCompiler } from "../../../../../src/infrastructure/repositories/base/query/sql.where.compiler";
 import { ITestItem, TEST_ENTITY } from "./test-entity";
 
 const schema = new EntitySchema<ITestItem>(TEST_ENTITY);

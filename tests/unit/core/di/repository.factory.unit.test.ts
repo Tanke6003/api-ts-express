@@ -4,8 +4,8 @@ import {
   createPersistenceLayer,
   isOracleDriver,
 } from "../../../../src/core/di/repository.factory";
-import { MemoryGenericRepository } from "../../../../src/infrastructure/repositories/base/memory.generic.repository";
-import { OracleGenericRepository } from "../../../../src/infrastructure/repositories/base/oracle.generic.repository";
+import { MemoryGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { OracleGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { ENTITY_NAMES } from "../../../../src/domain/models/entity-names";
 
 const envsWith = (values: Record<string, string>) => ({

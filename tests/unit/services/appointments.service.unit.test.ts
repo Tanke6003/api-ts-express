@@ -42,7 +42,10 @@ describe("AppointmentsService", () => {
     };
 
     branchesRepository = { getById: jest.fn().mockResolvedValue(branch), find: jest.fn().mockResolvedValue([branch]) };
-    usersRepository = { getUserById: jest.fn().mockResolvedValue(client) };
+    usersRepository = {
+      getById: jest.fn().mockResolvedValue(client),
+      find: jest.fn().mockResolvedValue([client]),
+    };
 
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
     service = new AppointmentsService(repository, branchesRepository, usersRepository, logger as never);
@@ -122,7 +125,7 @@ describe("AppointmentsService", () => {
         withDeleted: true,
       });
       // ...y una sola lectura por cliente distinto, no por cita.
-      expect(usersRepository.getUserById).toHaveBeenCalledTimes(1);
+      expect(usersRepository.find).toHaveBeenCalledTimes(1);
 
       expect(result.data[0]).toMatchObject({
         branchName: "Sucursal Centro",
@@ -145,12 +148,12 @@ describe("AppointmentsService", () => {
       await service.getAll({ page: 1, limit: 10 });
 
       expect(branchesRepository.find).not.toHaveBeenCalled();
-      expect(usersRepository.getUserById).not.toHaveBeenCalled();
+      expect(usersRepository.find).not.toHaveBeenCalled();
     });
 
     it("tolera una relación que ya no se puede resolver", async () => {
       branchesRepository.find.mockResolvedValue([]);
-      usersRepository.getUserById.mockResolvedValue(null);
+      usersRepository.find.mockResolvedValue([]);
       repository.getById.mockResolvedValue(appointment({ fkClient: 3, guestName: null }));
 
       const dto = await service.getById(1);
@@ -211,7 +214,7 @@ describe("AppointmentsService", () => {
     });
 
     it("rechaza un cliente inexistente", async () => {
-      usersRepository.getUserById.mockResolvedValue(null);
+      usersRepository.getById.mockResolvedValue(null);
 
       await expect(service.create({ ...base, clientId: 99 })).rejects.toMatchObject({
         statusCode: 400,
@@ -219,7 +222,7 @@ describe("AppointmentsService", () => {
     });
 
     it("rechaza un usuario que no está dado de alta como cliente", async () => {
-      usersRepository.getUserById.mockResolvedValue({ ...client, isClient: false });
+      usersRepository.getById.mockResolvedValue({ ...client, isClient: false });
 
       await expect(service.create({ ...base, clientId: 4 })).rejects.toMatchObject({
         statusCode: 400,

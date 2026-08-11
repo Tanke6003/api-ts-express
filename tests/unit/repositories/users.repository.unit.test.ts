@@ -1,160 +1,67 @@
 // tests/unit/repositories/users.repository.unit.test.ts
 import { UsersRepository } from "../../../src/infrastructure/repositories/users.repository";
-import { IUsersDataSource } from "../../../src/domain/interfaces/infrastructure/datasources/users.datasource.interface";
+import { MemoryGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { USERS_ENTITY } from "../../../src/infrastructure/repositories/entities";
+import { USERS_SEED } from "../../../src/infrastructure/repositories/seed-data";
 import { IUser } from "../../../src/domain/models/users.model";
 import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
+/**
+ * Usuarios ya no tiene datasource propio: el repositorio es el genérico con el
+ * contexto del módulo, igual que sucursales y citas.
+ */
 describe("UsersRepository", () => {
-  let mockDataSource: jest.Mocked<IUsersDataSource>;
-  let mockLogger: jest.Mocked<ILogger>;
+  let store: MemoryGenericRepository<IUser>;
+  let logger: jest.Mocked<ILogger>;
   let repository: UsersRepository;
 
-  const fakeUser: IUser = {
-    pkUser: 1,
-    name: "John Doe",
-  };
-
   beforeEach(() => {
-    // Mock DataSource
-    mockDataSource = {
-      getAllUsers: jest.fn(),
-      getUserById: jest.fn(),
-      createUser: jest.fn(),
-      updateUser: jest.fn(),
-      deleteUser: jest.fn(),
-    };
-
-    // Mock Logger
-    mockLogger = {
+    store = new MemoryGenericRepository<IUser>(USERS_ENTITY, USERS_SEED);
+    logger = {
       log: jest.fn(),
       http: jest.fn(),
       info: jest.fn(),
-      warn: jest.fn(),
       error: jest.fn(),
+      warn: jest.fn(),
       debug: jest.fn(),
-    };
+    } as unknown as jest.Mocked<ILogger>;
 
-    repository = new UsersRepository(mockDataSource, mockLogger);
+    repository = new UsersRepository(store, logger);
   });
 
-  // =========================
-  // ✅ Happy Path
-  // =========================
-  it("should return all users", async () => {
-    mockDataSource.getAllUsers.mockResolvedValue([fakeUser]);
+  it("hereda el CRUD del repositorio genérico", async () => {
+    expect(await repository.count()).toBe(4);
+    expect(await repository.getById(1)).toMatchObject({ name: "John Doe" });
 
-    const result = await repository.getAllUsers();
+    const created = await repository.insert({ name: "Nuevo", isClient: true });
+    expect(created.pkUser).toBe(5);
 
-    expect(result).toEqual([fakeUser]);
-    expect(mockDataSource.getAllUsers).toHaveBeenCalledTimes(1);
-    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(await repository.update(1, { name: "Renombrado" })).toMatchObject({
+      name: "Renombrado",
+    });
   });
 
-  it("should return user by ID", async () => {
-    mockDataSource.getUserById.mockResolvedValue(fakeUser);
+  it("el borrado lógico oculta al usuario pero conserva la fila", async () => {
+    expect(await repository.softDelete(1)).toBe(true);
 
-    const result = await repository.getUserById(1);
-
-    expect(result).toEqual(fakeUser);
-    expect(mockDataSource.getUserById).toHaveBeenCalledWith(1);
-    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(await repository.getById(1)).toBeNull();
+    expect(await repository.getById(1, { withDeleted: true })).not.toBeNull();
   });
 
-  it("should return null when user not found", async () => {
-    mockDataSource.getUserById.mockResolvedValue(null);
+  it("pagina con totales", async () => {
+    const page = await repository.getPaged(2, 2, { orderBy: { field: "pkUser" } });
 
-    const result = await repository.getUserById(999);
-
-    expect(result).toBeNull();
-    expect(mockDataSource.getUserById).toHaveBeenCalledWith(999);
-    expect(mockLogger.error).not.toHaveBeenCalled();
+    expect(page).toMatchObject({ total: 4, page: 2, limit: 2, pages: 2 });
   });
 
-  it("should create a new user", async () => {
-    mockDataSource.createUser.mockResolvedValue(true);
+  // El detalle del driver queda en el log, no en la respuesta HTTP.
+  it("traduce el fallo del almacén a un error del repositorio y lo registra", async () => {
+    jest.spyOn(store, "getById").mockRejectedValue(new Error("ORA-00942"));
 
-    const result = await repository.createUser(fakeUser);
-
-    expect(result).toBe(true);
-    expect(mockDataSource.createUser).toHaveBeenCalledWith(fakeUser);
-    expect(mockLogger.error).not.toHaveBeenCalled();
-  });
-
-  it("should update a user", async () => {
-    mockDataSource.updateUser.mockResolvedValue(true);
-
-    const result = await repository.updateUser(1, { name: "Jane Doe" });
-
-    expect(result).toBe(true);
-    expect(mockDataSource.updateUser).toHaveBeenCalledWith(1, { name: "Jane Doe" });
-    expect(mockLogger.error).not.toHaveBeenCalled();
-  });
-
-  it("should delete a user", async () => {
-    mockDataSource.deleteUser.mockResolvedValue(true);
-
-    const result = await repository.deleteUser(1);
-
-    expect(result).toBe(true);
-    expect(mockDataSource.deleteUser).toHaveBeenCalledWith(1);
-    expect(mockLogger.error).not.toHaveBeenCalled();
-  });
-
-  // =========================
-  // ❌ Error Path
-  // =========================
-  it("should log error and throw when getAllUsers fails", async () => {
-    mockDataSource.getAllUsers.mockRejectedValue(new Error("DB error"));
-
-    await expect(repository.getAllUsers()).rejects.toThrow("Failed to fetch users.");
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      "Error in UsersRepository.getAllUsers",
-      expect.objectContaining({ error: expect.any(Error) })
-    );
-  });
-
-  it("should log error and throw when getUserById fails", async () => {
-    mockDataSource.getUserById.mockRejectedValue(new Error("DB error"));
-
-    await expect(repository.getUserById(1)).rejects.toThrow("Failed to fetch user.");
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      "Error in UsersRepository.getUserById",
-      expect.objectContaining({ id: 1, error: expect.any(Error) })
-    );
-  });
-
-  it("should log error and throw when createUser fails", async () => {
-    mockDataSource.createUser.mockRejectedValue(new Error("Insert error"));
-
-    await expect(repository.createUser(fakeUser)).rejects.toThrow("Failed to create user.");
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      "Error in UsersRepository.createUser",
-      expect.objectContaining({ user: fakeUser, error: expect.any(Error) })
-    );
-  });
-
-  it("should log error and throw when updateUser fails", async () => {
-    mockDataSource.updateUser.mockRejectedValue(new Error("Update error"));
-
-    await expect(repository.updateUser(1, { name: "Jane Doe" })).rejects.toThrow("Failed to update user.");
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      "Error in UsersRepository.updateUser",
-      expect.objectContaining({ id: 1, user: { name: "Jane Doe" }, error: expect.any(Error) })
-    );
-  });
-
-  it("should log error and throw when deleteUser fails", async () => {
-    mockDataSource.deleteUser.mockRejectedValue(new Error("Delete error"));
-
-    await expect(repository.deleteUser(1)).rejects.toThrow("Failed to delete user.");
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      "Error in UsersRepository.deleteUser",
-      expect.objectContaining({ id: 1, error: expect.any(Error) })
+    await expect(repository.getById(1)).rejects.toThrow("UsersRepository.getById failed.");
+    expect(logger.error).toHaveBeenCalledWith(
+      "Error in UsersRepository.getById",
+      expect.objectContaining({ id: 1 })
     );
   });
 });

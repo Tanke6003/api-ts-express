@@ -6,7 +6,7 @@ import type {
   QueryOptions,
   SortDirection,
   WhereFilter,
-} from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+} from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import { normalizeOrderBy } from "./filter.helpers";
 
 /**

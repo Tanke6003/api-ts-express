@@ -1,5 +1,5 @@
-import { SqlServerGenericRepository } from "../../../../../src/infrastructure/repositories/base/sqlserver.generic.repository";
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/oracle.generic.repository";
+import { SqlServerGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/sqlserver.generic.repository";
+import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
 import { ITestItem, IPlainItem, PLAIN_ENTITY, TEST_ENTITY } from "./test-entity";
 

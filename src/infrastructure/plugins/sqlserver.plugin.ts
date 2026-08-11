@@ -6,7 +6,7 @@ import type {
   SqlExecuteResult,
 } from "../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import type { ISqlTransactionRunner } from "../repositories/base/sql.unit-of-work";
+import type { ISqlTransactionRunner } from "../repositories/base/unit-of-work/sql.unit-of-work";
 
 export interface SqlServerConnectionConfig {
   host: string;

@@ -1,4 +1,4 @@
-import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/memory.generic.repository";
+import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
 import { ITestItem, PLAIN_ENTITY, SEED, TEST_ENTITY, IPlainItem } from "./test-entity";
 
 describe("MemoryGenericRepository", () => {

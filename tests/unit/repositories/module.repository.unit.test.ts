@@ -1,5 +1,5 @@
 import { BaseModuleRepository } from "../../../src/infrastructure/repositories/base/module.repository";
-import { MemoryGenericRepository } from "../../../src/infrastructure/repositories/base/memory.generic.repository";
+import { MemoryGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
 import {
   ITestItem,
   SEED,

@@ -2,8 +2,6 @@
 import "reflect-metadata";
 import { container } from "tsyringe";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { IUsersDataSource } from "../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
-import { resolveUsersDataSource } from "./datasource.factory";
 import { createLogger } from "./logger.factory";
 import { createPersistenceLayer } from "./repository.factory";
 import { validateCriticalEnvs } from "../config/env.validation";
@@ -96,13 +94,6 @@ container.register("AppointmentsStore", { useValue: persistence.stores.appointme
 container.register("AuditLogStore", { useValue: persistence.stores.auditLog });
 container.register<IUnitOfWork>("IUnitOfWork", { useValue: persistence.unitOfWork });
 
-
-// ========== DataSources =================
-// La implementación se selecciona vía la env var DATA_SOURCE
-// ("dummy" | "sqlserver" | "oracle"), con "dummy" por defecto en desarrollo.
-container.register<IUsersDataSource>("IUsersDataSource", {
-  useClass: resolveUsersDataSource(envs.getEnv("DATA_SOURCE")),
-});
 
 // ========== Repositories =================
 

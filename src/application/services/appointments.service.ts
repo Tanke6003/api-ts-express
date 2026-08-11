@@ -218,7 +218,7 @@ export class AppointmentsService implements IAppointmentsService {
   }
 
   private async requireClient(id: number): Promise<IUser> {
-    const client = await this.usersRepository.getUserById(id);
+    const client = await this.usersRepository.getById(id);
     if (!client) {
       throw new AppError(`El cliente ${id} no existe o está dado de baja`, 400);
     }
@@ -289,21 +289,14 @@ export class AppointmentsService implements IAppointmentsService {
       repository: this.branchesRepository,
     });
 
-    // Clientes: se resuelven por `IUsersRepository` y no por un repositorio
-    // genérico, para que el nombre salga siempre de la misma fuente que
-    // /api/users sea cual sea el DATA_SOURCE activo.
-    const clientIds = [
-      ...new Set(
-        appointments
-          .map((appointment) => appointment.fkClient)
-          .filter((id): id is number => typeof id === "number")
-      ),
-    ];
-    const clients = new Map<number, IUser>();
-    const found = await Promise.all(clientIds.map((id) => this.usersRepository.getUserById(id)));
-    for (const user of found) {
-      if (user) clients.set(user.pkUser, user);
-    }
+    // Clientes: mismo Include, una sola consulta con IN (...). Antes había que
+    // pedirlos de uno en uno porque el módulo de usuarios tenía su propio
+    // contrato; ahora comparte el repositorio genérico.
+    const clients = await loadRelated<IAppointment, IUser>(appointments, {
+      foreignKey: "fkClient",
+      relatedKey: "pkUser",
+      repository: this.usersRepository,
+    });
 
     return appointments.map((appointment) => {
       const branch = branches.get(appointment.fkBranch) ?? null;

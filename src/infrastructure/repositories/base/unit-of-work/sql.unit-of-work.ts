@@ -2,10 +2,10 @@
 import type {
   ITransactionScope,
   IUnitOfWork,
-} from "../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
-import type { IGenericRepository } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
-import type { ISqlExecutor } from "../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
-import { SqlGenericRepository } from "./sql.generic.repository";
+} from "../../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
+import type { IGenericRepository } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import type { ISqlExecutor } from "../../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
+import { SqlGenericRepository } from "../drivers/sql.generic.repository";
 
 /**
  * Lo único que la unidad de trabajo necesita del driver: abrir una transacción

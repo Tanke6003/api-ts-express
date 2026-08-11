@@ -13,15 +13,15 @@ import type { IAuditTrail } from "../../domain/interfaces/infrastructure/reposit
 import { OraclePlugin } from "../../infrastructure/plugins/oracle.plugin";
 import { SqlServerPlugin } from "../../infrastructure/plugins/sqlserver.plugin";
 import { EntityMetadata } from "../../infrastructure/repositories/base/entity-metadata";
-import { MemoryGenericRepository } from "../../infrastructure/repositories/base/memory.generic.repository";
-import { SqlGenericRepository } from "../../infrastructure/repositories/base/sql.generic.repository";
-import { OracleGenericRepository } from "../../infrastructure/repositories/base/oracle.generic.repository";
-import { SqlServerGenericRepository } from "../../infrastructure/repositories/base/sqlserver.generic.repository";
-import { MemoryUnitOfWork } from "../../infrastructure/repositories/base/memory.unit-of-work";
+import { MemoryGenericRepository } from "../../infrastructure/repositories/base/drivers/memory.generic.repository";
+import { SqlGenericRepository } from "../../infrastructure/repositories/base/drivers/sql.generic.repository";
+import { OracleGenericRepository } from "../../infrastructure/repositories/base/drivers/oracle.generic.repository";
+import { SqlServerGenericRepository } from "../../infrastructure/repositories/base/drivers/sqlserver.generic.repository";
+import { MemoryUnitOfWork } from "../../infrastructure/repositories/base/unit-of-work/memory.unit-of-work";
 import {
   ISqlTransactionRunner,
   SqlUnitOfWork,
-} from "../../infrastructure/repositories/base/sql.unit-of-work";
+} from "../../infrastructure/repositories/base/unit-of-work/sql.unit-of-work";
 import {
   APPOINTMENTS_ENTITY,
   AUDIT_LOG_ENTITY,
@@ -67,11 +67,32 @@ export interface PersistenceLayer {
   connection?: IManagedConnection;
 }
 
+/**
+ * Alias aceptados en `DATA_SOURCE`. Se valida contra esta tabla en vez de caer a
+ * memoria ante un valor desconocido: un `DATA_SOURCE=postgress` mal escrito
+ * arrancaría en memoria y el fallo aparecería mucho después, en forma de datos
+ * que no persisten.
+ */
+const DRIVER_ALIASES: Record<string, PersistenceDriver> = {
+  dummy: "memory",
+  memory: "memory",
+  oracle: "oracle",
+  sqlserver: "mssql",
+  mssql: "mssql",
+};
+
 export function resolveDriver(dataSource?: string): PersistenceDriver {
-  const value = (dataSource || "dummy").toLowerCase();
-  if (value === "oracle") return "oracle";
-  if (value === "sqlserver" || value === "mssql") return "mssql";
-  return "memory";
+  const value = (dataSource || "dummy").trim().toLowerCase();
+  const driver = DRIVER_ALIASES[value];
+
+  if (!driver) {
+    throw new Error(
+      `[config] Unknown DATA_SOURCE "${dataSource}". Valid values: ` +
+        `${Object.keys(DRIVER_ALIASES).join(", ")}.`
+    );
+  }
+
+  return driver;
 }
 
 export function isOracleDriver(dataSource?: string): boolean {

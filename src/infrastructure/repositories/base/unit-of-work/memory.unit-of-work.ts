@@ -2,9 +2,9 @@
 import type {
   ITransactionScope,
   IUnitOfWork,
-} from "../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
-import type { IGenericRepository } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
-import { MemoryGenericRepository, MemorySnapshot } from "./memory.generic.repository";
+} from "../../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
+import type { IGenericRepository } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import { MemoryGenericRepository, MemorySnapshot } from "../drivers/memory.generic.repository";
 
 export type MemoryRepositoryRegistry = Map<string, MemoryGenericRepository<never, never>>;
 

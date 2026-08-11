@@ -1,5 +1,5 @@
-import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/memory.generic.repository";
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/oracle.generic.repository";
+import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { MemoryAuditTrail } from "../../../../../src/infrastructure/repositories/base/audit-trail";
 import { AsyncRequestContextPlugin } from "../../../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import { AUDIT_LOG_ENTITY } from "../../../../../src/infrastructure/repositories/entities";

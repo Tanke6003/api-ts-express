@@ -6,24 +6,24 @@ import type {
   PagedResult,
   QueryOptions,
   WhereFilter,
-} from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+} from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type {
   ISqlExecutor,
   SqlExecuteResult,
-} from "../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
-import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
-import { SYSTEM_USER } from "../../plugins/asyncRequestContext.plugin";
-import { EntityMetadata, EntitySchema } from "./entity-metadata";
-import { SqlWhereCompiler } from "./sql.where.compiler";
-import { QueryBuilder } from "./query-builder";
-import { normalizeOrderBy } from "./filter.helpers";
-import type { SqlDialect } from "./sql.dialect";
+} from "../../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
+import type { ILogger } from "../../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import type { IRequestContext } from "../../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { SYSTEM_USER } from "../../../plugins/asyncRequestContext.plugin";
+import { EntityMetadata, EntitySchema } from "../entity-metadata";
+import { SqlWhereCompiler } from "../query/sql.where.compiler";
+import { QueryBuilder } from "../query/query-builder";
+import { normalizeOrderBy } from "../query/filter.helpers";
+import type { SqlDialect } from "../dialects/sql.dialect";
 import type {
   AuditActor,
   IAuditTrail,
-} from "../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
-import type { AuditAction } from "../../../domain/models/audit-log.model";
+} from "../../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
+import type { AuditAction } from "../../../../domain/models/audit-log.model";
 
 /**
  * Repositorio genérico sobre SQL.

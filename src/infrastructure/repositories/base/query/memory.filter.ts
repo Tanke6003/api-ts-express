@@ -2,8 +2,8 @@
 import type {
   FieldOperators,
   WhereFilter,
-} from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
-import { EntitySchema } from "./entity-metadata";
+} from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import { EntitySchema } from "../entity-metadata";
 import { isOperatorObject, likeToRegExp } from "./filter.helpers";
 
 /**

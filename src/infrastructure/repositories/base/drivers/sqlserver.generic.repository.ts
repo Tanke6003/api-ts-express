@@ -1,11 +1,11 @@
 // src/infrastructure/repositories/base/sqlserver.generic.repository.ts
-import type { ISqlExecutor } from "../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
-import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
-import { EntityMetadata } from "./entity-metadata";
-import type { IAuditTrail } from "../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
+import type { ISqlExecutor } from "../../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
+import type { ILogger } from "../../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import type { IRequestContext } from "../../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { EntityMetadata } from "../entity-metadata";
+import type { IAuditTrail } from "../../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
 import { SqlGenericRepository } from "./sql.generic.repository";
-import { sqlServerDialect } from "./sql.dialect";
+import { sqlServerDialect } from "../dialects/sql.dialect";
 
 /**
  * Repositorio genérico sobre SQL Server: la misma implementación común que

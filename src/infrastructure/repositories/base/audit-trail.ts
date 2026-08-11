@@ -6,7 +6,7 @@ import type {
 import type { IGenericRepository } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { ISqlExecutor } from "../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
 import type { IAuditLog } from "../../../domain/models/audit-log.model";
-import { SqlGenericRepository } from "./sql.generic.repository";
+import { SqlGenericRepository } from "./drivers/sql.generic.repository";
 
 /** Tope del detalle serializado, para no llenar la tabla con payloads enormes. */
 const MAX_CHANGES_LENGTH = 4000;

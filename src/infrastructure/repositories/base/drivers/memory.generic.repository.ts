@@ -5,18 +5,18 @@ import type {
   PagedResult,
   QueryOptions,
   WhereFilter,
-} from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
-import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
-import { SYSTEM_USER } from "../../plugins/asyncRequestContext.plugin";
+} from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import type { IRequestContext } from "../../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { SYSTEM_USER } from "../../../plugins/asyncRequestContext.plugin";
 import type {
   AuditActor,
   IAuditTrail,
-} from "../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
-import type { AuditAction } from "../../../domain/models/audit-log.model";
-import { EntityMetadata, EntitySchema } from "./entity-metadata";
-import { compareBy, matchesFilter } from "./memory.filter";
-import { QueryBuilder } from "./query-builder";
-import { normalizeOrderBy } from "./filter.helpers";
+} from "../../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
+import type { AuditAction } from "../../../../domain/models/audit-log.model";
+import { EntityMetadata, EntitySchema } from "../entity-metadata";
+import { compareBy, matchesFilter } from "../query/memory.filter";
+import { QueryBuilder } from "../query/query-builder";
+import { normalizeOrderBy } from "../query/filter.helpers";
 
 /**
  * Misma semántica que `OracleGenericRepository`, pero sobre un array en memoria.

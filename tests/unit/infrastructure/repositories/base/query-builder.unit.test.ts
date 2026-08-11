@@ -1,4 +1,4 @@
-import { QueryBuilder } from "../../../../../src/infrastructure/repositories/base/query-builder";
+import { QueryBuilder } from "../../../../../src/infrastructure/repositories/base/query/query-builder";
 import { ITestItem } from "./test-entity";
 
 describe("QueryBuilder", () => {

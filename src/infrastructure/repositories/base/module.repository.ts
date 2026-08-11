@@ -7,7 +7,7 @@ import type {
   WhereFilter,
 } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { QueryBuilder } from "./query-builder";
+import { QueryBuilder } from "./query/query-builder";
 
 /**
  * Repositorio de módulo: envuelve al repositorio genérico del driver activo y

@@ -2,7 +2,7 @@
 import type {
   FieldOperators,
   OrderByClause,
-} from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+} from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 
 /** Claves reconocidas como operadores dentro de un filtro de campo. */
 export const OPERATOR_KEYS = new Set([

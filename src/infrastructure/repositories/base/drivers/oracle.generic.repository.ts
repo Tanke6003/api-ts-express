@@ -1,11 +1,11 @@
 // src/infrastructure/repositories/base/oracle.generic.repository.ts
-import type { ISqlExecutor } from "../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
-import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
-import { EntityMetadata } from "./entity-metadata";
-import type { IAuditTrail } from "../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
+import type { ISqlExecutor } from "../../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
+import type { ILogger } from "../../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import type { IRequestContext } from "../../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { EntityMetadata } from "../entity-metadata";
+import type { IAuditTrail } from "../../../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
 import { SqlGenericRepository } from "./sql.generic.repository";
-import { oracleDialect } from "./sql.dialect";
+import { oracleDialect } from "../dialects/sql.dialect";
 
 /**
  * Repositorio genérico sobre Oracle: la implementación común

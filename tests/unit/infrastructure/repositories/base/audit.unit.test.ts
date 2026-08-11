@@ -1,5 +1,5 @@
-import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/memory.generic.repository";
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/oracle.generic.repository";
+import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { AsyncRequestContextPlugin } from "../../../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import type { IRequestContext } from "../../../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";

@@ -1,7 +1,7 @@
-import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/memory.generic.repository";
-import { MemoryUnitOfWork } from "../../../../../src/infrastructure/repositories/base/memory.unit-of-work";
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/oracle.generic.repository";
-import { SqlUnitOfWork } from "../../../../../src/infrastructure/repositories/base/sql.unit-of-work";
+import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { MemoryUnitOfWork } from "../../../../../src/infrastructure/repositories/base/unit-of-work/memory.unit-of-work";
+import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
+import { SqlUnitOfWork } from "../../../../../src/infrastructure/repositories/base/unit-of-work/sql.unit-of-work";
 import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
 import { ITestItem, SEED, TEST_ENTITY } from "./test-entity";
 
