@@ -1,6 +1,5 @@
 // src/domain/interfaces/infrastructure/repositories/audit-trail.interface.ts
 import type { AuditAction } from "../../../models/audit-log.model";
-import type { ISqlExecutor } from "../plugins/sql-executor.interface";
 
 /**
  * Quién hizo el cambio, capturado al **empezar** la operación.
@@ -43,6 +42,13 @@ export interface AuditEntry {
 export interface IAuditTrail {
   record(entry: AuditEntry): Promise<void>;
 
-  /** Copia que escribe por el executor de una transacción en curso. */
-  bindTo(executor: ISqlExecutor): IAuditTrail;
+  /**
+   * Copia atada a la transacción en curso, para que la línea de bitácora entre
+   * en el mismo commit que la operación auditada.
+   *
+   * Lo que representa el ámbito depende del motor —un executor en SQL, una
+   * sesión en MongoDB—, y por eso llega sin tipar: cada implementación sabe qué
+   * espera y las demás lo ignoran.
+   */
+  bindTo(scope?: unknown): IAuditTrail;
 }

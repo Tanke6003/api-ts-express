@@ -50,9 +50,9 @@ export class SqlAuditTrail implements IAuditTrail {
     await this.repository.insert(toRow(entry));
   }
 
-  bindTo(executor: ISqlExecutor): IAuditTrail {
+  bindTo(scope?: unknown): IAuditTrail {
     return new SqlAuditTrail(
-      this.repository.withExecutor(executor) as SqlGenericRepository<IAuditLog>
+      this.repository.withExecutor(scope as ISqlExecutor) as SqlGenericRepository<IAuditLog>
     );
   }
 }

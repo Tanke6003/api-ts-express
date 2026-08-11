@@ -14,7 +14,7 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Dependency Injection | tsyringe |
 | Authentication | JWT (Bearer token), with the identity exposed per request via AsyncLocalStorage |
 | Error handling | Single global handler: stable codes, request id, driver-error mapping |
-| Database | Oracle 23ai (node-oracledb, thin mode), SQL Server 2022 (Sequelize + tedious) or in-memory — selected via `DATA_SOURCE`, all three on the same generic repository |
+| Database | Oracle, SQL Server, PostgreSQL, MySQL/MariaDB, MongoDB or in-memory — selected via `DATA_SOURCE`, all on the same generic repository |
 | Data access | Generic repository with EF/LINQ-style CRUD, chainable queries, soft & hard delete, and a Unit of Work |
 | Logging | Pino (structured JSON, pino-pretty in dev) or Winston — selected via `LOG_DRIVER` |
 | API Docs | Swagger UI + Scalar |
@@ -120,7 +120,21 @@ The same interface runs on Oracle or in memory depending on `DATA_SOURCE`. Relat
 
 Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/audit`.
 
-Full reference: **[docs/generic-repository.md](docs/generic-repository.md)** · Oracle setup: **[docs/oracle.md](docs/oracle.md)** · Errors and identity: **[docs/errors-and-identity.md](docs/errors-and-identity.md)**.
+Full reference: **[docs/generic-repository.md](docs/generic-repository.md)** · Connectors: **[docs/connectors.md](docs/connectors.md)** · Oracle setup: **[docs/oracle.md](docs/oracle.md)** · Errors and identity: **[docs/errors-and-identity.md](docs/errors-and-identity.md)**.
+
+---
+
+## Using this as a template
+
+Everything under `core/`, `infrastructure/` and the cross-cutting middlewares is the scaffolding: connectors, generic repository, unit of work, audit trail, error handling, request identity. It knows nothing about the example domain.
+
+**Branches and appointments are only an example.** They exist to show the patterns end to end — compound queries, `Include`, a transaction that spans two tables, a business rule with a real conflict. To strip them:
+
+1. Delete `branches.*` and `appointments.*` across `domain/`, `application/`, `infrastructure/repositories/` and `presentation/`, plus their tests.
+2. Remove their entries from `entities.ts`, `seed-data.ts`, `ENTITY_NAMES`, `repository.factory.ts`, `container.ts` and `index.route.ts`.
+3. Drop their tables from `docker/<engine>/` and their tabs from `public/`.
+
+Users is a smaller example of the same shape and can go the same way. What remains is the template. Then follow **[docs/add-new-module.md](docs/add-new-module.md)** for your own modules.
 
 ---
 
