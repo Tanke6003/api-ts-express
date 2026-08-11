@@ -17,7 +17,7 @@ const logger = {
 } as never;
 
 describe("MongoDbPlugin", () => {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+   
   let database: any;
   let session: any;
   let client: any;

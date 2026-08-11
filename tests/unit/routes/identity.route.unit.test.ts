@@ -12,6 +12,7 @@ import { IdentityController } from "../../../src/presentation/controllers/identi
 import { TestRoutes } from "../../../src/presentation/routes/test.route";
 import { requestContext } from "../../../src/presentation/middlewares/requestContext.middleware";
 import { errorHandler } from "../../../src/presentation/middlewares/errorHandler.middleware";
+import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
 describe("GET /api/me", () => {
   let app: express.Express;
@@ -25,6 +26,12 @@ describe("GET /api/me", () => {
       },
     });
     container.registerSingleton<IRequestContext>("IRequestContext", AsyncRequestContextPlugin);
+    container.register<ILogger>("ILogger", {
+      useValue: {
+        info: jest.fn(), warn: jest.fn(), error: jest.fn(),
+        debug: jest.fn(), trace: jest.fn(), http: jest.fn(),
+      } as unknown as ILogger,
+    });
     container.register<ITokenPlugin>("ITokenPlugin", { useClass: JwtPlugin });
     container.register<IIdentityController>("IIdentityController", { useClass: IdentityController });
 

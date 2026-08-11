@@ -1,28 +1,41 @@
 {
   "name": "api-ts-express",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "1.2.0",
+  "main": "dist/main.js",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch src/main.ts",
-    "stg": "NODE_ENV=staging tsx watch src/main.ts",
-    "prd": "NODE_ENV=production tsx watch src/main.ts",
-    "dev:win": "set NODE_ENV=development&& tsx watch src/main.ts ",
-    "stg:win": "set NODE_ENV=staging&& tsx watch src/main.ts ",
-    "prd:win": "set NODE_ENV=production&& tsx watch src/main.ts ",
-    "build:stg": "NODE_ENV=staging tsc",
-    "build:prd": "NODE_ENV=production tsc",
+    "dev:win": "set NODE_ENV=development&& tsx watch src/main.ts",
+    "dev:win:pretty": "set NODE_ENV=development&& tsx watch src/main.ts | npx pino-pretty --singleLine --colorize --translateTime \"SYS:isoTime\" --ignore pid,hostname,service,env,version",
+    "build": "tsc -p tsconfig.json",
+    "build:stg": "NODE_ENV=staging tsc -p tsconfig.json",
+    "build:prd": "NODE_ENV=production tsc -p tsconfig.json",
     "start": "NODE_ENV=production node dist/main.js",
     "start:win": "set NODE_ENV=production&& node dist/main.js",
     "test": "jest",
     "test:watch": "jest --watch --verbose",
     "test:local": "jest --coverage --verbose --detectOpenHandles --runInBand --coverageReporters=text --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=html --coverageReporters=json-summary",
     "test:repo": "jest --coverage --coverageReporters=text-summary",
-    "lint": "eslint \"src/**/*.{ts,js}\" \"public/**/*.js\" --fix"
+    "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"public/**/*.js\"",
+    "lint:fix": "npm run lint -- --fix",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run test:repo"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "typescript",
+    "express",
+    "clean-architecture",
+    "generic-repository",
+    "unit-of-work",
+    "tsyringe",
+    "oracle",
+    "sqlserver",
+    "postgres",
+    "mysql",
+    "mongodb"
+  ],
+  "author": "tanke6003",
   "license": "ISC",
-  "description": "",
+  "description": "REST API template on Node.js, Express 5 and TypeScript, following Clean Architecture: one generic repository over Oracle, SQL Server, PostgreSQL, MySQL/MariaDB, MongoDB or memory.",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.893.0",
     "@scalar/express-api-reference": "^0.8.18",
@@ -72,5 +85,9 @@
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
   }
 }

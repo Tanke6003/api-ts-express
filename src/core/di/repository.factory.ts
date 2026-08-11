@@ -223,8 +223,7 @@ function buildSqlPersistence(
   driver: PersistenceDriver,
   runner: ISqlTransactionRunner,
   connection: IManagedConnection,
-  create: SqlRepositoryFactory,
-  context?: IRequestContext
+  create: SqlRepositoryFactory
 ): PersistenceLayer {
   // La bitácora se construye primero y sin bitácora propia: registrarse a sí
   // misma sería recursivo.
@@ -283,8 +282,7 @@ export function createPersistenceLayer(
       oracle,
       oracle,
       <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
-        new SqlGenericRepository<T>(oracle, metadata, logger, oracleDialect, context, auditTrail),
-      context
+        new SqlGenericRepository<T>(oracle, metadata, logger, oracleDialect, context, auditTrail)
     );
   }
 
@@ -299,8 +297,7 @@ export function createPersistenceLayer(
       plugin,
       plugin,
       <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
-        new SqlGenericRepository<T>(plugin, metadata, logger, dialect, context, auditTrail),
-      context
+        new SqlGenericRepository<T>(plugin, metadata, logger, dialect, context, auditTrail)
     );
   }
 

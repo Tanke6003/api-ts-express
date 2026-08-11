@@ -151,7 +151,12 @@ Users is a smaller example of the same shape and can go the same way. What remai
 | `npm run test:watch` | Tests in watch mode |
 | `npm run test:local` | Tests with full HTML + LCOV reports |
 | `npm run test:repo` | Tests for CI (text-summary coverage only) |
-| `npm run lint` | ESLint with auto-fix |
+| `npm run typecheck` | `tsc --noEmit` — types only, no build |
+| `npm run lint` | ESLint over `src`, `tests` and `public` — checks, does not write |
+| `npm run lint:fix` | The same, applying the fixes it can |
+| `npm run check` | Typecheck + lint + tests. What CI runs, in one command |
+
+Code style is pinned in two places on purpose. `.editorconfig` covers what the editor decides when saving — encoding, indentation, line endings, final newline — and `eslint.config.mjs` covers what can be checked after the fact. On `src` the linter runs with type information, so it also catches promises nobody awaits, which is the class of bug that answers 200 while the write fails in the background.
 
 ---
 

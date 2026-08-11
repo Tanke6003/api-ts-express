@@ -1,5 +1,5 @@
 import { JwtPlugin } from "../../../../src/infrastructure/plugins/jwt.plugin";
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 import { IEnvs } from "../../../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 
 describe("JWTPlugin", () => {
@@ -64,7 +64,7 @@ describe("JWTPlugin", () => {
   });
 
   it("middleware should return 401 if token is invalid", () => {
-    const req = { headers: { authorization: `Bearer invalidtoken` } } as unknown as Request;
+    const req = { headers: { authorization: "Bearer invalidtoken" } } as unknown as Request;
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() } as unknown as Response;
     const next = jest.fn() as NextFunction;
 

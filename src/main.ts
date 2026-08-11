@@ -25,7 +25,12 @@ import { ILogger } from "./domain/interfaces/infrastructure/plugins/logger.plugi
     }
 
     await server.run();
-})();
+})().catch((error) => {
+  // Sin esto, un fallo al abrir el puerto sale como "unhandled rejection" y el
+  // proceso muere sin dejar una línea de log que explique por qué.
+  container.resolve<ILogger>(TOKENS.ILogger).error("El servidor no pudo arrancar", { error });
+  process.exit(1);
+});
 
 // Apagado ordenado: devuelve las conexiones del pool antes de salir.
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
