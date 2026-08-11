@@ -11,12 +11,22 @@ import type { IAppointment } from "../../domain/models/appointments.model";
 import type { IAuditLog } from "../../domain/models/audit-log.model";
 import type { IAuditTrail } from "../../domain/interfaces/infrastructure/repositories/audit-trail.interface";
 import { OraclePlugin } from "../../infrastructure/plugins/oracle.plugin";
-import { SqlServerPlugin } from "../../infrastructure/plugins/sqlserver.plugin";
+import {
+  SequelizeConnectionConfig,
+  SequelizeDbPlugin,
+  SequelizeEngine,
+} from "../../infrastructure/plugins/sequelize-db.plugin";
+import type { DbEngine } from "../../domain/interfaces/infrastructure/plugins/db.plugin.interface";
+import {
+  mysqlDialect,
+  oracleDialect,
+  postgresDialect,
+  sqlServerDialect,
+  SqlDialect,
+} from "../../infrastructure/repositories/base/dialects/sql.dialect";
 import { EntityMetadata } from "../../infrastructure/repositories/base/entity-metadata";
 import { MemoryGenericRepository } from "../../infrastructure/repositories/base/drivers/memory.generic.repository";
 import { SqlGenericRepository } from "../../infrastructure/repositories/base/drivers/sql.generic.repository";
-import { OracleGenericRepository } from "../../infrastructure/repositories/base/drivers/oracle.generic.repository";
-import { SqlServerGenericRepository } from "../../infrastructure/repositories/base/drivers/sqlserver.generic.repository";
 import { MemoryUnitOfWork } from "../../infrastructure/repositories/base/unit-of-work/memory.unit-of-work";
 import {
   ISqlTransactionRunner,
@@ -39,7 +49,7 @@ import {
 } from "../../infrastructure/repositories/seed-data";
 
 /** Driver de persistencia resuelto a partir de `DATA_SOURCE`. */
-export type PersistenceDriver = "memory" | "oracle" | "mssql";
+export type PersistenceDriver = DbEngine;
 
 /** Lo que el arranque necesita de una conexión, sea cual sea el motor. */
 export interface IManagedConnection {
@@ -79,6 +89,10 @@ const DRIVER_ALIASES: Record<string, PersistenceDriver> = {
   oracle: "oracle",
   sqlserver: "mssql",
   mssql: "mssql",
+  postgres: "postgres",
+  postgresql: "postgres",
+  mysql: "mysql",
+  mariadb: "mysql",
 };
 
 export function resolveDriver(dataSource?: string): PersistenceDriver {
@@ -129,16 +143,46 @@ export function buildOracleConfig(envs: IEnvs) {
   };
 }
 
-/** Configuración de SQL Server, reutilizando las variables DB_* ya existentes. */
-export function buildSqlServerConfig(envs: IEnvs) {
+/**
+ * Valores por defecto de cada motor que habla Sequelize, alineados con el
+ * docker-compose. Cada uno lee su propio prefijo de variables para que se
+ * puedan tener varios configurados a la vez y conmutar cambiando `DATA_SOURCE`.
+ */
+const SEQUELIZE_DEFAULTS: Record<
+  SequelizeEngine,
+  { prefix: string; port: number; user: string; database: string }
+> = {
+  mssql: { prefix: "DB", port: 1434, user: "sa", database: "testdb" },
+  postgres: { prefix: "POSTGRES", port: 5433, user: "appuser", database: "testdb" },
+  mysql: { prefix: "MYSQL", port: 3307, user: "appuser", database: "testdb" },
+};
+
+export function buildSequelizeConfig(
+  envs: IEnvs,
+  engine: SequelizeEngine
+): SequelizeConnectionConfig {
+  const { prefix, port, user, database } = SEQUELIZE_DEFAULTS[engine];
+  const read = (suffix: string) => envs.getEnv(`${prefix}_${suffix}`);
+
   return {
-    host: envs.getEnv("DB_HOST") || "localhost",
-    port: toInt(envs.getEnv("DB_PORT"), 1434),
-    username: envs.getEnv("DB_USER") || "sa",
-    password: envs.getEnv("DB_PASSWORD"),
-    database: envs.getEnv("DB_NAME") || "testdb",
+    engine,
+    host: read("HOST") || "localhost",
+    port: toInt(read("PORT"), port),
+    username: read("USER") || user,
+    password: read("PASSWORD"),
+    // SQL Server usa DB_NAME; los otros, el nombre habitual de su imagen.
+    database: read("DB") || read("NAME") || database,
+    poolMin: toInt(read("POOL_MIN"), 0, 0),
+    poolMax: toInt(read("POOL_MAX"), 10),
   };
 }
+
+/** Dialecto de cada motor que habla Sequelize. */
+const SEQUELIZE_DIALECTS: Record<SequelizeEngine, SqlDialect> = {
+  mssql: sqlServerDialect,
+  postgres: postgresDialect,
+  mysql: mysqlDialect,
+};
 
 /** Crea el repositorio de una entidad para el motor elegido. */
 type SqlRepositoryFactory = <T extends object>(
@@ -213,19 +257,23 @@ export function createPersistenceLayer(
       oracle,
       oracle,
       <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
-        new OracleGenericRepository<T>(oracle, metadata, logger, context, auditTrail),
+        new SqlGenericRepository<T>(oracle, metadata, logger, oracleDialect, context, auditTrail),
       context
     );
   }
 
-  if (driver === "mssql") {
-    const sqlServer = new SqlServerPlugin(buildSqlServerConfig(envs), logger);
+  // Los tres motores que habla Sequelize comparten conector: lo que cambia
+  // entre ellos vive en el dialecto, no en el plugin.
+  if (driver === "mssql" || driver === "postgres" || driver === "mysql") {
+    const plugin = new SequelizeDbPlugin(buildSequelizeConfig(envs, driver), logger);
+    const dialect = SEQUELIZE_DIALECTS[driver];
+
     return buildSqlPersistence(
       driver,
-      sqlServer,
-      sqlServer,
+      plugin,
+      plugin,
       <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
-        new SqlServerGenericRepository<T>(sqlServer, metadata, logger, context, auditTrail),
+        new SqlGenericRepository<T>(plugin, metadata, logger, dialect, context, auditTrail),
       context
     );
   }

@@ -1,4 +1,5 @@
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
+import { oracleDialect } from "../../../../../src/infrastructure/repositories/base/dialects/sql.dialect";
+import { SqlGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
 import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
 import { ITestItem, IPlainItem, PLAIN_ENTITY, TEST_ENTITY } from "./test-entity";
 
@@ -16,11 +17,16 @@ const ROW = {
 
 describe("OracleGenericRepository", () => {
   let db: FakeSqlExecutor;
-  let repository: OracleGenericRepository<ITestItem>;
+  let repository: SqlGenericRepository<ITestItem>;
 
   beforeEach(() => {
     db = new FakeSqlExecutor();
-    repository = new OracleGenericRepository<ITestItem>(db, TEST_ENTITY, silentLogger);
+    repository = new SqlGenericRepository<ITestItem>(
+      db,
+      TEST_ENTITY,
+      silentLogger,
+      oracleDialect
+    );
   });
 
   // ============================================================  lectura  ===
@@ -130,11 +136,12 @@ describe("OracleGenericRepository", () => {
     });
 
     it("sin identity usa la PK provista y no genera RETURNING", async () => {
-      const plain = new OracleGenericRepository<IPlainItem, string>(
-        db,
-        PLAIN_ENTITY,
-        silentLogger
-      );
+      const plain = new SqlGenericRepository<IPlainItem, string>(
+      db,
+      PLAIN_ENTITY,
+      silentLogger,
+      oracleDialect
+    );
       db.queue({ rowsAffected: 1 }).queue({ rows: [{ CODE: "A", LABEL: "uno" }] });
 
       const created = await plain.insert({ code: "A", label: "uno" });
@@ -237,7 +244,12 @@ describe("OracleGenericRepository", () => {
     });
 
     it("lanza si la entidad no declara borrado lógico", async () => {
-      const plain = new OracleGenericRepository<IPlainItem, string>(db, PLAIN_ENTITY, silentLogger);
+      const plain = new SqlGenericRepository<IPlainItem, string>(
+      db,
+      PLAIN_ENTITY,
+      silentLogger,
+      oracleDialect
+    );
       await expect(plain.softDelete("A")).rejects.toThrow(/no declara softDelete/);
     });
   });

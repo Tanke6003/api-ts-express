@@ -34,6 +34,10 @@ function toMessage(err: unknown): string {
  * Conexión a Oracle sobre `node-oracledb` en modo *thin*: habla el protocolo
  * nativo desde Node, así que no hace falta instalar Oracle Instant Client.
  *
+ * Expone lo que consume el repositorio genérico (`ISqlExecutor`), la gestión
+ * del pool y los procedimientos almacenados. Lo que el API genérica ya cubre
+ * —proyecciones, inserción masiva— no se duplica aquí.
+ *
  * El pool se crea de forma perezosa y memoizada: la primera operación que llegue
  * lo abre y el resto espera esa misma promesa, de modo que un arranque con varias
  * peticiones en paralelo no crea pools duplicados.
@@ -149,33 +153,6 @@ export class OraclePlugin implements IOracleConnectionPlugin {
     }
   }
 
-  // --------------------------------------- compatibilidad ISqlConnection ----
-
-  /** Equivalente a GetDataTable: sólo las filas, ya tipadas. */
-  async getDataTable<TRow = Record<string, unknown>>(
-    query: string,
-    replacements: unknown[] = []
-  ): Promise<TRow[]> {
-    const result = await this.execute<TRow>(query, replacements);
-    return result.rows;
-  }
-
-  /**
-   * Misma forma de retorno que `SequelizePlugin.executeQuery` para que el resto
-   * del proyecto pueda tratar ambos drivers igual: `metadata` son las filas
-   * afectadas.
-   */
-  async executeQuery<TRow = unknown, TMeta = unknown>(
-    query: string,
-    replacements: unknown[] = []
-  ): Promise<{ rows: TRow; metadata: TMeta }> {
-    const result = await this.execute(query, replacements);
-    return {
-      rows: result.rows as TRow,
-      metadata: result.rowsAffected as TMeta,
-    };
-  }
-
   /**
    * Llama a un procedimiento almacenado y devuelve el contenido de su cursor de
    * salida.
@@ -265,19 +242,6 @@ export class OraclePlugin implements IOracleConnectionPlugin {
     } finally {
       await connection.close();
     }
-  }
-
-  /** Inserción masiva con `executeMany`, una sola ida y vuelta a la base. */
-  async bulkInsert(table: string, records: object[]): Promise<void> {
-    if (records.length === 0) return;
-
-    const keys = Object.keys(records[0] as Record<string, unknown>);
-    const columns = keys.join(", ");
-    const placeholders = keys.map((k) => `:${k}`).join(", ");
-    const sql = `INSERT INTO ${table} (${columns}) VALUES (${placeholders})`;
-
-    const affected = await this.executeMany(sql, records as Record<string, unknown>[]);
-    this.logger.info(`Bulk insert: ${affected} filas insertadas en ${table}`);
   }
 
   async close(): Promise<void> {

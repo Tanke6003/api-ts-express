@@ -1,5 +1,6 @@
+import { oracleDialect } from "../../../../../src/infrastructure/repositories/base/dialects/sql.dialect";
+import { SqlGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
 import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { MemoryAuditTrail } from "../../../../../src/infrastructure/repositories/base/audit-trail";
 import { AsyncRequestContextPlugin } from "../../../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import { AUDIT_LOG_ENTITY } from "../../../../../src/infrastructure/repositories/entities";
@@ -152,10 +153,11 @@ describe("SqlAuditTrail", () => {
     const auditStore = new MemoryGenericRepository<IAuditLog>(AUDIT_LOG_ENTITY, []);
     const trail = new MemoryAuditTrail(auditStore);
 
-    const repository = new OracleGenericRepository<ITestItem>(
+    const repository = new SqlGenericRepository<ITestItem>(
       db,
       TRACKED_ENTITY,
       silentLogger,
+      oracleDialect,
       undefined,
       trail
     );

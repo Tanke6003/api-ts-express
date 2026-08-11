@@ -43,6 +43,99 @@ services:
       retries: 30
       start_period: 60s
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: test-postgres
+    restart: unless-stopped
+    environment:
+      # La imagen crea este usuario y esta base al inicializar el volumen; es la
+      # cuenta que usa la API, no hay superusuario aparte que administrar.
+      POSTGRES_USER: ${POSTGRES_USER:-appuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AppPassword1}
+      POSTGRES_DB: ${POSTGRES_DB:-testdb}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # A diferencia de Oracle, esta imagen sí garantiza con qué usuario y contra
+      # qué base corre los .sql de initdb.d (POSTGRES_USER / POSTGRES_DB) y los
+      # aplica en orden alfabético, así que no hace falta script intermedio.
+      - ./docker/postgres/sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      # pg_isready sólo responde por TCP cuando termina la inicialización: durante
+      # los scripts de initdb el servidor temporal escucha sólo por socket Unix.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-appuser} -d ${POSTGRES_DB:-testdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  mysql:
+    image: mysql:8
+    container_name: test-mysql
+    restart: unless-stopped
+    environment:
+      # Root sólo existe para que la imagen pueda arrancar y aplicar el esquema;
+      # la API entra siempre con MYSQL_USER.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootPassword1}
+      MYSQL_USER: ${MYSQL_USER:-appuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-AppPassword1}
+      MYSQL_DATABASE: ${MYSQL_DB:-testdb}
+    ports:
+      # 3306 suele estar tomado por una instalación local de MySQL/MariaDB, así
+      # que fuera se publica en 3307 salvo que se pida otra cosa.
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # La imagen ejecuta sola los .sql de initdb.d, en orden y ya conectada a
+      # MYSQL_DATABASE, de modo que los scripts no necesitan un USE previo.
+      - ./docker/mysql/sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      # Se fuerza TCP contra 127.0.0.1 en lugar del socket: el servidor temporal
+      # que aplica initdb.d arranca con --skip-networking, así que responder por
+      # el puerto es justo la señal de que el esquema ya está aplicado.
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mongo:
+    image: mongo:7
+    container_name: test-mongo
+    restart: unless-stopped
+    # Réplica de un solo nodo, no mongod suelto: el repositorio genérico escribe
+    # la operación y su línea de AUDIT_LOG dentro de una transacción, y las
+    # transacciones multi-documento sólo existen sobre un replica set. Un mongod
+    # sin oplog rechaza startTransaction, así que sin esto la API no arranca.
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    environment:
+      # Base contra la que la imagen ejecuta los scripts de initdb.d.
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-testdb}
+      # MONGO_INITDB_ROOT_USERNAME/PASSWORD se dejan sin poner a propósito: al
+      # definirlas, el entrypoint quita --replSet del servidor temporal de initdb
+      # y además exigiría un keyFile de autenticación interna para el replica set.
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+      # El rs.initiate() vive dentro de 01-init.js y no en un script aparte porque
+      # el mongod temporal de initdb también arranca con --replSet: hasta que la
+      # réplica no está iniciada el nodo no es primario y el propio seed fallaría.
+      - ./docker/mongo/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      # rs.status() lanza excepción mientras la réplica no esté iniciada, así que
+      # "healthy" significa aquí "réplica lista", no sólo "puerto abierto".
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'quit(rs.status().ok === 1 ? 0 : 1)'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   minio:
     image: minio/minio:latest
     container_name: minio
@@ -61,4 +154,7 @@ services:
 volumes:
   mssql_data:
   oracle_data:
+  postgres_data:
+  mysql_data:
+  mongo_data:
 

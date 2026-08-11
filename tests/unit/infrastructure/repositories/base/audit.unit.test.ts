@@ -1,5 +1,6 @@
+import { oracleDialect } from "../../../../../src/infrastructure/repositories/base/dialects/sql.dialect";
+import { SqlGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
 import { MemoryGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { AsyncRequestContextPlugin } from "../../../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import type { IRequestContext } from "../../../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
@@ -91,16 +92,17 @@ describe("auditoría de usuario en el repositorio genérico", () => {
   // ===============================================================  Oracle  ==
   describe("OracleGenericRepository", () => {
     let db: FakeSqlExecutor;
-    let repository: OracleGenericRepository<IAuditedItem>;
+    let repository: SqlGenericRepository<IAuditedItem>;
 
     beforeEach(() => {
       db = new FakeSqlExecutor();
-      repository = new OracleGenericRepository<IAuditedItem>(
-        db,
-        AUDITED_ENTITY,
-        silentLogger,
-        context
-      );
+      repository = new SqlGenericRepository<IAuditedItem>(
+      db,
+      AUDITED_ENTITY,
+      silentLogger,
+      oracleDialect,
+      context
+    );
     });
 
     it("añade CREATED_BY al INSERT como bind", async () => {
@@ -138,12 +140,13 @@ describe("auditoría de usuario en el repositorio genérico", () => {
     });
 
     it("el borrado lógico registra quién lo hizo", async () => {
-      const soft = new OracleGenericRepository<IAuditedItem & { active?: boolean }>(
-        db,
-        AUDITED_SOFT_ENTITY,
-        silentLogger,
-        context
-      );
+      const soft = new SqlGenericRepository<IAuditedItem & { active?: boolean }>(
+      db,
+      AUDITED_SOFT_ENTITY,
+      silentLogger,
+      oracleDialect,
+      context
+    );
       db.queue({ rowsAffected: 1 });
 
       await asUser(context, "Beto", () => soft.softDelete(1));

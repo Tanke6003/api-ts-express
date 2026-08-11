@@ -27,6 +27,14 @@ export function validateCriticalEnvs(envs: IEnvs): void {
     }
   }
 
+  if (dataSource === "postgres" || dataSource === "postgresql") {
+    if (!envs.getEnv("POSTGRES_PASSWORD")) missing.push("POSTGRES_PASSWORD");
+  }
+
+  if (dataSource === "mysql" || dataSource === "mariadb") {
+    if (!envs.getEnv("MYSQL_PASSWORD")) missing.push("MYSQL_PASSWORD");
+  }
+
   if (dataSource === "oracle") {
     // El usuario y el connect string tienen valor por defecto alineado con el
     // docker-compose; la contraseña no puede tenerlo.

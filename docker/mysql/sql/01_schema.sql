@@ -107,9 +107,10 @@ CREATE TABLE APPOINTMENTS (
   CONSTRAINT CK_APPT_PARTY    CHECK (FK_CLIENT IS NOT NULL OR GUEST_NAME IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- FK_BRANCH y FK_CLIENT ya reciben un índice implícito al declarar la FK, pero se
--- nombran a mano para que el juego de índices se llame igual en los cuatro
--- motores; MySQL reutiliza el índice existente en vez de duplicarlo.
+-- FK_BRANCH y FK_CLIENT reciben un índice implícito al declarar la FK, bautizado
+-- con el nombre de la constraint. Se crean igualmente a mano para que el juego de
+-- índices se llame igual en los cuatro motores: MySQL sustituye el implícito por
+-- este en cuanto ve que cubre la FK, así que no queda ninguno duplicado.
 CREATE INDEX IX_APPT_BRANCH    ON APPOINTMENTS (FK_BRANCH);
 CREATE INDEX IX_APPT_CLIENT    ON APPOINTMENTS (FK_CLIENT);
 CREATE INDEX IX_APPT_SCHEDULED ON APPOINTMENTS (SCHEDULED_AT);

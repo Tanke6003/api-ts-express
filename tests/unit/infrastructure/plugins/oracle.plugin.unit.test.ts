@@ -146,20 +146,6 @@ describe("OraclePlugin", () => {
     });
   });
 
-  describe("compatibilidad con ISqlConnectionPlugin", () => {
-    it("getDataTable devuelve sólo las filas", async () => {
-      connection.execute.mockResolvedValue({ rows: [{ A: 1 }], rowsAffected: 0 });
-
-      expect(await plugin.getDataTable("SELECT 1 FROM DUAL")).toEqual([{ A: 1 }]);
-    });
-
-    it("executeQuery expone las filas afectadas como metadata", async () => {
-      connection.execute.mockResolvedValue({ rows: [], rowsAffected: 2 });
-
-      expect(await plugin.executeQuery("UPDATE ...")).toEqual({ rows: [], metadata: 2 });
-    });
-  });
-
   describe("execStoredProcedure", () => {
     it("llama al bloque anónimo con el cursor de salida y lo cierra", async () => {
       const resultSet = { getRows: jest.fn().mockResolvedValue([{ A: 1 }]), close: jest.fn() };
@@ -235,28 +221,6 @@ describe("OraclePlugin", () => {
     it("executeMany transaccional con lista vacía no llama al driver", async () => {
       expect(await plugin.transaction((tx) => tx.executeMany("INSERT ...", []))).toBe(0);
       expect(connection.executeMany).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("bulkInsert", () => {
-    it("construye la sentencia a partir de las claves de la primera fila", async () => {
-      connection.executeMany.mockResolvedValue({ rowsAffected: 2 });
-
-      await plugin.bulkInsert("ITEMS", [
-        { NAME: "a", QTY: 1 },
-        { NAME: "b", QTY: 2 },
-      ]);
-
-      expect(connection.executeMany).toHaveBeenCalledWith(
-        "INSERT INTO ITEMS (NAME, QTY) VALUES (:NAME, :QTY)",
-        expect.any(Array),
-        { autoCommit: true }
-      );
-    });
-
-    it("sin registros no hace nada", async () => {
-      await plugin.bulkInsert("ITEMS", []);
-      expect(oracledb.createPool).not.toHaveBeenCalled();
     });
   });
 

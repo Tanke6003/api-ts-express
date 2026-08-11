@@ -1,3 +1,4 @@
+import { SqlGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
 import "reflect-metadata";
 import {
   buildOracleConfig,
@@ -5,7 +6,6 @@ import {
   isOracleDriver,
 } from "../../../../src/core/di/repository.factory";
 import { MemoryGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
-import { OracleGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
 import { ENTITY_NAMES } from "../../../../src/domain/models/entity-names";
 
 const envsWith = (values: Record<string, string>) => ({
@@ -113,9 +113,9 @@ describe("createPersistenceLayer", () => {
 
     expect(persistence.driver).toBe("oracle");
     expect(persistence.connection).toBeDefined();
-    expect(persistence.stores.users).toBeInstanceOf(OracleGenericRepository);
-    expect(persistence.stores.branches).toBeInstanceOf(OracleGenericRepository);
-    expect(persistence.stores.appointments).toBeInstanceOf(OracleGenericRepository);
+    expect(persistence.stores.users).toBeInstanceOf(SqlGenericRepository);
+    expect(persistence.stores.branches).toBeInstanceOf(SqlGenericRepository);
+    expect(persistence.stores.appointments).toBeInstanceOf(SqlGenericRepository);
   });
 
   it("cada modo tiene su propio almacén: dos capas no comparten estado", async () => {

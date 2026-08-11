@@ -1,5 +1,5 @@
-import { SqlServerGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/sqlserver.generic.repository";
-import { OracleGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/oracle.generic.repository";
+import { oracleDialect, sqlServerDialect } from "../../../../../src/infrastructure/repositories/base/dialects/sql.dialect";
+import { SqlGenericRepository } from "../../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
 import { FakeSqlExecutor, silentLogger } from "./fake-sql-executor";
 import { ITestItem, IPlainItem, PLAIN_ENTITY, TEST_ENTITY } from "./test-entity";
 
@@ -12,11 +12,16 @@ const ROW = { PK_ITEM: 1, NAME: "alpha", QTY: 10, ACTIVE: 1 };
  */
 describe("SqlServerGenericRepository", () => {
   let db: FakeSqlExecutor;
-  let repository: SqlServerGenericRepository<ITestItem>;
+  let repository: SqlGenericRepository<ITestItem>;
 
   beforeEach(() => {
     db = new FakeSqlExecutor();
-    repository = new SqlServerGenericRepository<ITestItem>(db, TEST_ENTITY, silentLogger);
+    repository = new SqlGenericRepository<ITestItem>(
+      db,
+      TEST_ENTITY,
+      silentLogger,
+      sqlServerDialect
+    );
   });
 
   describe("INSERT", () => {
@@ -44,11 +49,12 @@ describe("SqlServerGenericRepository", () => {
     });
 
     it("sin identity no añade OUTPUT y sólo cuenta filas afectadas", async () => {
-      const plain = new SqlServerGenericRepository<IPlainItem, string>(
-        db,
-        PLAIN_ENTITY,
-        silentLogger
-      );
+      const plain = new SqlGenericRepository<IPlainItem, string>(
+      db,
+      PLAIN_ENTITY,
+      silentLogger,
+      sqlServerDialect
+    );
       db.queue({ rowsAffected: 1 }).queue({ rows: [{ CODE: "A", LABEL: "uno" }] });
 
       await plain.insert({ code: "A", label: "uno" });
@@ -124,7 +130,7 @@ describe("SqlServerGenericRepository", () => {
     const bound = repository.withExecutor(tx);
     await bound.insert({ name: "x" });
 
-    expect(bound).toBeInstanceOf(SqlServerGenericRepository);
+    expect(bound).toBeInstanceOf(SqlGenericRepository);
     expect(tx.sqlAt(0)).toContain("OUTPUT INSERTED");
   });
 });
@@ -134,10 +140,20 @@ describe("los dos dialectos sobre la misma entidad", () => {
     const oracleDb = new FakeSqlExecutor();
     const mssqlDb = new FakeSqlExecutor();
 
-    await new OracleGenericRepository<ITestItem>(oracleDb, TEST_ENTITY, silentLogger).find({
+    await new SqlGenericRepository<ITestItem>(
+      oracleDb,
+      TEST_ENTITY,
+      silentLogger,
+      oracleDialect
+    ).find({
       where: { name: "x" },
     });
-    await new SqlServerGenericRepository<ITestItem>(mssqlDb, TEST_ENTITY, silentLogger).find({
+    await new SqlGenericRepository<ITestItem>(
+      mssqlDb,
+      TEST_ENTITY,
+      silentLogger,
+      sqlServerDialect
+    ).find({
       where: { name: "x" },
     });
 

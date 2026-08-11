@@ -1,5 +1,4 @@
 // src/domain/interfaces/infrastructure/plugins/oracle.plugin.interface.ts
-import { ISqlConnectionPlugin } from "./sql.plugin.interface";
 import { ISqlExecutor, SqlExecuteResult } from "./sql-executor.interface";
 
 /**
@@ -30,15 +29,29 @@ export type IOracleExecutor = ISqlExecutor;
 
 /**
  * Conexión a Oracle sobre `node-oracledb` en modo *thin* (no requiere instalar
- * Oracle Instant Client). Extiende el contrato SQL genérico del proyecto para
- * poder convivir con `SequelizePlugin` en el contenedor de DI.
+ * Oracle Instant Client).
+ *
+ * Su contrato es el genérico `ISqlExecutor` —lo que consume el repositorio
+ * genérico— más lo propio de gestionar la conexión. Sólo añade un método fuera
+ * de ese guion: los procedimientos almacenados, que no tienen equivalente en el
+ * API genérica.
  */
-export interface IOracleConnectionPlugin extends ISqlConnectionPlugin, ISqlExecutor {
+export interface IOracleConnectionPlugin extends ISqlExecutor {
   /** Abre el pool si hace falta y verifica que la base responde. */
   authenticate(): Promise<void>;
 
   /** Ejecuta `work` en una transacción; commit al terminar, rollback si lanza. */
   transaction<T>(work: (tx: IOracleTransaction) => Promise<T>): Promise<T>;
+
+  /**
+   * Llama a un procedimiento almacenado y devuelve el contenido de su cursor de
+   * salida. Convención: el último parámetro debe ser un `OUT SYS_REFCURSOR`,
+   * que es la única forma de que un SP de Oracle devuelva filas.
+   */
+  execStoredProcedure<TRow = Record<string, unknown>>(
+    spName: string,
+    params?: unknown[]
+  ): Promise<TRow[]>;
 
   /** Cierra el pool. */
   close(): Promise<void>;

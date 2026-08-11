@@ -12,10 +12,12 @@ export interface SqlExecuteOptions {
    * Qué se espera de la sentencia.
    *
    * Oracle devuelve filas y filas afectadas en la misma respuesta y lo ignora,
-   * pero SQL Server necesita saberlo para elegir cómo ejecutar: leer un
-   * conjunto de resultados no es lo mismo que pedir `@@ROWCOUNT`.
+   * pero el resto necesita saberlo para elegir cómo ejecutar: leer un conjunto
+   * de resultados, pedir `@@ROWCOUNT` o recoger el id generado no son la misma
+   * llamada. Con `identity` el executor devuelve el id en
+   * `rows[0].insertedId`, que es donde lo busca el dialecto.
    */
-  expects?: "rows" | "affected";
+  expects?: "rows" | "affected" | "identity";
 }
 
 /**

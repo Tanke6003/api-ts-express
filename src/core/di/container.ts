@@ -15,8 +15,6 @@ import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugi
 import { DotenvPlugin } from "../../infrastructure/plugins/dotenv.plugin";
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
-import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
-import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
 import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
 import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
 import { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
@@ -63,20 +61,6 @@ const requestContext = container.resolve<IRequestContext>("IRequestContext");
 
 container.register<ITokenPlugin>("ITokenPlugin", {
   useClass: JwtPlugin
-});
-
-container.register<ISqlConnectionPlugin>("TestDB", {
-  useValue: new SequelizePlugin(
-    {
-      dialect: envs.getEnv("DB_DIALECT") || "mssql",
-      host: envs.getEnv("DB_HOST") || "localhost",
-      port: Number(envs.getEnv("DB_PORT") || "1434"),
-      username: envs.getEnv("DB_USER") || "sa",
-      password: envs.getEnv("DB_PASSWORD"),
-      database: envs.getEnv("DB_NAME") || "testdb",
-    },
-    logger
-  ),
 });
 
 container.register<IFileStorage>("IFileStorage", {

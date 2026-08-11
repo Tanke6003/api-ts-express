@@ -10,7 +10,7 @@ import { SqlGenericRepository } from "../drivers/sql.generic.repository";
 /**
  * Lo único que la unidad de trabajo necesita del driver: abrir una transacción
  * y entregar un executor atado a ella. Lo cumplen tanto `OraclePlugin` como
- * `SqlServerPlugin`.
+ * `SequelizeDbPlugin`.
  */
 export interface ISqlTransactionRunner {
   transaction<T>(work: (tx: ISqlExecutor) => Promise<T>): Promise<T>;

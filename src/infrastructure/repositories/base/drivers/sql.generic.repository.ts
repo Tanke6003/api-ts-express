@@ -308,11 +308,11 @@ export class SqlGenericRepository<T extends object, TKey = number>
       identity: this.schema.isIdentity,
     });
 
-    const result = await this.db.execute(
-      statement.sql,
-      { ...binds, ...statement.binds },
-      { expects: statement.returnsRows ? "rows" : "affected" }
-    );
+    // Qué se le pide al executor depende de por dónde devuelva el motor la PK.
+    const expects =
+      statement.idFrom === "rows" ? "rows" : statement.idFrom === "driver" ? "identity" : "affected";
+
+    const result = await this.db.execute(statement.sql, { ...binds, ...statement.binds }, { expects });
 
     const id = this.schema.isIdentity
       ? (this.dialect.readInsertedId(result as SqlExecuteResult) as TKey)
