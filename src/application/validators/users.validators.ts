@@ -5,6 +5,7 @@ import { z } from "zod";
 const contactShape = {
   email: z.string().email("El email no es válido").max(150).nullish(),
   phone: z.string().max(30, "El teléfono es demasiado largo").nullish(),
+  wallet: z.number().min(0, "El saldo no puede ser negativo").nullish(),
   isClient: z.boolean().optional(),
 };
 

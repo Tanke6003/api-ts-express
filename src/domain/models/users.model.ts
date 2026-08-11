@@ -10,6 +10,7 @@ export interface IUser {
     name: string;
     email?: string | null;
     phone?: string | null;
+    wallet?: number | null;
     /** Distingue a los clientes (pueden ser titulares de una cita) del staff. */
     isClient?: boolean;
     available?: boolean; // borrado lógico

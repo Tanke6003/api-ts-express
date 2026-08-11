@@ -21,6 +21,7 @@ export const userMapper = createMapper<IUser, UserDTO>({
   name: "name",
   email: { field: "email", to: nullable, from: (value) => value ?? null },
   phone: { field: "phone", to: nullable, from: (value) => value ?? null },
+  wallet: { field: "wallet", to: nullable, from: (value) => value ?? null },
   // Los drivers sin esa columna no distinguen staff de clientes: se asume
   // cliente para no bloquear el agendado.
   isClient: { field: "isClient", to: (value) => (value ?? true) as boolean, from: (value) => value ?? true },

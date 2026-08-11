@@ -42,7 +42,7 @@ describe("UsersService Unit Tests", () => {
     const result = await usersService.getAllUsers({ page: 1, limit: 10 });
 
     expect(result).toEqual({
-      data: [{ id: 1, name: "Test User", email: null, phone: null, isClient: true }],
+      data: [{ id: 1, name: "Test User", email: null, phone: null, wallet: null, isClient: true }],
       total: 1,
       page: 1,
       limit: 10,
@@ -77,6 +77,7 @@ describe("UsersService Unit Tests", () => {
       name: "Test User",
       email: null,
       phone: null,
+      wallet: null,
       isClient: true,
     });
     expect(mockRepository.getById).toHaveBeenCalledWith(1);
@@ -105,6 +106,7 @@ describe("UsersService Unit Tests", () => {
       name: "New User",
       email: null,
       phone: null,
+      wallet: null,
       isClient: true,
     });
   });

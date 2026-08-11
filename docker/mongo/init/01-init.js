@@ -87,6 +87,7 @@ db.createCollection("USERS", {
         NAME: { bsonType: "string", maxLength: 100 },
         EMAIL: { bsonType: ["string", "null"], maxLength: 150 },
         PHONE: { bsonType: ["string", "null"], maxLength: 30 },
+        WALLET: { bsonType: NUMBER_OR_NULL },
         IS_CLIENT: { bsonType: NUMBER, enum: [0, 1] },
         AVAILABLE: { bsonType: NUMBER, enum: [0, 1] },
         CREATED_AT: { bsonType: "date" },

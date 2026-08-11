@@ -19,6 +19,10 @@
  *           type: string
  *           nullable: true
  *           example: "+52 55 1111 1111"
+ *         wallet:
+ *           type: number
+ *           nullable: true
+ *           example: 100.00
  *         isClient:
  *           type: boolean
  *           example: true
@@ -48,6 +52,7 @@ export interface UserDTO {
   /** Sólo lo informan los drivers cuyo esquema los tiene (Oracle). */
   email?: string | null;
   phone?: string | null;
+  wallet?: number | null;
   /** Los clientes pueden ser titulares de una cita. */
   isClient?: boolean;
 }

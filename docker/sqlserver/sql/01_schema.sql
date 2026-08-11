@@ -46,6 +46,7 @@ CREATE TABLE USERS (
   NAME        NVARCHAR(100)                               NOT NULL,
   EMAIL       NVARCHAR(150),
   PHONE       NVARCHAR(30),
+  WALLET      DECIMAL(10, 2),
   IS_CLIENT   BIT            DEFAULT 1                    NOT NULL,
   AVAILABLE   BIT            DEFAULT 1                    NOT NULL,
   CREATED_AT  DATETIME2      DEFAULT SYSDATETIME()        NOT NULL,

@@ -122,6 +122,7 @@ describe("perfiles del proyecto", () => {
       name: "Ana",
       email: null,
       phone: null,
+      wallet: null,
       isClient: true,
     });
 

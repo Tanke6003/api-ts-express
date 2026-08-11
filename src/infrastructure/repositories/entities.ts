@@ -23,6 +23,7 @@ export const USERS_ENTITY = defineEntity<IUser>({
     name: { name: "NAME", kind: "string" },
     email: { name: "EMAIL", kind: "string" },
     phone: { name: "PHONE", kind: "string" },
+    wallet: { name: "WALLET", kind: "number" },
     isClient: { name: "IS_CLIENT", kind: "boolean" },
     available: { name: "AVAILABLE", kind: "boolean" },
     createdAt: { name: "CREATED_AT", kind: "date", updatable: false },
