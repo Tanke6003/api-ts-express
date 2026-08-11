@@ -4,6 +4,7 @@ import { inject, injectable } from "tsyringe";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
 import { BaseController } from "./base.controller";
+import { TOKENS } from "../../core/di/tokens";
 
 /**
  * Publica la identidad que la API resolvió del token: el mismo usuario que el
@@ -14,7 +15,7 @@ import { BaseController } from "./base.controller";
  */
 @injectable()
 export class IdentityController extends BaseController implements IIdentityController {
-  constructor(@inject("IRequestContext") context: IRequestContext) {
+  constructor(@inject(TOKENS.IRequestContext) context: IRequestContext) {
     super(context);
   }
 

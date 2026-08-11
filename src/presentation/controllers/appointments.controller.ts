@@ -8,12 +8,13 @@ import { AppError } from "../../core/errors/app-error";
 import { parseId } from "../utils/parse-id";
 import { BaseController } from "./base.controller";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { TOKENS } from "../../core/di/tokens";
 
 @injectable()
 export class AppointmentsController extends BaseController implements IAppointmentsController {
   constructor(
-    @inject("IAppointmentsService") private readonly appointmentsService: IAppointmentsService,
-    @inject("IRequestContext") context: IRequestContext
+    @inject(TOKENS.IAppointmentsService) private readonly appointmentsService: IAppointmentsService,
+    @inject(TOKENS.IRequestContext) context: IRequestContext
   ) {
     super(context);
   }

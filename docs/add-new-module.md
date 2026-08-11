@@ -340,14 +340,41 @@ const products = new OracleGenericRepository<IProduct>(oracle, PRODUCTS_ENTITY, 
 [ENTITY_NAMES.PRODUCTS, products],
 ```
 
-Then in `src/core/di/container.ts`:
+Add the store to `src/core/di/modules/persistence.module.ts` and its token to `src/core/di/tokens.ts`:
 
 ```typescript
-container.register("ProductsStore", { useValue: persistence.stores.products });
-container.register<IProductsRepository>("IProductsRepository", { useClass: ProductsRepository });
-container.register<IProductsService>("IProductsService", { useClass: ProductsService });
-container.register<IProductsController>("IProductsController", { useClass: ProductsController });
+// tokens.ts
+ProductsStore: "ProductsStore",
+IProductsRepository: "IProductsRepository",
+IProductsService: "IProductsService",
+IProductsController: "IProductsController",
+
+// persistence.module.ts
+container.register(TOKENS.ProductsStore, { useValue: persistence.stores.products });
 ```
+
+Then create `src/core/di/modules/features/products.module.ts` with the module's three layers:
+
+```typescript
+export function registerProducts(): void {
+  container.register<IProductsRepository>(TOKENS.IProductsRepository, {
+    useClass: ProductsRepository,
+  });
+  container.register<IProductsService>(TOKENS.IProductsService, { useClass: ProductsService });
+  container.register<IProductsController>(TOKENS.IProductsController, {
+    useClass: ProductsController,
+  });
+}
+```
+
+and call it from `src/core/di/container.ts` — one line, next to the other modules:
+
+```typescript
+registerProducts();
+```
+
+Always inject through `TOKENS`, never a bare string: tsyringe resolves by string, so a typo
+compiles fine and only blows up when that class is constructed.
 
 ---
 

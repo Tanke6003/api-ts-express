@@ -7,6 +7,7 @@ import type { IAuditLog } from "../../domain/models/audit-log.model";
 import { IAuditController } from "../../domain/interfaces/presentation/controllers/audit.controller.interface";
 import type { AuditQueryInput } from "../../application/validators/audit.validators";
 import { BaseController } from "./base.controller";
+import { TOKENS } from "../../core/di/tokens";
 
 /**
  * Consulta de la bitácora. Sólo lectura: las líneas las escribe el repositorio
@@ -19,8 +20,8 @@ import { BaseController } from "./base.controller";
 @injectable()
 export class AuditController extends BaseController implements IAuditController {
   constructor(
-    @inject("AuditLogStore") private readonly store: IGenericRepository<IAuditLog>,
-    @inject("IRequestContext") context: IRequestContext
+    @inject(TOKENS.AuditLogStore) private readonly store: IGenericRepository<IAuditLog>,
+    @inject(TOKENS.IRequestContext) context: IRequestContext
   ) {
     super(context);
   }

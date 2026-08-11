@@ -9,14 +9,15 @@ import {
   createBranchSchema,
   updateBranchSchema,
 } from "../../application/validators/branches.validators";
+import { TOKENS } from "../../core/di/tokens";
 
 export class BranchesRoutes {
   private branchesController: IBranchesController;
   private jwtPlugin: ITokenPlugin;
 
   constructor() {
-    this.branchesController = container.resolve<IBranchesController>("IBranchesController");
-    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
+    this.branchesController = container.resolve<IBranchesController>(TOKENS.IBranchesController);
+    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
   }
 
   public register(app: Router) {

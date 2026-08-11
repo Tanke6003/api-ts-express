@@ -6,11 +6,12 @@ import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFile
 import Busboy from "busboy";
 import { S3FileStoragePlugin } from "../../infrastructure/plugins/s3FileStorage.plugin";
 import { container } from "tsyringe";
+import { TOKENS } from "../../core/di/tokens";
 
 export class TestRoutes {
   private jwtPlugin: ITokenPlugin;
   constructor() {
-    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
+    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
   }
 
   public register(app: any) {

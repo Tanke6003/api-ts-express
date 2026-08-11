@@ -7,16 +7,17 @@ import type { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { toCurrentUser } from "../../presentation/middlewares/requestContext.middleware";
 import { AppError } from "../../core/errors/app-error";
+import { TOKENS } from "../../core/di/tokens";
 
 @injectable()
 export class JwtPlugin implements ITokenPlugin{
   private readonly secret: string;
 
   constructor(
-    @inject("IEnvs") private readonly envs: IEnvs,
+    @inject(TOKENS.IEnvs) private readonly envs: IEnvs,
     // Opcional a propósito: el plugin sigue siendo construible a mano (tests,
     // scripts) sin montar el contexto de petición.
-    @inject("IRequestContext") private readonly context?: IRequestContext
+    @inject(TOKENS.IRequestContext) private readonly context?: IRequestContext
   ) {
     const secret = this.envs.getEnv("JWT_SECRET");
     if (!secret) {

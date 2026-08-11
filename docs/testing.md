@@ -39,7 +39,7 @@ Test a single class in isolation. All dependencies are mocked.
 
 Test the full HTTP stack using [supertest](https://github.com/ladjs/supertest).
 
-- Boot the Express app against the **DummyDataSource** (no external DB needed)
+- Boot the Express app against the **in-memory driver** (`DATA_SOURCE=dummy`, no external DB needed)
 - Verify HTTP status codes, response bodies, and auth middleware
 - Run with `npm test` (included in default `testMatch`)
 
@@ -155,7 +155,7 @@ describe("ProductsController", () => {
 
 ## Writing integration tests
 
-Integration tests start the Express app (using DI container + DummyDataSource) and fire HTTP requests.
+Integration tests start the Express app (DI container + in-memory driver) and fire HTTP requests.
 
 ```typescript
 // tests/integration/products.integration.test.ts

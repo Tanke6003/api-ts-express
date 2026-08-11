@@ -11,6 +11,7 @@ import { ILogger } from "../domain/interfaces/infrastructure/plugins/logger.plug
 import { errorHandler, notFoundHandler } from "../presentation/middlewares/errorHandler.middleware";
 import { requestContext } from "../presentation/middlewares/requestContext.middleware";
 import { IRequestContext } from "../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { TOKENS } from "./di/tokens";
 
 @injectable()
 export class Server {
@@ -26,14 +27,14 @@ export class Server {
     // Lo primero de todo, incluso antes del parseo del cuerpo: asi hasta un
     // JSON mal formado se rechaza con su id de peticion, y el resto de capas
     // (logs, manejador de errores, auditoria) ven el contexto.
-    const context: IRequestContext = container.resolve("IRequestContext");
+    const context: IRequestContext = container.resolve(TOKENS.IRequestContext);
     this.app.use(requestContext(context));
 
     this.app.use(express.json({ limit: "50mb" }));
     this.app.use(express.urlencoded({ limit: "50mb", extended: true }));
     this.app.use(cors());
 
-    const logger: ILogger = container.resolve("ILogger");
+    const logger: ILogger = container.resolve(TOKENS.ILogger);
     this.app.use(logger.http());
 
     // Interfaz web de ejemplo (HTML + JS + Tailwind) servida desde /public.

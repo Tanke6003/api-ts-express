@@ -5,14 +5,15 @@ import { IUsersController } from "../../domain/interfaces/presentation/controlle
 import { container } from "tsyringe";
 import { validateBody, validateQuery } from "../middlewares/validate.middleware";
 import { createUserSchema, paginationSchema, updateUserSchema } from "../../application/validators/users.validators";
+import { TOKENS } from "../../core/di/tokens";
 
 export class UsersRoutes {
   private usersController: IUsersController;
   private jwtPlugin: ITokenPlugin;
 
   constructor() {
-    this.usersController = container.resolve<IUsersController>("IUsersController");
-    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
+    this.usersController = container.resolve<IUsersController>(TOKENS.IUsersController);
+    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
   }
 
   public register(app: any) {

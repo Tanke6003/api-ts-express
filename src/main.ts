@@ -1,3 +1,4 @@
+import { TOKENS } from "./core/di/tokens";
  // src/main.ts
 import "reflect-metadata";
 import "./core/di/container";
@@ -7,7 +8,7 @@ import { IEnvs } from "./domain/interfaces/infrastructure/plugins/envs.plugin.in
 import { ILogger } from "./domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
 
- const envs = container.resolve<IEnvs>("IEnvs");
+ const envs = container.resolve<IEnvs>(TOKENS.IEnvs);
     const portEnv = envs.getEnv("PORT");
     const port = portEnv === undefined || portEnv === null || portEnv === "" ? 3000 : Number(portEnv);
     const server = new Server(port);
@@ -18,7 +19,7 @@ import { ILogger } from "./domain/interfaces/infrastructure/plugins/logger.plugi
     try {
       await warmUpConnections();
     } catch (error) {
-      const logger = container.resolve<ILogger>("ILogger");
+      const logger = container.resolve<ILogger>(TOKENS.ILogger);
       logger.error("No se pudo establecer la conexión con la base de datos", { error });
       process.exit(1);
     }

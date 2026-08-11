@@ -22,6 +22,7 @@ import { PaginatedDTO } from "../dtos/common.dtos";
 import { loadRelated } from "../queries/include.query";
 import { appointmentMapper } from "../mapping/profiles";
 import { AppError } from "../../core/errors/app-error";
+import { TOKENS } from "../../core/di/tokens";
 
 const DEFAULT_DURATION_MIN = 30;
 /** Tope de `CK_APPT_DURATION`; acota la ventana de búsqueda de solapes. */
@@ -38,10 +39,10 @@ const MINUTE_MS = 60_000;
 @injectable()
 export class AppointmentsService implements IAppointmentsService {
   constructor(
-    @inject("IAppointmentsRepository") private readonly repository: IAppointmentsRepository,
-    @inject("IBranchesRepository") private readonly branchesRepository: IBranchesRepository,
-    @inject("IUsersRepository") private readonly usersRepository: IUsersRepository,
-    @inject("ILogger") private readonly logger: ILogger
+    @inject(TOKENS.IAppointmentsRepository) private readonly repository: IAppointmentsRepository,
+    @inject(TOKENS.IBranchesRepository) private readonly branchesRepository: IBranchesRepository,
+    @inject(TOKENS.IUsersRepository) private readonly usersRepository: IUsersRepository,
+    @inject(TOKENS.ILogger) private readonly logger: ILogger
   ) {}
 
   // --------------------------------------------------------------- lectura --

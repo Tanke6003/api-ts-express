@@ -18,7 +18,7 @@ This project follows **Clean Architecture** (also known as Layered Architecture 
 │         (Interfaces, Models — no dependencies)       │
 ├─────────────────────────────────────────────────────┤
 │                  Infrastructure                      │
-│         (Repositories, DataSources, Plugins)         │
+│      (Repositories, DB connectors, Plugins)          │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -35,7 +35,15 @@ src/
 │   ├── config/
 │   │   └── swagger.config.ts        # Swagger / OpenAPI options
 │   ├── di/
-│   │   └── container.ts             # tsyringe DI registrations
+│   │   ├── container.ts             # Composition root — decides the order only
+│   │   ├── tokens.ts                # Injection tokens (TOKENS), checked at compile time
+│   │   ├── logger.factory.ts        # LOG_DRIVER → ILogger
+│   │   ├── repository.factory.ts    # DATA_SOURCE → stores + unit of work
+│   │   └── modules/
+│   │       ├── plugins.module.ts    # envs, logger, request context, jwt, storage
+│   │       ├── persistence.module.ts # stores + unit of work
+│   │       ├── system.module.ts     # identity + audit log
+│   │       └── features/            # one file per business module — yours go here
 │   └── errors/
 │       └── app-error.ts             # AppError — operational error class
 │
@@ -65,41 +73,38 @@ src/
 │   ├── interfaces/
 │   │   ├── application/services/    # IUsersService, IBranchesService, IAppointmentsService
 │   │   ├── infrastructure/
-│   │   │   ├── datasources/         # IUsersDataSource
 │   │   │   ├── plugins/             # ILogger, IEnvs, ITokenPlugin, IFileStorage,
-│   │   │   │                        #   ISqlConnectionPlugin, IOracleConnectionPlugin
-│   │   │   └── repositories/        # IGenericRepository, IUnitOfWork, per-module contracts
+│   │   │   │                        #   IRequestContext, IDbPlugin / ISqlDbPlugin
+│   │   │   └── repositories/        # IGenericRepository, IUnitOfWork, IAuditTrail,
+│   │   │                            #   per-module contracts
 │   │   └── presentation/controllers/
-│   └── models/                      # IUser, IBranch, IAppointment, ENTITY_NAMES
+│   └── models/                      # IUser, IBranch, IAppointment, IAuditLog, ENTITY_NAMES
 │
 └── infrastructure/                  # Concrete implementations
-    ├── datasources/
-    │   ├── generic/
-    │   │   └── users.generic.datasource.ts  # Sobre el repositorio genérico
-    │   └── sqlserver/
-    │       └── users.sqlserver.datasource.ts # SQL Server via Sequelize
     ├── plugins/
     │   ├── dotenv.plugin.ts         # Environment variable loading
     │   ├── jwt.plugin.ts            # Token generation + middleware
+    │   ├── asyncRequestContext.plugin.ts # AsyncLocalStorage — identity per request
     │   ├── pino.plugin.ts           # Structured logger (primary)
     │   ├── winston.plugin.ts        # Alternative logger
-    │   ├── sequelize.plugin.ts      # SQL connection + query helpers
     │   ├── oracle.plugin.ts         # node-oracledb (thin mode) pool + transactions
+    │   ├── sequelize-db.plugin.ts   # SQL Server, PostgreSQL and MySQL/MariaDB
+    │   ├── mongo-db.plugin.ts       # MongoDB driver + sessions
     │   ├── nativeFileStorage.plugin.ts # Local filesystem storage
     │   └── s3FileStorage.plugin.ts  # AWS S3 / MinIO storage
     └── repositories/
-        ├── base/                    # El repositorio genérico y su soporte
-        │   ├── entity-metadata.ts        # Mapeo entidad ↔ tabla
-        │   ├── oracle.where.compiler.ts  # Filtro declarativo → SQL con binds
-        │   ├── memory.filter.ts          # El mismo filtro, evaluado en memoria
-        │   ├── query-builder.ts          # IQueryable<T> encadenable (LINQ)
-        │   ├── oracle.generic.repository.ts
-        │   ├── memory.generic.repository.ts
-        │   ├── module.repository.ts      # Base de los repositorios de módulo
-        │   └── *.unit-of-work.ts         # Transacciones (Oracle / memoria)
-        ├── entities.ts              # Mapeo de USERS, BRANCHES y APPOINTMENTS
-        ├── seed-data.ts             # Datos de ejemplo del modo en memoria
-        └── *.repository.ts          # Repositorios de módulo
+        ├── base/                    # The generic repository and its support
+        │   ├── entity-metadata.ts   # Entity ↔ table mapping
+        │   ├── module.repository.ts # Base class for per-module repositories
+        │   ├── audit-trail.ts       # Change log written by the repositories
+        │   ├── dialects/            # Per-engine SQL differences (paging, identity...)
+        │   ├── drivers/             # sql / mongo / memory implementations
+        │   ├── query/               # Declarative filter → SQL, Mongo or in-memory,
+        │   │                        #   plus the chainable IQueryable<T> (LINQ)
+        │   └── unit-of-work/        # Transactions per engine
+        ├── entities.ts              # Mapping for USERS, BRANCHES and APPOINTMENTS
+        ├── seed-data.ts             # Example data for the in-memory driver
+        └── *.repository.ts          # Per-module repositories
 ```
 
 The generic repository is documented in **[generic-repository.md](generic-repository.md)**; the Oracle setup in **[oracle.md](oracle.md)**.
@@ -128,31 +133,45 @@ Service  (appointments.service.ts)
 Repository  (appointments.repository.ts)
     │  logs, wraps errors, delegates to the generic repository
     ▼
-Generic repository  (Oracle or in-memory)
-    │  builds the SQL from the entity mapping — all values as binds
+Generic repository  (SQL, MongoDB or in-memory)
+    │  builds the query from the entity mapping — all values as binds
     ▼
 Returns up the chain → JSON response
 ```
 
-Users still go through `IUsersDataSource`; on `dummy` and `oracle` that datasource is itself backed by the generic repository, so the CRUD is written once.
+Every module goes through the same `IGenericRepository<T>`, whichever engine `DATA_SOURCE` selects, so the CRUD is written once. See **[connectors.md](connectors.md)**.
 
 ---
 
 ## Dependency Injection
 
-tsyringe is the IoC container. All registrations live in `src/core/di/container.ts`.
+tsyringe is the IoC container. `container.ts` is a composition root: it only decides the order, and each block registers itself from its own file under `di/modules/`.
 
 ```typescript
-// Swap logger with a single line
-container.registerSingleton<ILogger>("ILogger", WinstonPlugin);
-// OR
-container.register<ILogger>("ILogger", { useValue: new PinoLoggerPlugin({...}) });
+// container.ts, in full — the order matters only for the first two lines
+const plugins = registerPlugins();          // envs → logger → request context → jwt → storage
+const persistence = registerPersistence(plugins);
 
-// Swap datasource (Dummy → SQL Server)
-container.register<IUsersDataSource>("IUsersDataSource", { useClass: UsersSqlServerDataSource });
+registerUsers();                            // repository + service + controller
+registerBranches();
+registerAppointments();
+registerSystem();                           // identity + audit log
 ```
 
-Classes decorated with `@injectable()` and `@inject("Token")` are resolved automatically.
+A module registers its three layers together, so adding one is a new file plus a line here, and removing one is deleting both:
+
+```typescript
+// modules/features/users.module.ts
+export function registerUsers(): void {
+  container.register<IUsersRepository>(TOKENS.IUsersRepository, { useClass: UsersRepository });
+  container.register<IUsersService>(TOKENS.IUsersService, { useClass: UsersService });
+  container.register<IUsersController>(TOKENS.IUsersController, { useClass: UsersController });
+}
+```
+
+Tokens always come from `TOKENS` (`di/tokens.ts`) rather than a raw string: tsyringe resolves by string, so a typo in `@inject("IUsersServcie")` compiles and only fails when that class is constructed. Classes decorated with `@injectable()` and `@inject(TOKENS.X)` are resolved automatically.
+
+Lifetimes: plugins are singletons — the request context *must* be one, since the middleware and the repository need the same AsyncLocalStorage. Repositories, services and controllers are transient; they hold no state between requests and the routers resolve them once at startup.
 
 ---
 
@@ -167,10 +186,18 @@ throw new AppError("User not found", 404);
 The global `errorHandler` middleware at the end of the middleware chain catches all errors and returns a consistent JSON response:
 
 ```json
-{ "status": "error", "message": "User not found" }
+{
+  "status": "error",
+  "code": "NOT_FOUND",
+  "message": "User not found",
+  "requestId": "3f2a...",
+  "timestamp": "2026-01-01T00:00:00.000Z",
+  "path": "/api/users/9999",
+  "method": "GET"
+}
 ```
 
-Unexpected errors (5xx) are also caught and return a generic message without leaking stack traces.
+The same `requestId` goes out in the `X-Request-Id` header and into every log line of that request. Unexpected errors (5xx) are also caught and return a generic message without leaking stack traces. Full reference: **[errors-and-identity.md](errors-and-identity.md)**.
 
 ---
 
@@ -187,9 +214,10 @@ See **[add-new-module.md](add-new-module.md)** for a complete step-by-step guide
 | `IEnvs` | `IEnvs` | Read environment variables |
 | `ILogger` | `ILogger` | Structured logging |
 | `ITokenPlugin` | `ITokenPlugin` | JWT sign / verify |
-| `ISqlConnectionPlugin` | `ISqlConnectionPlugin` | Raw SQL execution |
 | `IFileStorage` | `IFileStorage` | File upload |
-| `IUsersDataSource` | `IUsersDataSource` | Data access |
+| `IRequestContext` | `IRequestContext` | Identity and request id, per request |
+| `IUnitOfWork` | `IUnitOfWork` | Transaction spanning more than one table |
+| `UsersStore` | `IGenericRepository<IUser>` | CRUD on the active engine |
 | `IUsersRepository` | `IUsersRepository` | Data access abstraction |
 | `IUsersService` | `IUsersService` | Business logic |
 | `IUsersController` | `IUsersController` | HTTP handling |

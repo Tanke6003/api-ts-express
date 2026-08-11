@@ -10,6 +10,7 @@ import type { AppointmentStatus, IAppointment } from "../../domain/models/appoin
 import { BaseModuleRepository } from "./base/module.repository";
 import { SqlGenericRepository } from "./base/drivers/sql.generic.repository";
 import { APPOINTMENTS_ENTITY } from "./entities";
+import { TOKENS } from "../../core/di/tokens";
 
 /**
  * Citas. El CRUD y las consultas por filtro los hereda del repositorio
@@ -27,8 +28,8 @@ export class AppointmentsRepository
   implements IAppointmentsRepository
 {
   constructor(
-    @inject("AppointmentsStore") store: IGenericRepository<IAppointment>,
-    @inject("ILogger") logger: ILogger
+    @inject(TOKENS.AppointmentsStore) store: IGenericRepository<IAppointment>,
+    @inject(TOKENS.ILogger) logger: ILogger
   ) {
     super(store, logger, "AppointmentsRepository");
   }

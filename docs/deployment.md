@@ -111,11 +111,11 @@ See **[environment.md](environment.md)** for the full variable list and **[oracl
 
 ## Switching file storage (S3 / MinIO)
 
-In `src/core/di/container.ts`:
+In `src/core/di/modules/plugins.module.ts`:
 
 ```typescript
 // Local filesystem (default)
-container.register<IFileStorage>("IFileStorage", { useValue: new NativeFileStoragePlugin() });
+container.registerSingleton<IFileStorage>(TOKENS.IFileStorage, NativeFileStoragePlugin);
 
 // S3 / MinIO
 container.register<IFileStorage>("IFileStorage", {

@@ -5,6 +5,7 @@ import type { IGenericRepository } from "../../domain/interfaces/infrastructure/
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { IBranch } from "../../domain/models/branches.model";
 import { BaseModuleRepository } from "./base/module.repository";
+import { TOKENS } from "../../core/di/tokens";
 
 /**
  * Todo el acceso a datos de sucursales viene del repositorio genérico: esta
@@ -19,8 +20,8 @@ export class BranchesRepository
   implements IBranchesRepository
 {
   constructor(
-    @inject("BranchesStore") store: IGenericRepository<IBranch>,
-    @inject("ILogger") logger: ILogger
+    @inject(TOKENS.BranchesStore) store: IGenericRepository<IBranch>,
+    @inject(TOKENS.ILogger) logger: ILogger
   ) {
     super(store, logger, "BranchesRepository");
   }

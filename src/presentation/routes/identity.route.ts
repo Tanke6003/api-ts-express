@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import type { Router } from "express";
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
+import { TOKENS } from "../../core/di/tokens";
 
 /**
  * Identidad de la petición: quién es el usuario según el token.
@@ -12,8 +13,8 @@ export class IdentityRoutes {
   private jwtPlugin: ITokenPlugin;
 
   constructor() {
-    this.identityController = container.resolve<IIdentityController>("IIdentityController");
-    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
+    this.identityController = container.resolve<IIdentityController>(TOKENS.IIdentityController);
+    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
   }
 
   public register(app: Router) {

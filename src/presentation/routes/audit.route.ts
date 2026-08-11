@@ -5,14 +5,15 @@ import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/tok
 import { IAuditController } from "../../domain/interfaces/presentation/controllers/audit.controller.interface";
 import { validateQuery } from "../middlewares/validate.middleware";
 import { auditQuerySchema } from "../../application/validators/audit.validators";
+import { TOKENS } from "../../core/di/tokens";
 
 export class AuditRoutes {
   private auditController: IAuditController;
   private jwtPlugin: ITokenPlugin;
 
   constructor() {
-    this.auditController = container.resolve<IAuditController>("IAuditController");
-    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
+    this.auditController = container.resolve<IAuditController>(TOKENS.IAuditController);
+    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
   }
 
   public register(app: Router) {

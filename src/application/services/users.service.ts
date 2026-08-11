@@ -5,11 +5,12 @@ import { PaginatedDTO, PaginationDTO, UserDTO } from "../dtos/users.dtos";
 import { inject, injectable } from "tsyringe";
 import { AppError } from "../../core/errors/app-error";
 import { userMapper } from "../mapping/profiles";
+import { TOKENS } from "../../core/di/tokens";
 
 @injectable()
 export class UsersService implements IUsersService {
   constructor(
-    @inject("IUsersRepository") private readonly repository: IUsersRepository
+    @inject(TOKENS.IUsersRepository) private readonly repository: IUsersRepository
   ) {}
 
   async getAllUsers(pagination: PaginationDTO): Promise<PaginatedDTO<UserDTO>> {

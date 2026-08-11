@@ -2,9 +2,10 @@
 import { container } from "tsyringe";
 import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 import { Options } from "swagger-jsdoc";
+import { TOKENS } from "../di/tokens";
 
 export const getSwaggerOptions = (): Options => {
-  const envs: IEnvs = container.resolve("IEnvs");
+  const envs: IEnvs = container.resolve(TOKENS.IEnvs);
 
   return {
     definition: {

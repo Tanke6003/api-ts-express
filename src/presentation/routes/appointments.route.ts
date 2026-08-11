@@ -9,6 +9,7 @@ import {
   createAppointmentSchema,
   updateAppointmentSchema,
 } from "../../application/validators/appointments.validators";
+import { TOKENS } from "../../core/di/tokens";
 
 export class AppointmentsRoutes {
   private appointmentsController: IAppointmentsController;
@@ -16,8 +17,8 @@ export class AppointmentsRoutes {
 
   constructor() {
     this.appointmentsController =
-      container.resolve<IAppointmentsController>("IAppointmentsController");
-    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
+      container.resolve<IAppointmentsController>(TOKENS.IAppointmentsController);
+    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
   }
 
   public register(app: Router) {

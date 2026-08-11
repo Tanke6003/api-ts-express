@@ -17,13 +17,14 @@ import {
 import { PaginatedDTO } from "../dtos/common.dtos";
 import { AppError } from "../../core/errors/app-error";
 import { branchMapper } from "../mapping/profiles";
+import { TOKENS } from "../../core/di/tokens";
 
 @injectable()
 export class BranchesService implements IBranchesService {
   constructor(
-    @inject("IBranchesRepository") private readonly repository: IBranchesRepository,
-    @inject("IUnitOfWork") private readonly unitOfWork: IUnitOfWork,
-    @inject("ILogger") private readonly logger: ILogger
+    @inject(TOKENS.IBranchesRepository) private readonly repository: IBranchesRepository,
+    @inject(TOKENS.IUnitOfWork) private readonly unitOfWork: IUnitOfWork,
+    @inject(TOKENS.ILogger) private readonly logger: ILogger
   ) {}
 
   async getAll(query: BranchQueryDTO): Promise<PaginatedDTO<BranchDTO>> {

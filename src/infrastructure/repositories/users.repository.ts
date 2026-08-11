@@ -5,6 +5,7 @@ import type { IGenericRepository } from "../../domain/interfaces/infrastructure/
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { IUser } from "../../domain/models/users.model";
 import { BaseModuleRepository } from "./base/module.repository";
+import { TOKENS } from "../../core/di/tokens";
 
 /**
  * Todo el acceso a datos de usuarios viene del repositorio genérico: esta clase
@@ -16,8 +17,8 @@ import { BaseModuleRepository } from "./base/module.repository";
 @injectable()
 export class UsersRepository extends BaseModuleRepository<IUser> implements IUsersRepository {
   constructor(
-    @inject("UsersStore") store: IGenericRepository<IUser>,
-    @inject("ILogger") logger: ILogger
+    @inject(TOKENS.UsersStore) store: IGenericRepository<IUser>,
+    @inject(TOKENS.ILogger) logger: ILogger
   ) {
     super(store, logger, "UsersRepository");
   }

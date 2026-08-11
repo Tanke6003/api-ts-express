@@ -70,13 +70,14 @@ For a detailed walkthrough see **[docs/getting-started.md](docs/getting-started.
 src/
 ├── main.ts                     # Entry point
 ├── core/
-│   ├── config/                 # Swagger configuration
-│   ├── di/                     # tsyringe DI container
-│   └── errors/                 # AppError custom error class
+│   ├── config/                 # Swagger configuration, env validation
+│   ├── di/                     # Composition root, tokens, one module per feature
+│   └── errors/                 # AppError + driver-error mapping
 ├── presentation/               # HTTP layer
 │   ├── controllers/
-│   ├── middlewares/            # httpLogger, errorHandler, JWT guard
-│   └── routes/                 # OpenAPI-annotated route definitions
+│   ├── middlewares/            # httpLogger, errorHandler, JWT guard, request context
+│   ├── routes/                 # OpenAPI-annotated route definitions
+│   └── utils/                  # parse-id and other HTTP helpers
 ├── application/                # Business logic
 │   ├── dtos/                   # Data Transfer Objects
 │   ├── queries/                # loadRelated — EF-style Include, batched
@@ -86,15 +87,14 @@ src/
 │   ├── interfaces/
 │   └── models/
 ├── infrastructure/             # Concrete implementations
-│   ├── datasources/            # Generic (memory/Oracle) & SQL Server
-│   ├── plugins/                # Pino, Winston, JWT, Sequelize, Oracle, S3
+│   ├── plugins/                # Pino, Winston, JWT, Oracle, Sequelize, Mongo, S3
 │   └── repositories/
 │       ├── base/               # Generic repository, query builder, unit of work
 │       └── entities.ts         # Entity ↔ table mapping (the only place columns are named)
 └── ...
 
 public/                         # Web UI (HTML + JS + Tailwind)
-docker/oracle/                  # Oracle init script, schema and seed
+docker/<engine>/                # Schema and seed for each engine
 ```
 
 Full architecture reference: **[docs/architecture.md](docs/architecture.md)**.
@@ -131,7 +131,7 @@ Everything under `core/`, `infrastructure/` and the cross-cutting middlewares is
 **Branches and appointments are only an example.** They exist to show the patterns end to end — compound queries, `Include`, a transaction that spans two tables, a business rule with a real conflict. To strip them:
 
 1. Delete `branches.*` and `appointments.*` across `domain/`, `application/`, `infrastructure/repositories/` and `presentation/`, plus their tests.
-2. Remove their entries from `entities.ts`, `seed-data.ts`, `ENTITY_NAMES`, `repository.factory.ts`, `container.ts` and `index.route.ts`.
+2. Delete their module file under `core/di/modules/features/` and its line in `container.ts`, then remove their entries from `entities.ts`, `seed-data.ts`, `ENTITY_NAMES`, `tokens.ts`, `repository.factory.ts`, `persistence.module.ts` and `index.route.ts`.
 3. Drop their tables from `docker/<engine>/` and their tabs from `public/`.
 
 Users is a smaller example of the same shape and can go the same way. What remains is the template. Then follow **[docs/add-new-module.md](docs/add-new-module.md)** for your own modules.
@@ -265,10 +265,10 @@ Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md
 | Unit of Work | `infrastructure/repositories/base/*.unit-of-work.ts` |
 | Query Object | `base/query-builder.ts` — LINQ-style `IQueryable<T>` |
 | Data Mapper | `repositories/entities.ts` — entity ↔ table mapping |
-| Dependency Injection | `core/di/container.ts` (tsyringe) |
+| Dependency Injection | `core/di/` (tsyringe) — composition root, tokens, one file per module |
 | Service Layer | `application/services/` |
 | DTO | `application/dtos/` |
-| Strategy | Pluggable datasources & drivers (memory ↔ Oracle ↔ SQL Server) |
+| Strategy | Pluggable engine drivers (memory ↔ SQL ↔ MongoDB), one contract |
 | Singleton | Logger instances |
 | Global error handler | `presentation/middlewares/errorHandler.middleware.ts` |
 | Ambient context (IHttpContextAccessor) | `infrastructure/plugins/asyncRequestContext.plugin.ts` |
