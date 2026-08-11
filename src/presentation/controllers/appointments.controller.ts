@@ -5,7 +5,7 @@ import type { IAppointmentsService } from "../../domain/interfaces/application/s
 import { IAppointmentsController } from "../../domain/interfaces/presentation/controllers/appointments.controller.interface";
 import type { AppointmentQueryInput } from "../../application/validators/appointments.validators";
 import { AppError } from "../../core/errors/app-error";
-import { parseId } from "./parse-id";
+import { parseId } from "../utils/parse-id";
 import { BaseController } from "./base.controller";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 

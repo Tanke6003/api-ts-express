@@ -10,6 +10,11 @@
 -- AUTO_INCREMENT arrancan en 1 y las FK del bloque de citas pueden ir por literal.
 -- =============================================================================
 
+-- El contenedor no trae locale, así que el cliente `mysql` que aplica este
+-- fichero negocia latin1 y leería cada byte UTF-8 como un carácter suelto: sin
+-- esta línea "Juárez" se guarda como "JuÃ¡rez" en una columna que sí es utf8mb4.
+SET NAMES utf8mb4;
+
 -- CREATED_BY se omite a propósito en todos los INSERT: queremos que lo ponga el
 -- DEFAULT 'System' y así verificar de paso que el default está bien declarado.
 INSERT INTO USERS (NAME, EMAIL, PHONE, IS_CLIENT) VALUES

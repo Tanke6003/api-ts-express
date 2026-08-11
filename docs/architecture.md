@@ -45,12 +45,14 @@ src/
 │   ├── middlewares/
 │   │   ├── httpLogger.middleware.ts  # Pino HTTP middleware
 │   │   └── errorHandler.middleware.ts # Global error handler (last middleware)
-│   └── routes/
-│       ├── index.route.ts           # Mounts all routers under /api
-│       ├── users.route.ts           # OpenAPI-annotated CRUD routes
-│       ├── branches.route.ts        # Sucursales
-│       ├── appointments.route.ts    # Citas
-│       └── test.route.ts            # Token generation & file upload (dev)
+│   ├── routes/
+│   │   ├── index.route.ts           # Mounts all routers under /api
+│   │   ├── users.route.ts           # OpenAPI-annotated CRUD routes
+│   │   ├── branches.route.ts        # Sucursales
+│   │   ├── appointments.route.ts    # Citas
+│   │   └── test.route.ts            # Token generation & file upload (dev)
+│   └── utils/
+│       └── parse-id.ts              # Route param → positive integer, or 400
 │
 ├── application/                     # Business logic — knows Domain only
 │   ├── dtos/                        # Request/response shapes (OpenAPI schemas)

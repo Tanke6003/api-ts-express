@@ -1,4 +1,4 @@
-// src/presentation/controllers/parse-id.ts
+// src/presentation/utils/parse-id.ts
 import { AppError } from "../../core/errors/app-error";
 
 /**

@@ -1,4 +1,4 @@
-import { parseId } from "../../../../src/presentation/controllers/parse-id";
+import { parseId } from "../../../../src/presentation/utils/parse-id";
 
 describe("parseId", () => {
   it("acepta enteros positivos", () => {

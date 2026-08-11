@@ -5,7 +5,7 @@ import type { IBranchesService } from "../../domain/interfaces/application/servi
 import { IBranchesController } from "../../domain/interfaces/presentation/controllers/branches.controller.interface";
 import type { BranchQueryInput } from "../../application/validators/branches.validators";
 import { AppError } from "../../core/errors/app-error";
-import { parseId } from "./parse-id";
+import { parseId } from "../utils/parse-id";
 import { BaseController } from "./base.controller";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 
