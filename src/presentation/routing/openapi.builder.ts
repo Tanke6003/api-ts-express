@@ -155,6 +155,35 @@ function responsesOf(route: RouteMetadata): Record<string, unknown> {
   return declared;
 }
 
+/**
+ * Cuerpo de la petición: el generado del esquema de Zod, o el declarado a mano
+ * cuando no es JSON. Si falta, la operación no declara cuerpo y el "Try it out"
+ * de la documentación manda la petición sin `Content-Type`.
+ */
+function requestBodyOf(route: RouteMetadata): Record<string, unknown> {
+  if (route.body) {
+    return {
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: toSchema(route.body) } },
+      },
+    };
+  }
+
+  if (route.requestBody) {
+    const { mediaType, schema, required = true, description } = route.requestBody;
+    return {
+      requestBody: {
+        required,
+        ...(description ? { description } : {}),
+        content: { [mediaType]: { schema } },
+      },
+    };
+  }
+
+  return {};
+}
+
 function operationOf(route: RouteMetadata, tag?: string): Record<string, unknown> {
   const parameters = [...pathParameters(route.params), ...(route.query ? queryParameters(route.query) : [])];
 
@@ -168,14 +197,7 @@ function operationOf(route: RouteMetadata, tag?: string): Record<string, unknown
     ...(route.description ? { description: route.description } : {}),
     ...(route.public ? {} : { security: [{ bearerAuth: [] }] }),
     ...(parameters.length > 0 ? { parameters } : {}),
-    ...(route.body
-      ? {
-          requestBody: {
-            required: true,
-            content: { "application/json": { schema: toSchema(route.body) } },
-          },
-        }
-      : {}),
+    ...requestBodyOf(route),
     responses: responsesOf(route),
   };
 }

@@ -1,5 +1,6 @@
 // src/presentation/controllers/dev.controller.ts
-import { Request, RequestHandler, Response } from "express";
+import { NextFunction, Request, RequestHandler, Response } from "express";
+import { AppError } from "../../core/errors/app-error";
 import Busboy from "busboy";
 import { inject, injectable } from "tsyringe";
 import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
@@ -10,6 +11,35 @@ import { TOKENS } from "../../core/di/tokens";
 import { buildAuthRateLimiter } from "../../core/config/security.config";
 import { ApiController, Get, Post } from "../routing/route.decorators";
 import { z } from "zod";
+
+/**
+ * Cuerpo de una subida.
+ *
+ * Va a mano y no por Zod porque un fichero llega como flujo binario: no hay
+ * esquema que validar, sólo un contrato que declarar para que la documentación
+ * ofrezca el selector de fichero y mande el `Content-Type` correcto.
+ */
+const MULTIPART_SINGLE = {
+  mediaType: "multipart/form-data",
+  required: true,
+  schema: {
+    type: "object",
+    properties: { file: { type: "string", format: "binary" } },
+    required: ["file"],
+  },
+} as const;
+
+const MULTIPART_MANY = {
+  mediaType: "multipart/form-data",
+  required: true,
+  schema: {
+    type: "object",
+    properties: {
+      files: { type: "array", items: { type: "string", format: "binary" } },
+    },
+    required: ["files"],
+  },
+} as const;
 
 /** Parámetros con los que se simula un usuario. Todos opcionales. */
 const tokenQuerySchema = z.object({
@@ -77,84 +107,133 @@ export class DevController {
   @Post("/upload-file", {
     summary: "Sube un fichero",
     public: true,
-    responses: { 200: { description: "Fichero guardado", ref: "UploadedFile" } },
+    requestBody: MULTIPART_SINGLE,
+    responses: {
+      200: { description: "Fichero guardado", ref: "UploadedFile" },
+      400: "El cuerpo no es multipart/form-data o viene mal formado",
+      502: "El almacenamiento de ficheros no responde",
+    },
   })
-  public uploadFile = (req: Request, res: Response): void => {
-    const busboy = Busboy({ headers: req.headers });
-    const storage = new S3FileStoragePlugin(
-      "my-bucket",
-      "us-east-1",
-      "minioadmin",
-      "minioadmin",
-      "http://localhost:9100" // endpoint local
-    );
+  public uploadFile = (req: Request, res: Response, next: NextFunction): void => {
+    this.receiveFiles(req, res, next, async (files) => {
+      const [file] = files;
+      if (!file) throw new AppError("No llegó ningún fichero", 400, true, { code: "NO_FILE" });
 
-    busboy.on("file", (_fieldname, file, info) => {
-      const { filename } = info;
-      const buffers: Buffer[] = [];
-
-      file.on("data", (data) => buffers.push(data));
-      // `on` espera un manejador que no devuelva nada, así que la parte
-      // asíncrona va dentro y se marca con `void`: los errores se atienden
-      // aquí mismo y no queda una promesa suelta que nadie observe.
-      file.on("end", () => {
-        void (async () => {
-          try {
-            const savedPath = await storage.single({
-              buffer: Buffer.concat(buffers),
-              originalname: filename,
-            });
-            res.json({ path: savedPath });
-          } catch (err) {
-            this.logger.error("No se pudo guardar el fichero", { err });
-            res.status(500).json({ error: "Error saving file" });
-          }
-        })();
-      });
+      return { path: await this.storage().single(file) };
     });
-
-    req.pipe(busboy);
   };
 
   @Post("/upload-files", {
     summary: "Sube varios ficheros",
     public: true,
-    responses: { 200: { description: "Ficheros guardados", ref: "UploadedFiles" } },
+    requestBody: MULTIPART_MANY,
+    responses: {
+      200: { description: "Ficheros guardados", ref: "UploadedFiles" },
+      400: "El cuerpo no es multipart/form-data o viene mal formado",
+      502: "El almacenamiento de ficheros no responde",
+    },
   })
-  public uploadFiles = (req: Request, res: Response): void => {
-    const busboy = Busboy({ headers: req.headers });
-    const storage = new S3FileStoragePlugin(
+  public uploadFiles = (req: Request, res: Response, next: NextFunction): void => {
+    this.receiveFiles(req, res, next, async (files) => ({
+      paths: await this.storage().array(files),
+    }));
+  };
+
+  private storage(): S3FileStoragePlugin {
+    return new S3FileStoragePlugin(
       "my-bucket",
       "us-east-1",
       "minioadmin",
       "minioadmin",
       "http://localhost:9100" // endpoint local
     );
+  }
 
-    const filesData: { buffer: Buffer; originalname: string }[] = [];
+  /**
+   * Recoge el multipart entero y llama a `save` una sola vez, al terminar.
+   *
+   * Tres cosas que este envoltorio resuelve y que antes estaban mal:
+   *
+   *  - **Comprueba el `Content-Type` antes de tocar busboy.** Su constructor
+   *    lanza si falta, y como el manejador es síncrono ese fallo salía como un
+   *    500 con traza. Mandar el cuerpo equivocado es un error del cliente: es
+   *    un 400 y con un mensaje que se entienda.
+   *  - **Escucha el `error` de busboy.** Un multipart mal formado emite ese
+   *    evento, y un `error` sin oyente en un EventEmitter tumba el proceso.
+   *  - **Responde una sola vez.** Antes el de un fichero respondía dentro del
+   *    `end` de *cada* fichero, así que dos adjuntos provocaban un segundo
+   *    `res.json` y un ERR_HTTP_HEADERS_SENT.
+   */
+  private receiveFiles(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+    save: (files: { buffer: Buffer; originalname: string }[]) => Promise<unknown>
+  ): void {
+    if (!req.is("multipart/form-data")) {
+      next(
+        new AppError(
+          "El cuerpo debe enviarse como multipart/form-data con el fichero adjunto.",
+          400,
+          true,
+          { code: "NOT_MULTIPART" }
+        )
+      );
+      return;
+    }
+
+    const busboy = Busboy({ headers: req.headers });
+    const files: { buffer: Buffer; originalname: string }[] = [];
 
     busboy.on("file", (_fieldname, file, info) => {
-      const { filename } = info;
-      const buffers: Buffer[] = [];
-
-      file.on("data", (data) => buffers.push(data));
+      const chunks: Buffer[] = [];
+      file.on("data", (data: Buffer) => chunks.push(data));
       file.on("end", () => {
-        filesData.push({ buffer: Buffer.concat(buffers), originalname: filename });
+        files.push({ buffer: Buffer.concat(chunks), originalname: info.filename });
       });
     });
 
+    busboy.on("error", (error) => {
+      next(
+        new AppError("No se pudo leer el cuerpo de la petición.", 400, true, {
+          code: "MALFORMED_MULTIPART",
+          cause: error,
+        })
+      );
+    });
+
     busboy.on("finish", () => {
+      // La parte asíncrona va aquí dentro y marcada con `void`: `on` espera un
+      // manejador que no devuelva nada, y así no queda una promesa suelta.
       void (async () => {
         try {
-          const savedPaths = await storage.array(filesData);
-          res.json({ paths: savedPaths });
-        } catch (err) {
-          this.logger.error("No se pudieron guardar los ficheros", { err });
-          res.status(500).json({ error: "Error saving files" });
+          res.json(await save(files));
+        } catch (error) {
+          this.logger.error("No se pudieron guardar los ficheros", { error });
+
+          // Lo que ya viene decidido —"no llegó ningún fichero"— pasa tal cual.
+          if (error instanceof AppError) {
+            next(error);
+            return;
+          }
+
+          // El resto se envuelve a propósito. Si no, un ECONNREFUSED del
+          // almacenamiento cae en el mapeo genérico de drivers y sale como
+          // "la base de datos no está disponible", que manda a buscar el fallo
+          // al sitio equivocado: aquí la base no ha intervenido.
+          next(
+            new AppError(
+              "No se pudo guardar en el almacenamiento de ficheros. ¿Está levantado? " +
+                "(docker compose up -d minio)",
+              502,
+              true,
+              { code: "FILE_STORAGE_UNAVAILABLE", cause: error }
+            )
+          );
         }
       })();
     });
 
     req.pipe(busboy);
-  };
+  }
 }

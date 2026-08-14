@@ -42,8 +42,24 @@ export interface RouteOptions {
   /** Una línea; es lo que se ve en la lista de Swagger. */
   summary?: string;
   description?: string;
-  /** Esquema del cuerpo. Se valida y se documenta con él. */
+  /** Esquema del cuerpo JSON. Se valida y se documenta con él. */
   body?: ZodType;
+  /**
+   * Cuerpo que no es JSON, descrito a mano.
+   *
+   * Existe para lo que Zod no puede representar y el servidor no valida con un
+   * esquema: una subida `multipart/form-data`, que llega como un flujo. Sin
+   * esto la documentación no declara cuerpo, y entonces Swagger y Scalar mandan
+   * la petición sin `Content-Type` —ni selector de fichero— y el endpoint la
+   * rechaza sin que se entienda por qué.
+   */
+  requestBody?: {
+    mediaType: string;
+    /** Esquema en JSON Schema, tal cual va al documento. */
+    schema: Record<string, unknown>;
+    required?: boolean;
+    description?: string;
+  };
   /** Esquema de la query. Cada propiedad se publica como un parámetro. */
   query?: ZodType;
   /** Parámetros de la ruta (`/users/:id` -> `{ id: "integer" }`). */

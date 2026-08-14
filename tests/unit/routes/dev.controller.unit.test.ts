@@ -7,6 +7,7 @@ import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
 import { S3FileStoragePlugin } from "../../../src/infrastructure/plugins/s3FileStorage.plugin";
 import { DevController } from "../../../src/presentation/controllers/dev.controller";
 import { registerController } from "../../../src/presentation/routing/router.builder";
+import { errorHandler } from "../../../src/presentation/middlewares/errorHandler.middleware";
 import { IRequestContext } from "../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
@@ -62,6 +63,8 @@ describe("DevController (unit)", () => {
     const jwt = container.resolve<ITokenPlugin>("ITokenPlugin");
     registerController(api, DevController, container.resolve(DevController), jwt.middleware);
     app.use("/api", api);
+    // Los rechazos los formatea el manejador global, igual que en el servidor.
+    app.use(errorHandler);
   });
 
   // =============================
@@ -100,5 +103,41 @@ describe("DevController (unit)", () => {
       "https://fake-bucket.s3.amazonaws.com/file1.txt",
       "https://fake-bucket.s3.amazonaws.com/file2.txt",
     ]);
+  });
+
+  // =============================
+  // ❌ Cuerpo que no es multipart
+  // =============================
+  describe("cuerpo equivocado", () => {
+    // Es lo que mandaba la documentación cuando la ruta no declaraba su
+    // `requestBody`: sin `Content-Type`, el constructor de busboy lanza. Eso
+    // salía como un 500 con traza, cuando es un error de quien llama.
+    for (const path of ["/api/upload-file", "/api/upload-files"]) {
+      it(`${path} responde 400, no 500, sin Content-Type de multipart`, async () => {
+        const res = await request(app).post(path).send({ nada: true });
+
+        expect(res.status).toBe(400);
+        expect(res.body).toMatchObject({ status: "error", code: "NOT_MULTIPART" });
+      });
+    }
+
+    it("un multipart sin ficheros no revienta", async () => {
+      const res = await request(app).post("/api/upload-file").field("campo", "valor");
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("NO_FILE");
+    });
+  });
+
+  it("responde una sola vez aunque lleguen varios ficheros a /upload-file", async () => {
+    // Antes respondía dentro del `end` de cada fichero: el segundo provocaba un
+    // ERR_HTTP_HEADERS_SENT.
+    const res = await request(app)
+      .post("/api/upload-file")
+      .attach("file", Buffer.from("one"), "file1.txt")
+      .attach("file", Buffer.from("two"), "file2.txt");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ path: "https://fake-bucket.s3.amazonaws.com/file.txt" });
   });
 });
