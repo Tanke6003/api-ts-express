@@ -29,7 +29,7 @@ describe("PinoLoggerPlugin extra branches", () => {
       getEnv: () => undefined,
     });
 
-    const plugin = new PinoLoggerPlugin();
+    new PinoLoggerPlugin();
     // Se espera defaults
     expect(pino).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -72,7 +72,7 @@ describe("PinoLoggerPlugin extra branches", () => {
   });
 
   it("should extract reqId from x-amzn-trace-id header if no x-request-id", () => {
-    const plugin = new PinoLoggerPlugin();
+    new PinoLoggerPlugin();
     const req = { method: "GET", url: "/x", headers: { "x-amzn-trace-id": "trace-999" }, socket: {} };
     const res = { statusCode: 200, socket: { remoteAddress: "127.0.0.1" } };
     expect((pinoHttp as jest.Mock).mock.calls[0][0].customProps(req, res)).toMatchObject({
@@ -81,7 +81,7 @@ describe("PinoLoggerPlugin extra branches", () => {
   });
 
   it("should extract user-agent header", () => {
-    const plugin = new PinoLoggerPlugin();
+    new PinoLoggerPlugin();
     const req = { method: "POST", url: "/ua", headers: { "user-agent": "jest-agent" }, socket: {} };
     const res = { statusCode: 200, socket: { remoteAddress: "127.0.0.1" } };
     expect((pinoHttp as jest.Mock).mock.calls[0][0].customProps(req, res)).toMatchObject({
@@ -90,7 +90,7 @@ describe("PinoLoggerPlugin extra branches", () => {
   });
 
   it("should extract ip from x-forwarded-for", () => {
-    const plugin = new PinoLoggerPlugin();
+    new PinoLoggerPlugin();
     const req = { method: "GET", url: "/", headers: { "x-forwarded-for": "10.0.0.1, 10.0.0.2" }, socket: {} };
     const res = { statusCode: 200, socket: { remoteAddress: "127.0.0.1" } };
     expect((pinoHttp as jest.Mock).mock.calls[0][0].customProps(req, res)).toMatchObject({
@@ -99,7 +99,7 @@ describe("PinoLoggerPlugin extra branches", () => {
   });
 
   it("should fallback ip to socket.remoteAddress", () => {
-    const plugin = new PinoLoggerPlugin();
+    new PinoLoggerPlugin();
     const req = { method: "GET", url: "/", headers: {}, socket: { remoteAddress: "192.168.0.9" } };
     const res = { statusCode: 200, socket: { remoteAddress: "192.168.0.9" } };
     expect((pinoHttp as jest.Mock).mock.calls[0][0].customProps(req, res)).toMatchObject({
@@ -108,7 +108,7 @@ describe("PinoLoggerPlugin extra branches", () => {
   });
 
   it("should handle customSuccessMessage and customErrorMessage", () => {
-    const plugin = new PinoLoggerPlugin();
+    new PinoLoggerPlugin();
     const opts = (pinoHttp as jest.Mock).mock.calls[0][0];
     expect(opts.customSuccessMessage()).toBe("http_access");
     expect(opts.customErrorMessage()).toBe("http_error");

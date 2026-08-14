@@ -1,230 +1,172 @@
-# Testing Guide
+# Testing
 
-This project uses **Jest** with **ts-jest** for TypeScript support. Tests are split into three categories: unit, integration, and e2e.
+Jest with ts-jest. Everything runs against the in-memory driver, so `npm test` needs no Docker and no database — the suite is the same in CI and on a laptop.
 
 ---
 
-## Running tests
+## Running
 
 | Command | Description |
 |---------|-------------|
-| `npm test` | Run unit + integration tests with coverage |
-| `npm run test:watch` | Watch mode — re-runs on file changes |
-| `npm run test:local` | Full run with HTML + LCOV + JSON reports |
-| `npm run test:repo` | CI-friendly run (text-summary only) |
-
-Reports are written to `reports/`:
+| `npm test` | Unit + integration, with coverage. What CI runs |
+| `npm run test:watch` | Watch mode, re-runs on change |
+| `npm run test:local` | Adds HTML + LCOV + JSON reports under `reports/` |
+| `npm run test:repo` | Text summary only, for CI logs |
 
 ```
 reports/
-├── coverage/         # HTML, LCOV, JSON coverage
-│   ├── index.html    # Open in browser
-│   └── lcov.info
-└── tests-report.html # Jest HTML test report
+├── coverage/index.html   # open in a browser
+├── coverage/lcov.info
+└── tests-report.html
 ```
 
 ---
 
-## Test types
+## Layout
 
-### Unit tests (`tests/unit/`)
+```
+tests/
+├── unit/          # One class at a time, dependencies doubled
+├── integration/   # The whole HTTP stack over supertest
+├── contract/      # The suite every repository driver must pass
+├── mocks/         # Shared doubles
+├── setup/         # test-env.ts — env vars the suite runs with
+└── e2e/           # Against a real environment. Disabled by default
+```
 
-Test a single class in isolation. All dependencies are mocked.
+`testMatch` picks up `tests/unit/**` and `tests/integration/**`. The e2e line is commented out in `jest.config.js`: enable it when you have a real environment to point at.
 
-- No network, no database, no filesystem
-- Fast — milliseconds per file
-- High coverage requirement (90 %+ functions/lines in application and presentation layers)
-
-### Integration tests (`tests/integration/`)
-
-Test the full HTTP stack using [supertest](https://github.com/ladjs/supertest).
-
-- Boot the Express app against the **DummyDataSource** (no external DB needed)
-- Verify HTTP status codes, response bodies, and auth middleware
-- Run with `npm test` (included in default `testMatch`)
-
-### E2E tests (`tests/e2e/`) — disabled by default
-
-End-to-end tests run against a real environment (real DB, real services). They are commented out in `jest.config.js`. Enable them when you have a full environment configured.
+`tests/contract/` holds no test files of its own — it exports a function that a driver's test calls, which is why it has no `.test.ts` suffix.
 
 ---
 
 ## Coverage thresholds
 
-Defined in `jest.config.js` per layer:
+Enforced per layer in `jest.config.js`. A module without tests fails the build, not just the report:
 
 | Layer | Branches | Functions | Lines | Statements |
 |-------|----------|-----------|-------|------------|
 | `src/application/` | 85 % | 90 % | 90 % | 90 % |
-| `src/infrastructure/` | 70 % | 90 % | 90 % | 90 % |
+| `src/infrastructure/` | 65 % | 88 % | 88 % | 88 % |
 | `src/presentation/` | 80 % | 90 % | 90 % | 90 % |
 
-If any threshold is not met, `npm test` exits with a non-zero code and CI fails.
+Interfaces, `main.ts`, the config files and the composition root are excluded from the count: they are declarations or wiring, and covering them measures nothing.
 
 ---
 
-## Writing unit tests
+## The driver contract
 
-### Service test pattern
+The promise of this template is that a module written once behaves the same on every engine. That promise is checked, not asserted in a README: `tests/contract/generic-repository.contract.ts` is a single set of assertions — inserts, filters, ordering, paging, projection, soft and hard delete, restore — that **every** implementation of `IGenericRepository<T>` has to pass.
 
 ```typescript
-// tests/unit/services/products.service.unit.test.ts
-import "reflect-metadata";
-import { ProductsService } from "../../../src/application/services/products.service";
-import { IProductsRepository } from "../../../src/domain/interfaces/infrastructure/repositories/products.repository.interface";
-
-const mockRepository: jest.Mocked<IProductsRepository> = {
-  getAllProducts: jest.fn(),
-  getProductById: jest.fn(),
-  createProduct: jest.fn(),
-  updateProduct: jest.fn(),
-  deleteProduct: jest.fn(),
-};
-
-describe("ProductsService", () => {
-  let service: ProductsService;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    service = new ProductsService(mockRepository);
-  });
-
-  it("should return all products as DTOs", async () => {
-    mockRepository.getAllProducts.mockResolvedValue([
-      { pkProduct: 1, name: "Widget", price: 9.99, available: true },
-    ]);
-
-    const result = await service.getAllProducts();
-
-    expect(result).toEqual([{ id: 1, name: "Widget", price: 9.99 }]);
-  });
+// tests/unit/infrastructure/repositories/base/mongo.contract.unit.test.ts
+runGenericRepositoryContract("mongodb", {
+  create: () =>
+    new MongoGenericRepository<ContractItem>(new FakeMongoDataSource(), CONTRACT_ENTITY, silentLogger),
 });
 ```
 
-### Controller test pattern
+The entity the suite uses lives in the contract file itself, so each driver imports it without dragging in another driver's test. Add a driver, run the contract against it, and any divergence shows up as a failing assertion instead of as a bug in production.
 
-```typescript
-// tests/unit/controllers/products.controller.unit.test.ts
-import { ProductsController } from "../../../src/presentation/controllers/products.controller";
-import { IProductsService } from "../../../src/domain/interfaces/application/services/products.service.interface";
-
-describe("ProductsController", () => {
-  let mockService: jest.Mocked<IProductsService>;
-  let controller: ProductsController;
-  let mockReq: any;
-  let mockRes: any;
-
-  beforeEach(() => {
-    mockService = {
-      getAllProducts: jest.fn(),
-      getProductById: jest.fn(),
-      createProduct: jest.fn(),
-      updateProduct: jest.fn(),
-      deleteProduct: jest.fn(),
-    };
-
-    controller = new ProductsController(mockService);
-
-    mockReq = { params: {}, body: {} };
-    mockRes = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-      send: jest.fn().mockReturnThis(),
-    };
-  });
-
-  it("should return 200 with all products", async () => {
-    mockService.getAllProducts.mockResolvedValue([{ id: 1, name: "Widget", price: 9.99 }]);
-
-    await controller.getAllProducts(mockReq, mockRes);
-
-    expect(mockRes.json).toHaveBeenCalledWith([{ id: 1, name: "Widget", price: 9.99 }]);
-  });
-
-  it("should return 500 on service error", async () => {
-    mockService.getAllProducts.mockRejectedValue(new Error("DB down"));
-
-    await controller.getAllProducts(mockReq, mockRes);
-
-    expect(mockRes.status).toHaveBeenCalledWith(500);
-  });
-});
-```
+Whatever is specific to one engine — the SQL it generates, how it reads back a generated id — belongs in that driver's own test, not in the contract.
 
 ---
 
-## Writing integration tests
+## Unit tests
 
-Integration tests start the Express app (using DI container + DummyDataSource) and fire HTTP requests.
+Doubles are plain objects. The classes are `@injectable()` but they take ordinary constructor parameters, so a unit test never needs the container.
+
+### Controller
+
+Controllers delegate, map to a status code, and hand errors to `next` — the global handler builds the response, so a controller test asserts `next` was called, never a 500 body:
 
 ```typescript
-// tests/integration/products.integration.test.ts
+service = { getAll: jest.fn(), getById: jest.fn(), create: jest.fn() /* … */ };
+controller = new BranchesController(service);
+
+it("pasa la query ya validada al servicio", async () => {
+  service.getAll.mockResolvedValue(page);
+
+  await controller.getAll({ validatedQuery: { page: 2, limit: 5 } } as never, res, next);
+
+  expect(service.getAll).toHaveBeenCalledWith({ page: 2, limit: 5 });
+  expect(res.json).toHaveBeenCalledWith(page);
+});
+```
+
+### Service
+
+Services hold the business rules, so their tests are where the interesting assertions live: filters, `Include`, conflicts, and what happens inside a transaction. Double the unit of work by running the callback with scoped doubles, and assert the service asked for the right repositories:
+
+```typescript
+unitOfWork = { execute: jest.fn((work) => work({ /* scoped repositories */ })) };
+```
+
+When a mock would be more work than the real thing, use `MemoryGenericRepository` as an actual store — it passes the same contract as the engines, so it is a faithful stand-in.
+
+### Repository
+
+Per-module repositories mostly forward to the generic one. Test what they add: the extra SQL and its fallback for the drivers that are not SQL. `tests/unit/repositories/appointments.repository.unit.test.ts` is the worked example.
+
+---
+
+## Integration tests
+
+They boot the real Express app over the in-memory driver and drive it through HTTP. This is where the things that only exist once the layers are assembled get checked: the error envelope, the request id, the audit trail, the transaction that spans two tables.
+
+```typescript
 import "reflect-metadata";
-import "../../src/core/di/container";
 import request from "supertest";
 import { Server } from "../../src/core/server";
-import { container } from "tsyringe";
-import { IEnvs } from "../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
-
-let app: any;
+// Importarlo registra todo el contenedor, y de paso reexporta TOKENS.
+import { container, TOKENS } from "../../src/core/di/container";
 
 beforeAll(async () => {
-  const envs = container.resolve<IEnvs>("IEnvs");
+  const envs = container.resolve<IEnvs>(TOKENS.IEnvs);
   const server = new Server(Number(envs.getEnv("PORT") || 4002));
   await server.configureMiddleware();
   await server.configureRoutes();
+  server.configureErrorHandling();   // last, or it never sees the errors
   app = server.app;
-});
 
-describe("GET /api/products", () => {
-  it("returns 200 with an array", async () => {
-    const res = await request(app).get("/api/products");
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-  });
+  const { body } = await request(app).get("/api/generate-token?userId=7&name=Ruben");
+  auth = `Bearer ${body.token}`;
 });
 ```
+
+`configureErrorHandling()` goes after the routes on purpose: an error middleware registered earlier never runs. Getting that order wrong in a test is the fastest way to end up asserting Express's default HTML error page.
 
 ---
 
-## Mocking the DI container
+## The container in tests
 
-When the container is not needed, pass dependencies directly to the constructor — `@injectable` classes accept constructor injection without the container:
-
-```typescript
-// No container needed
-const mockRepo = { getAllProducts: jest.fn(), ... };
-const service = new ProductsService(mockRepo);
-```
-
-For server-level tests that need the container, reset and re-register:
+Prefer passing dependencies to the constructor. When a test really needs the container — server-level tests that resolve controllers — reset it and register only what that test needs, always through `TOKENS`:
 
 ```typescript
 beforeEach(() => {
   container.reset();
-  container.register("ILogger", { useValue: mockLogger });
-  // register other needed tokens...
+  container.register(TOKENS.ILogger, { useValue: mockLogger });
+  container.registerSingleton(TOKENS.IRequestContext, AsyncRequestContextPlugin);
 });
 ```
 
+Importing `src/core/di/container` registers everything as a side effect, which is what the integration tests want and what a focused unit test does not.
+
 ---
 
-## Test file naming
+## Naming
 
-| Test type | Pattern |
-|-----------|---------|
+| Kind | Pattern |
+|------|---------|
 | Unit | `tests/unit/<layer>/<name>.unit.test.ts` |
 | Integration | `tests/integration/<name>.integration.test.ts` |
+| Contract | `tests/unit/**/<driver>.contract.unit.test.ts` |
 | E2E | `tests/e2e/<name>.e2e.test.ts` |
 
 ---
 
-## Debugging tests in VS Code
+## Debugging
 
-The `.vscode/launch.json` includes configurations for:
+`.vscode/launch.json` ships with **Jest — Run all**, **Jest — Watch** and **Jest — Coverage**. Pick one from the Run & Debug panel (`Ctrl+Shift+D`).
 
-- **Jest — Run all** — run all tests
-- **Jest — Watch** — watch mode
-- **Jest — Coverage** — run with coverage
-
-Select one from the Run & Debug panel (`Ctrl+Shift+D`).
+What each new module owes the suite is listed at the end of **[add-new-module.md](add-new-module.md)**.

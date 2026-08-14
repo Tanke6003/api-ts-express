@@ -11,6 +11,21 @@
  *         name:
  *           type: string
  *           example: John Doe
+ *         email:
+ *           type: string
+ *           nullable: true
+ *           example: john@example.com
+ *         phone:
+ *           type: string
+ *           nullable: true
+ *           example: "+52 55 1111 1111"
+ *         wallet:
+ *           type: number
+ *           nullable: true
+ *           example: 100.00
+ *         isClient:
+ *           type: boolean
+ *           example: true
  *     PaginatedUsers:
  *       type: object
  *       properties:
@@ -34,17 +49,14 @@
 export interface UserDTO {
   id: number;
   name: string;
+  /** Sólo lo informan los drivers cuyo esquema los tiene (Oracle). */
+  email?: string | null;
+  phone?: string | null;
+  wallet?: number | null;
+  /** Los clientes pueden ser titulares de una cita. */
+  isClient?: boolean;
 }
 
-export interface PaginationDTO {
-  page: number;
-  limit: number;
-}
-
-export interface PaginatedDTO<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  pages: number;
-}
+// Reexportados para no romper los imports existentes; su definición vive ahora
+// en common.dtos.ts, compartida con el resto de módulos.
+export type { PaginationDTO, PaginatedDTO } from "./common.dtos";

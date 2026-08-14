@@ -7,6 +7,8 @@ import { IEnvs } from "../../../src/domain/interfaces/infrastructure/plugins/env
 import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { ITokenPlugin } from "../../../src/domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
+import { IRequestContext } from "../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 
 jest.mock("swagger-jsdoc", () => jest.fn(() => ({ openapi: "3.0.0" })));
 jest.mock("swagger-ui-express", () => ({
@@ -39,6 +41,7 @@ describe("Server", () => {
       },
     });
 
+    container.registerSingleton<IRequestContext>("IRequestContext", AsyncRequestContextPlugin);
     container.register<ITokenPlugin>("ITokenPlugin", { useClass: JwtPlugin });
 
     container.register("IUsersController", {
@@ -49,6 +52,28 @@ describe("Server", () => {
         updateUser: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1, updated: true })),
         deleteUser: jest.fn((_req: any, res: any, _next: any) => res.status(204).send()),
       },
+    });
+
+    // Los módulos nuevos sólo necesitan responder algo: aquí se prueba el
+    // cableado del servidor, no su lógica.
+    const controllerStub = () => ({
+      getAll: jest.fn((_req: any, res: any, _next: any) => res.json({ data: [] })),
+      getById: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1 })),
+      create: jest.fn((_req: any, res: any, _next: any) => res.status(201).json({ id: 1 })),
+      update: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1 })),
+      softDelete: jest.fn((_req: any, res: any, _next: any) => res.status(204).send()),
+      hardDelete: jest.fn((_req: any, res: any, _next: any) => res.status(204).send()),
+      restore: jest.fn((_req: any, res: any, _next: any) => res.json({ status: "ok" })),
+      getStats: jest.fn((_req: any, res: any, _next: any) => res.json({ data: [] })),
+    });
+
+    container.register("IBranchesController", { useValue: controllerStub() });
+    container.register("IAppointmentsController", { useValue: controllerStub() });
+    container.register("IAuditController", {
+      useValue: { getAll: jest.fn((_req: any, res: any) => res.json({ data: [] })) },
+    });
+    container.register("IIdentityController", {
+      useValue: { me: jest.fn((_req: any, res: any) => res.json({ id: "1" })) },
     });
 
     container.register<ILogger>("ILogger", {

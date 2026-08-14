@@ -8,7 +8,9 @@ import type { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.
  * falla de forma ruidosa (lanza un error) listando qué variables faltan.
  *
  * - `JWT_SECRET` es siempre obligatorio.
- * - Los secretos de base de datos solo se exigen cuando `DATA_SOURCE=sqlserver`.
+ * - Los secretos de base de datos solo se exigen para el driver configurado en
+ *   `DATA_SOURCE`, para no obligar a definir credenciales de motores que no se
+ *   están usando.
  */
 export function validateCriticalEnvs(envs: IEnvs): void {
   const missing: string[] = [];
@@ -17,9 +19,32 @@ export function validateCriticalEnvs(envs: IEnvs): void {
     missing.push("JWT_SECRET");
   }
 
-  if ((envs.getEnv("DATA_SOURCE") || "dummy").toLowerCase() === "sqlserver") {
+  const dataSource = (envs.getEnv("DATA_SOURCE") || "dummy").toLowerCase();
+
+  if (dataSource === "sqlserver") {
     if (!envs.getEnv("DB_PASSWORD")) {
       missing.push("DB_PASSWORD");
+    }
+  }
+
+  if (dataSource === "postgres" || dataSource === "postgresql") {
+    if (!envs.getEnv("POSTGRES_PASSWORD")) missing.push("POSTGRES_PASSWORD");
+  }
+
+  if (dataSource === "mysql" || dataSource === "mariadb") {
+    if (!envs.getEnv("MYSQL_PASSWORD")) missing.push("MYSQL_PASSWORD");
+  }
+
+  // MongoDB no aparece aquí a propósito: su contenedor de desarrollo corre sin
+  // autenticación —a diferencia de los otros cuatro motores—, así que exigir
+  // MONGO_PASSWORD impediría arrancar en el escenario normal. Si el despliegue
+  // tiene credenciales, se pasan por MONGO_USER/MONGO_PASSWORD.
+
+  if (dataSource === "oracle") {
+    // El usuario y el connect string tienen valor por defecto alineado con el
+    // docker-compose; la contraseña no puede tenerlo.
+    if (!envs.getEnv("ORACLE_PASSWORD")) {
+      missing.push("ORACLE_PASSWORD");
     }
   }
 

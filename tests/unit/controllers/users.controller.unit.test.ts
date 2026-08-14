@@ -2,7 +2,6 @@
 import { UsersController } from "../../../src/presentation/controllers/users.controller";
 import { IUsersService } from "../../../src/domain/interfaces/application/services/users.service.interface";
 import { PaginatedDTO, UserDTO } from "../../../src/application/dtos/users.dtos";
-import { AppError } from "../../../src/core/errors/app-error";
 
 describe("UsersController", () => {
   let mockService: jest.Mocked<IUsersService>;

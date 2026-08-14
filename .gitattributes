@@ -1,0 +1,18 @@
+# Normaliza a LF dentro del repositorio, pase lo que pase en la configuración
+# local de core.autocrlf. Sin esto, un mismo fichero llega al repositorio con
+# finales distintos según quién lo guarde y el diff sale entero cambiado.
+* text=auto
+
+# Los scripts y el SQL que se montan dentro de los contenedores los ejecuta
+# Linux: con finales de línea CRLF, bash fallaría con "bad interpreter: ...^M".
+# Aquí se fuerza LF también en la copia de trabajo, no sólo en el repositorio.
+*.sh   text eol=lf
+*.sql  text eol=lf
+
+# Binarios: nunca se tocan.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary

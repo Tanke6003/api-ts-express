@@ -6,6 +6,9 @@ import { ITokenPlugin } from "../../../src/domain/interfaces/infrastructure/plug
 import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
 import { S3FileStoragePlugin } from "../../../src/infrastructure/plugins/s3FileStorage.plugin";
 import { TestRoutes } from "../../../src/presentation/routes/test.route";
+import { IRequestContext } from "../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
+import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
 // mock del S3FileStoragePlugin
 jest.mock("../../../src/infrastructure/plugins/s3FileStorage.plugin");
@@ -25,6 +28,15 @@ describe("TestRoutes (unit)", () => {
           return "";
         },
       },
+    });
+
+    // JwtPlugin publica la identidad en el contexto de la peticion.
+    container.registerSingleton<IRequestContext>("IRequestContext", AsyncRequestContextPlugin);
+    container.register<ILogger>("ILogger", {
+      useValue: {
+        info: jest.fn(), warn: jest.fn(), error: jest.fn(),
+        debug: jest.fn(), trace: jest.fn(), http: jest.fn(),
+      } as unknown as ILogger,
     });
 
     // El plugin de token se resuelve por DI desde las rutas

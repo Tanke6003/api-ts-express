@@ -4,13 +4,13 @@ import { IUsersRepository } from "../../../src/domain/interfaces/infrastructure/
 import { IUser } from "../../../src/domain/models/users.model";
 import { UserDTO } from "../../../src/application/dtos/users.dtos";
 
-const mockRepository: jest.Mocked<IUsersRepository> = {
-  getAllUsers: jest.fn(),
-  getUserById: jest.fn(),
-  createUser: jest.fn(),
-  updateUser: jest.fn(),
-  deleteUser: jest.fn(),
-};
+const mockRepository = {
+  getPaged: jest.fn(),
+  getById: jest.fn(),
+  insert: jest.fn(),
+  update: jest.fn(),
+  softDelete: jest.fn(),
+} as unknown as jest.Mocked<IUsersRepository>;
 
 describe("UsersService Unit Tests", () => {
   let usersService: UsersService;
@@ -23,11 +23,11 @@ describe("UsersService Unit Tests", () => {
   it("should receive a repository implementing IUsersRepository", () => {
     expect((usersService as any).repository).toEqual(
       expect.objectContaining({
-        getAllUsers: expect.any(Function),
-        getUserById: expect.any(Function),
-        createUser: expect.any(Function),
-        updateUser: expect.any(Function),
-        deleteUser: expect.any(Function),
+        getPaged: expect.any(Function),
+        getById: expect.any(Function),
+        insert: expect.any(Function),
+        update: expect.any(Function),
+        softDelete: expect.any(Function),
       })
     );
   });
@@ -37,23 +37,25 @@ describe("UsersService Unit Tests", () => {
   // ======================================
   it("should return all users mapped to DTOs with pagination", async () => {
     const mockUsers: IUser[] = [{ pkUser: 1, name: "Test User", available: true }];
-    mockRepository.getAllUsers.mockResolvedValue({ users: mockUsers, total: 1 });
+    mockRepository.getPaged.mockResolvedValue({ items: mockUsers, total: 1, page: 1, limit: 10, pages: 1 });
 
     const result = await usersService.getAllUsers({ page: 1, limit: 10 });
 
     expect(result).toEqual({
-      data: [{ id: 1, name: "Test User" }],
+      data: [{ id: 1, name: "Test User", email: null, phone: null, wallet: null, isClient: true }],
       total: 1,
       page: 1,
       limit: 10,
       pages: 1,
     });
-    expect(mockRepository.getAllUsers).toHaveBeenCalledWith(1, 10);
+    expect(mockRepository.getPaged).toHaveBeenCalledWith(1, 10, {
+      orderBy: { field: "pkUser", direction: "asc" },
+    });
   });
 
   it("should calculate pages correctly", async () => {
     const mockUsers: IUser[] = [{ pkUser: 1, name: "A", available: true }];
-    mockRepository.getAllUsers.mockResolvedValue({ users: mockUsers, total: 25 });
+    mockRepository.getPaged.mockResolvedValue({ items: mockUsers, total: 25, page: 1, limit: 10, pages: 3 });
 
     const result = await usersService.getAllUsers({ page: 1, limit: 10 });
 
@@ -66,38 +68,51 @@ describe("UsersService Unit Tests", () => {
   // ======================================
   it("should return a user by ID mapped to DTO", async () => {
     const mockUser: IUser = { pkUser: 1, name: "Test User", available: true };
-    mockRepository.getUserById.mockResolvedValue(mockUser);
+    mockRepository.getById.mockResolvedValue(mockUser);
 
     const result = await usersService.getUserById(1);
 
-    expect(result).toEqual({ id: 1, name: "Test User" });
-    expect(mockRepository.getUserById).toHaveBeenCalledWith(1);
+    expect(result).toEqual({
+      id: 1,
+      name: "Test User",
+      email: null,
+      phone: null,
+      wallet: null,
+      isClient: true,
+    });
+    expect(mockRepository.getById).toHaveBeenCalledWith(1);
   });
 
   it("should return null if user not found", async () => {
-    mockRepository.getUserById.mockResolvedValue(null);
+    mockRepository.getById.mockResolvedValue(null);
 
     const result = await usersService.getUserById(99);
 
     expect(result).toBeNull();
-    expect(mockRepository.getUserById).toHaveBeenCalledWith(99);
+    expect(mockRepository.getById).toHaveBeenCalledWith(99);
   });
 
   // ======================================
   // createUser
   // ======================================
   it("should create a new user (DTO → Model)", async () => {
-    mockRepository.createUser.mockResolvedValue(true);
+    mockRepository.insert.mockResolvedValue({ pkUser: 1, name: "New User" } as never);
 
     const dto: UserDTO = { id: 0, name: "New User" };
     const result = await usersService.createUser(dto);
 
     expect(result).toBe(true);
-    expect(mockRepository.createUser).toHaveBeenCalledWith({ pkUser: 0, name: "New User" });
+    expect(mockRepository.insert).toHaveBeenCalledWith({
+      name: "New User",
+      email: null,
+      phone: null,
+      wallet: null,
+      isClient: true,
+    });
   });
 
   it("should throw AppError if createUser returns false", async () => {
-    mockRepository.createUser.mockResolvedValue(false);
+    mockRepository.insert.mockResolvedValue(null as never);
 
     await expect(usersService.createUser({ id: 0, name: "Fail" })).rejects.toMatchObject({
       statusCode: 500,
@@ -109,44 +124,44 @@ describe("UsersService Unit Tests", () => {
   // updateUser
   // ======================================
   it("should update a user mapping only the present fields (no pkUser in the change set)", async () => {
-    mockRepository.updateUser.mockResolvedValue(true);
+    mockRepository.update.mockResolvedValue({ pkUser: 1 } as never);
 
     const dto: UserDTO = { id: 1, name: "Updated User" };
     const result = await usersService.updateUser(1, dto);
 
     expect(result).toBe(true);
-    expect(mockRepository.updateUser).toHaveBeenCalledWith(1, { name: "Updated User" });
+    expect(mockRepository.update).toHaveBeenCalledWith(1, { name: "Updated User" });
   });
 
   it("should not invent a pkUser 0 nor a name when updating with an empty payload", async () => {
-    mockRepository.updateUser.mockResolvedValue(true);
+    mockRepository.update.mockResolvedValue({ pkUser: 1 } as never);
 
     const result = await usersService.updateUser(5, {});
 
     expect(result).toBe(true);
-    expect(mockRepository.updateUser).toHaveBeenCalledWith(5, {});
-    const [, partial] = mockRepository.updateUser.mock.calls[0];
+    expect(mockRepository.update).toHaveBeenCalledWith(5, {});
+    const [, partial] = mockRepository.update.mock.calls[0];
     expect(partial).not.toHaveProperty("pkUser");
     expect(partial).not.toHaveProperty("name");
   });
 
   it("should map only the name on a partial update", async () => {
-    mockRepository.updateUser.mockResolvedValue(true);
+    mockRepository.update.mockResolvedValue({ pkUser: 1 } as never);
 
     await usersService.updateUser(7, { name: "Only Name" });
 
-    expect(mockRepository.updateUser).toHaveBeenCalledWith(7, { name: "Only Name" });
+    expect(mockRepository.update).toHaveBeenCalledWith(7, { name: "Only Name" });
   });
 
   // ======================================
   // deleteUser
   // ======================================
   it("should delete a user", async () => {
-    mockRepository.deleteUser.mockResolvedValue(true);
+    mockRepository.softDelete.mockResolvedValue(true);
 
     const result = await usersService.deleteUser(1);
 
     expect(result).toBe(true);
-    expect(mockRepository.deleteUser).toHaveBeenCalledWith(1);
+    expect(mockRepository.softDelete).toHaveBeenCalledWith(1);
   });
 });

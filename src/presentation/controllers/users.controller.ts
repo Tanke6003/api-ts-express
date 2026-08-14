@@ -4,16 +4,26 @@ import { IUsersController } from "../../domain/interfaces/presentation/controlle
 import type { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
 import { inject, injectable } from "tsyringe";
 import { AppError } from "../../core/errors/app-error";
+import type { PaginationInput } from "../../application/validators/users.validators";
+import { BaseController } from "./base.controller";
+import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { TOKENS } from "../../core/di/tokens";
 
 @injectable()
-export class UsersController implements IUsersController {
+export class UsersController extends BaseController implements IUsersController {
   constructor(
-    @inject("IUsersService") private readonly usersService: IUsersService
-  ) {}
+    @inject(TOKENS.IUsersService) private readonly usersService: IUsersService,
+    @inject(TOKENS.IRequestContext) context: IRequestContext
+  ) {
+    super(context);
+  }
 
   public getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { page, limit } = req.validatedQuery ?? { page: 1, limit: 10 };
+      const { page, limit } = (req.validatedQuery as PaginationInput | undefined) ?? {
+        page: 1,
+        limit: 10,
+      };
       const result = await this.usersService.getAllUsers({ page, limit });
       res.json(result);
     } catch (err) {

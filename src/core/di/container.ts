@@ -1,86 +1,51 @@
 // src/core/di/container.ts
+//
+// Raíz de composición. Se limita a decidir el orden: cada bloque se registra en
+// su propio fichero de `modules/`, así que añadir un módulo es crear el suyo y
+// añadir una línea aquí, y quitarlo es borrar las dos. El detalle de qué
+// implementación cubre cada interfaz vive en el módulo, no en esta lista.
+//
+// `modules/` es el andamiaje de la plantilla —plugins, persistencia, identidad y
+// bitácora— y `modules/features/` son los módulos de negocio, uno por fichero.
+// Esa frontera es la misma que describe el readme: lo de fuera se queda, lo de
+// dentro se sustituye por lo tuyo.
+//
+// Registrar al importar es deliberado: `main.ts`, las rutas y los tests dan por
+// hecho que basta con importar este fichero para tener el contenedor listo.
 import "reflect-metadata";
 import { container } from "tsyringe";
-import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { IUsersDataSource } from "../../domain/interfaces/infrastructure/datasources/users.datasource.interface";
-import { resolveUsersDataSource } from "./datasource.factory";
-import { createLogger } from "./logger.factory";
-import { validateCriticalEnvs } from "../config/env.validation";
-import { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
-import { UsersRepository } from "../../infrastructure/repositories/users.repository";
-import { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
-import { UsersService } from "../../application/services/users.service";
-import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
-import { UsersController } from "../../presentation/controllers/users.controller";
-import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
-import { DotenvPlugin } from "../../infrastructure/plugins/dotenv.plugin";
-import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { JwtPlugin } from "../../infrastructure/plugins/jwt.plugin";
-import { ISqlConnectionPlugin } from "../../domain/interfaces/infrastructure/plugins/sql.plugin.interface";
-import { SequelizePlugin } from "../../infrastructure/plugins/sequelize.plugin";
-import { IFileStorage } from "../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
-import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
-// ========== Plugins =================
-container.registerSingleton<IEnvs>("IEnvs", DotenvPlugin);
+import { registerPlugins } from "./modules/plugins.module";
+import { registerPersistence } from "./modules/persistence.module";
+import { registerUsers } from "./modules/features/users.module";
+import { registerBranches } from "./modules/features/branches.module";
+import { registerAppointments } from "./modules/features/appointments.module";
+import { registerSystem } from "./modules/system.module";
 
-const envs:IEnvs = container.resolve("IEnvs");
+// El orden importa hasta aquí: los plugins dan las env vars, el log y el
+// contexto de petición con los que se construye la persistencia.
+const plugins = registerPlugins();
+const persistence = registerPersistence(plugins);
 
-// Falla de forma ruidosa si faltan secretos críticos, en vez de degradarse
-// silenciosamente con valores por defecto inseguros.
-validateCriticalEnvs(envs);
+// De aquí para abajo ya no: cada módulo declara sus clases y tsyringe resuelve
+// las dependencias cuando alguien las pide, no cuando se registran.
+registerUsers();
+registerBranches();
+registerAppointments();
+registerSystem();
 
-// El logger se selecciona vía la env var LOG_DRIVER ("pino" | "winston"),
-// con "pino" por defecto. Winston queda disponible para conmutar cuando se quiera.
-container.register<ILogger>("ILogger", {
-  useValue: createLogger(envs),
-});
+/**
+ * Comprueba la conexión al arrancar, para que un problema de credenciales o de
+ * red se vea en el log del arranque y no en la primera petición del usuario.
+ * En memoria no hay nada que abrir y no hace nada.
+ */
+export async function warmUpConnections(): Promise<void> {
+  await persistence.connection?.authenticate();
+}
 
-
-
-container.register<ITokenPlugin>("ITokenPlugin", {
-  useClass: JwtPlugin
-});
-
-container.register<ISqlConnectionPlugin>("TestDB", {
-  useValue: new SequelizePlugin(
-    {
-      dialect: envs.getEnv("DB_DIALECT") || "mssql",
-      host: envs.getEnv("DB_HOST") || "localhost",
-      port: Number(envs.getEnv("DB_PORT") || "1434"),
-      username: envs.getEnv("DB_USER") || "sa",
-      password: envs.getEnv("DB_PASSWORD"),
-      database: envs.getEnv("DB_NAME") || "testdb",
-    },
-    container.resolve<ILogger>("ILogger")
-  ),
-});
-
-container.register<IFileStorage>("IFileStorage", {
-  useValue: new NativeFileStoragePlugin(),
-});
-// ========== DataSources =================
-// La implementación se selecciona vía la env var DATA_SOURCE ("dummy" | "sqlserver"),
-// con "dummy" por defecto en desarrollo.
-container.register<IUsersDataSource>("IUsersDataSource", {
-  useClass: resolveUsersDataSource(envs.getEnv("DATA_SOURCE")),
-});
-
-// ========== Repositories =================
-
-container.register<IUsersRepository>("IUsersRepository", { useClass: UsersRepository });
-
-// ========== Services  ======================
-
-container.register<IUsersService>("IUsersService", { useClass: UsersService });
-
-
-// ========== controllers ======================
-
-container.register<IUsersController>("IUsersController", { useClass: UsersController });
-
-
-
-
-
+/** Cierra los recursos abiertos —el pool del motor activo— en un apagado ordenado. */
+export async function shutdownConnections(): Promise<void> {
+  await persistence.connection?.close();
+}
 
 export { container };
+export { TOKENS } from "./tokens";

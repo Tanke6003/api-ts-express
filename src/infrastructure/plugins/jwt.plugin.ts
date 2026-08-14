@@ -4,12 +4,21 @@ import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
 import { inject, injectable } from "tsyringe";
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import type { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { toCurrentUser } from "../../presentation/middlewares/requestContext.middleware";
+import { AppError } from "../../core/errors/app-error";
+import { TOKENS } from "../../core/di/tokens";
 
 @injectable()
 export class JwtPlugin implements ITokenPlugin{
   private readonly secret: string;
 
-  constructor(@inject("IEnvs") private readonly envs: IEnvs) {
+  constructor(
+    @inject(TOKENS.IEnvs) private readonly envs: IEnvs,
+    // Opcional a propósito: el plugin sigue siendo construible a mano (tests,
+    // scripts) sin montar el contexto de petición.
+    @inject(TOKENS.IRequestContext) private readonly context?: IRequestContext
+  ) {
     const secret = this.envs.getEnv("JWT_SECRET");
     if (!secret) {
       throw new Error(
@@ -43,24 +52,36 @@ export class JwtPlugin implements ITokenPlugin{
   middleware = (req: Request, res: Response, next: NextFunction): void => {
     const authHeader = req.headers["authorization"];
 
+    // Los rechazos se delegan en el manejador global para que un 401 tenga el
+    // mismo formato —código, id de petición— que el resto de errores de la API.
     if (!authHeader) {
-      res.status(401).json({ error: "No token provided" });
+      next(new AppError("No token provided", 401, true, { code: "NO_TOKEN" }));
       return;
     }
 
     const [scheme, token] = authHeader.split(" ");
 
     if (scheme !== "Bearer" || !token) {
-      res.status(401).json({ error: "Invalid token format" });
+      next(new AppError("Invalid token format", 401, true, { code: "INVALID_TOKEN_FORMAT" }));
       return;
     }
 
     try {
       const decoded = jwt.verify(token, this.secret);
       req.user = decoded; // attach al request
+
+      // Único punto donde se valida el token, así que también es el único sitio
+      // donde hace falta publicar la identidad para la auditoría. Se muta el
+      // store en curso para no perder el requestId que abrió el middleware de
+      // contexto.
+      const store = this.context?.get();
+      if (store) store.user = toCurrentUser(decoded);
+
       next();
     } catch (error) {
-      res.status(401).json({ error: "Invalid or expired token" });
+      // Se pasa el error de jsonwebtoken tal cual: el manejador global
+      // distingue un token expirado de uno inválido a partir de su `name`.
+      next(error);
     }
   };
 }

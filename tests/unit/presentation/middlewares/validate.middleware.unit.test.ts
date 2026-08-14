@@ -1,6 +1,7 @@
 // tests/unit/presentation/middlewares/validate.middleware.unit.test.ts
 import { validateBody, validateQuery } from "../../../../src/presentation/middlewares/validate.middleware";
 import { z } from "zod";
+import { AppError } from "../../../../src/core/errors/app-error";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -34,27 +35,29 @@ describe("validateBody", () => {
     expect(mockReq.body).toEqual({ name: "Alice" });
   });
 
-  it("should return 400 with errors when body is invalid", () => {
+  // No responde por su cuenta: delega en el manejador global para que el
+  // formato del error sea el mismo en toda la API.
+  it("delegates an AppError 400 to the global handler when the body is invalid", () => {
     mockReq = { body: {} };
     validateBody(schema)(mockReq, mockRes, mockNext);
 
-    expect(mockNext).not.toHaveBeenCalled();
-    expect(mockRes.status).toHaveBeenCalledWith(400);
-    expect(mockRes.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "error",
-        message: "Validation failed",
-        errors: expect.any(Array),
-      })
-    );
+    expect(mockRes.status).not.toHaveBeenCalled();
+
+    const error = mockNext.mock.calls[0][0] as AppError;
+    expect(error).toBeInstanceOf(AppError);
+    expect(error).toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+      message: "Validation failed",
+    });
   });
 
-  it("should include field path in error response", () => {
+  it("should include field path in the error detail", () => {
     mockReq = { body: {} };
     validateBody(schema)(mockReq, mockRes, mockNext);
 
-    const json = mockRes.json.mock.calls[0][0];
-    expect(json.errors[0]).toMatchObject({ field: "name", message: expect.any(String) });
+    const error = mockNext.mock.calls[0][0] as AppError;
+    expect(error.errors?.[0]).toMatchObject({ field: "name", message: expect.any(String) });
   });
 });
 
@@ -79,11 +82,11 @@ describe("validateQuery", () => {
     expect((mockReq as any).validatedQuery).toEqual({ name: "Bob" });
   });
 
-  it("should return 400 when query is invalid", () => {
+  it("delegates an AppError 400 when the query is invalid", () => {
     mockReq = { query: {} };
     validateQuery(schema)(mockReq, mockRes, mockNext);
 
-    expect(mockNext).not.toHaveBeenCalled();
-    expect(mockRes.status).toHaveBeenCalledWith(400);
+    expect(mockRes.status).not.toHaveBeenCalled();
+    expect(mockNext.mock.calls[0][0]).toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
   });
 });

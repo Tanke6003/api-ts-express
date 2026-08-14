@@ -1,16 +1,19 @@
 // src/presentation/routes/test.route.ts
 
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { Request, Response } from "express";
-import { NativeFileStoragePlugin } from "../../infrastructure/plugins/nativeFileStorage.plugin";
 import Busboy from "busboy";
 import { S3FileStoragePlugin } from "../../infrastructure/plugins/s3FileStorage.plugin";
 import { container } from "tsyringe";
+import { TOKENS } from "../../core/di/tokens";
 
 export class TestRoutes {
   private jwtPlugin: ITokenPlugin;
+  private logger: ILogger;
   constructor() {
-    this.jwtPlugin = container.resolve<ITokenPlugin>("ITokenPlugin");
+    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
+    this.logger = container.resolve<ILogger>(TOKENS.ILogger);
   }
 
   public register(app: any) {
@@ -37,9 +40,16 @@ export class TestRoutes {
      *     security:
      *       - bearerAuth: []
      */
-    app.get("/api/generate-token", (_req: Request, res: Response) => {
-      // Lógica para generar un token (usualmente después de validar credenciales)
-      const token = this.jwtPlugin.generateToken({ userId: 1 });
+    app.get("/api/generate-token", (req: Request, res: Response) => {
+      // Lógica para generar un token (usualmente después de validar credenciales).
+      // El id va en `sub`, el claim estándar del sujeto: es lo que lee el
+      // contexto de la petición y lo que usan las reglas que dependen de quién
+      // pide. Los parámetros permiten simular distintos usuarios en desarrollo.
+      const userId = String(req.query.userId ?? "1");
+      const name = String(req.query.name ?? "Dev User");
+      const email = String(req.query.email ?? "dev@example.com");
+
+      const token = this.jwtPlugin.generateToken({ sub: userId, userId, name, email });
       res.json({ token });
     });
     /**
@@ -85,22 +95,27 @@ export class TestRoutes {
 
 
       
-      busboy.on("file", async (_fieldname, file, info) => {
+      busboy.on("file", (_fieldname, file, info) => {
         const { filename } = info;
         const buffers: Buffer[] = [];
 
         file.on("data", (data) => buffers.push(data));
-        file.on("end", async () => {
-          try {
-            const savedPath = await storage.single({
-              buffer: Buffer.concat(buffers),
-              originalname: filename,
-            });
-            res.json({ path: savedPath });
-          } catch (err) {
-            console.error(err);
-            res.status(500).json({ error: "Error saving file" });
-          }
+        // `on` espera un manejador que no devuelva nada, así que la parte
+        // asíncrona va dentro y se marca con `void`: los errores se atienden
+        // aquí mismo y no queda una promesa suelta que nadie observe.
+        file.on("end", () => {
+          void (async () => {
+            try {
+              const savedPath = await storage.single({
+                buffer: Buffer.concat(buffers),
+                originalname: filename,
+              });
+              res.json({ path: savedPath });
+            } catch (err) {
+              this.logger.error("No se pudo guardar el fichero", { err });
+              res.status(500).json({ error: "Error saving file" });
+            }
+          })();
         });
       });
 
@@ -164,14 +179,16 @@ app.post("/api/upload-files", (req: Request, res: Response) => {
     });
   });
 
-  busboy.on("finish", async () => {
-    try {
-      const savedPaths = await storage.array(filesData);
-      res.json({ paths: savedPaths });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Error saving files" });
-    }
+  busboy.on("finish", () => {
+    void (async () => {
+      try {
+        const savedPaths = await storage.array(filesData);
+        res.json({ paths: savedPaths });
+      } catch (err) {
+        this.logger.error("No se pudieron guardar los ficheros", { err });
+        res.status(500).json({ error: "Error saving files" });
+      }
+    })();
   });
 
   req.pipe(busboy);

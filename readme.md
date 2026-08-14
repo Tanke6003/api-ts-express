@@ -12,11 +12,14 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Language | TypeScript 5 (strict mode) |
 | Architecture | Clean Architecture (Presentation → Application → Domain → Infrastructure) |
 | Dependency Injection | tsyringe |
-| Authentication | JWT (Bearer token) |
-| Database | Sequelize + Tedious (SQL Server) or dummy in-memory — selected via `DATA_SOURCE` |
+| Authentication | JWT (Bearer token), with the identity exposed per request via AsyncLocalStorage |
+| Error handling | Single global handler: stable codes, request id, driver-error mapping |
+| Database | Oracle, SQL Server, PostgreSQL, MySQL/MariaDB, MongoDB or in-memory — selected via `DATA_SOURCE`, all on the same generic repository |
+| Data access | Generic repository with EF/LINQ-style CRUD, chainable queries, soft & hard delete, and a Unit of Work |
 | Logging | Pino (structured JSON, pino-pretty in dev) or Winston — selected via `LOG_DRIVER` |
 | API Docs | Swagger UI + Scalar |
 | File Storage | Local filesystem or AWS S3 / MinIO |
+| Web UI | Static HTML + vanilla JS + Tailwind, served from `public/` |
 | Testing | Jest — unit, integration |
 | Linting | ESLint 9 (flat config) |
 | CI | GitHub Actions |
@@ -39,11 +42,23 @@ The server starts on port **3001** by default.
 
 | URL | Description |
 |-----|-------------|
-| `GET /health` | Health check |
+| `/` | Web UI — appointments, branches and users |
+| `GET /health` | Health check (reports the active `dataSource`) |
 | `GET /api/users` | List users |
+| `GET /api/branches` | List branches |
+| `GET /api/appointments` | List appointments |
 | `GET /api/swagger` | Swagger UI |
 | `GET /api/scalar` | Scalar API reference |
-| `GET /api/generate-token` | Generate a test JWT |
+| `GET /api/me` | Identity resolved from the token |
+| `GET /api/audit` | Change log (read-only) |
+| `GET /api/generate-token` | Generate a test JWT (`?userId=7&name=Ruben`) |
+
+Out of the box `DATA_SOURCE=dummy`, so everything above works with no database. To run against Oracle:
+
+```bash
+docker compose up -d oracle       # Oracle 23ai Free, schema + seed applied on first boot
+# then set DATA_SOURCE=oracle in .env.dev and restart
+```
 
 For a detailed walkthrough see **[docs/getting-started.md](docs/getting-started.md)**.
 
@@ -55,26 +70,71 @@ For a detailed walkthrough see **[docs/getting-started.md](docs/getting-started.
 src/
 ├── main.ts                     # Entry point
 ├── core/
-│   ├── config/                 # Swagger configuration
-│   ├── di/                     # tsyringe DI container
-│   └── errors/                 # AppError custom error class
+│   ├── config/                 # Swagger configuration, env validation
+│   ├── di/                     # Composition root, tokens, one module per feature
+│   └── errors/                 # AppError + driver-error mapping
 ├── presentation/               # HTTP layer
 │   ├── controllers/
-│   ├── middlewares/            # httpLogger, errorHandler, JWT guard
-│   └── routes/                 # OpenAPI-annotated route definitions
+│   ├── middlewares/            # httpLogger, errorHandler, JWT guard, request context
+│   ├── routes/                 # OpenAPI-annotated route definitions
+│   └── utils/                  # parse-id and other HTTP helpers
 ├── application/                # Business logic
 │   ├── dtos/                   # Data Transfer Objects
-│   └── services/
+│   ├── queries/                # loadRelated — EF-style Include, batched
+│   ├── services/               # Business rules & compound queries
+│   └── validators/             # Zod schemas
 ├── domain/                     # Core contracts (no dependencies)
 │   ├── interfaces/
 │   └── models/
-└── infrastructure/             # Concrete implementations
-    ├── datasources/            # Dummy (in-memory) & SQL Server
-    ├── plugins/                # Pino, Winston, JWT, Sequelize, S3
-    └── repositories/
+├── infrastructure/             # Concrete implementations
+│   ├── plugins/                # Pino, Winston, JWT, Oracle, Sequelize, Mongo, S3
+│   └── repositories/
+│       ├── base/               # Generic repository, query builder, unit of work
+│       └── entities.ts         # Entity ↔ table mapping (the only place columns are named)
+└── ...
+
+public/                         # Web UI (HTML + JS + Tailwind)
+docker/<engine>/                # Schema and seed for each engine
 ```
 
 Full architecture reference: **[docs/architecture.md](docs/architecture.md)**.
+
+---
+
+## Data access
+
+Describe a table once and get the classic CRUD with no SQL:
+
+```typescript
+const page = await appointmentsRepository
+  .query()
+  .where({ fkBranch: 1, status: { notIn: ["CANCELLED"] } })
+  .orderByDescending("scheduledAt")
+  .toPagedList(1, 20);
+
+await branchesRepository.softDelete(3);   // borrado lógico
+await branchesRepository.hardDelete(3);   // borrado físico
+```
+
+The same interface runs on Oracle or in memory depending on `DATA_SOURCE`. Relations are composed in the service layer (EF-style `Include`), and transactions are opened only where a use case writes to more than one table.
+
+Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/audit`.
+
+Full reference: **[docs/data-access.md](docs/data-access.md)** — the repository, the filter language, the six engines and how to set each one up. Errors, identity and the audit trail: **[docs/architecture.md](docs/architecture.md)**.
+
+---
+
+## Using this as a template
+
+Everything under `core/`, `infrastructure/` and the cross-cutting middlewares is the scaffolding: connectors, generic repository, unit of work, audit trail, error handling, request identity. It knows nothing about the example domain.
+
+**Branches and appointments are only an example.** They exist to show the patterns end to end — compound queries, `Include`, a transaction that spans two tables, a business rule with a real conflict. To strip them:
+
+1. Delete `branches.*` and `appointments.*` across `domain/`, `application/`, `infrastructure/repositories/` and `presentation/`, plus their tests.
+2. Delete their module file under `core/di/modules/features/` and its line in `container.ts`, then remove their entries from `entities.ts`, `seed-data.ts`, `ENTITY_NAMES`, `tokens.ts`, `repository.factory.ts`, `persistence.module.ts` and `index.route.ts`.
+3. Drop their tables from `docker/<engine>/` and their tabs from `public/`.
+
+Users is a smaller example of the same shape and can go the same way. What remains is the template. Then follow **[docs/add-new-module.md](docs/add-new-module.md)** for your own modules.
 
 ---
 
@@ -91,7 +151,12 @@ Full architecture reference: **[docs/architecture.md](docs/architecture.md)**.
 | `npm run test:watch` | Tests in watch mode |
 | `npm run test:local` | Tests with full HTML + LCOV reports |
 | `npm run test:repo` | Tests for CI (text-summary coverage only) |
-| `npm run lint` | ESLint with auto-fix |
+| `npm run typecheck` | `tsc --noEmit` — types only, no build |
+| `npm run lint` | ESLint over `src`, `tests` and `public` — checks, does not write |
+| `npm run lint:fix` | The same, applying the fixes it can |
+| `npm run check` | Typecheck + lint + tests. What CI runs, in one command |
+
+Code style is pinned in two places on purpose. `.editorconfig` covers what the editor decides when saving — encoding, indentation, line endings, final newline — and `eslint.config.mjs` covers what can be checked after the fact. On `src` the linter runs with type information, so it also catches promises nobody awaits, which is the class of bug that answers 200 while the write fails in the background.
 
 ---
 
@@ -106,17 +171,18 @@ Copy `.env.template` to `.env.dev` (development) or `.env` (production) and fill
 | `SERVICE_NAME` | `ApiTSExpress` | Service name in logs |
 | `API_VERSION` | `1.0.0` | Shown in Swagger |
 | `JWT_SECRET` | — | **Required.** Sign JWT tokens. No insecure default — the app fails fast at startup if missing |
-| `DATA_SOURCE` | `dummy` | Users data source: `dummy` (in-memory) / `sqlserver` |
+| `DATA_SOURCE` | `dummy` | `dummy` (in-memory) / `oracle` / `sqlserver` / `postgres` / `mysql` / `mongodb`. An unknown value fails at startup instead of falling back to memory |
 | `LOG_DRIVER` | `pino` | Logger implementation: `pino` / `winston` |
-| `LOG_LEVEL` | `trace` | Log level |
-| `DB_DIALECT` | `mssql` | `mssql` / `mysql` / `postgres` |
-| `DB_HOST` | `localhost` | Database host |
-| `DB_PORT` | `1434` | Database port |
-| `DB_USER` | `sa` | Database user |
-| `DB_PASSWORD` | — | Database password. Required (fails fast) when `DATA_SOURCE=sqlserver` |
-| `DB_NAME` | `testdb` | Database name |
+| `LOG_LEVEL` | `trace` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |
+| `DB_*` | — | SQL Server: host, port, user, password, database |
+| `ORACLE_*` | — | Oracle: user, password, connect string, pool sizes |
+| `POSTGRES_*` | — | PostgreSQL: host, port, user, password, database |
+| `MYSQL_*` | — | MySQL / MariaDB: host, port, user, password, database |
+| `MONGO_*` | — | MongoDB: host, port, database, and optional credentials |
 
-Full reference: **[docs/environment.md](docs/environment.md)**.
+Only the block for the active `DATA_SOURCE` is required, and its password is checked before the server boots: the app refuses to start with a missing secret rather than failing on the first request.
+
+Full reference: **[docs/getting-started.md](docs/getting-started.md)**.
 
 ---
 
@@ -151,19 +217,27 @@ curl -X POST http://localhost:3001/api/users \
 
 ## Docker (optional local services)
 
-Start SQL Server and MinIO (S3-compatible) locally:
+Every engine has a service, with its schema and seed applied on first boot. Start only the one you need:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres      # or oracle, mysql, mongo
+docker compose up -d mssql-init    # SQL Server: the companion applies its schema
 ```
 
-| Service | Port | Credentials |
-|---------|------|-------------|
+| Service | Host port | Credentials |
+|---------|-----------|-------------|
+| Oracle 23ai Free | `1521` | `appuser / AppPassword1`, service `FREEPDB1` |
 | SQL Server 2022 | `1434` | `sa / StrongPassword123!` |
-| MinIO API | `9100` | `minioadmin / minioadmin` |
-| MinIO Console | `9101` | `minioadmin / minioadmin` |
+| PostgreSQL 16 | `5433` | `appuser / AppPassword1` |
+| MySQL 8 | `3307` | `appuser / AppPassword1` |
+| MongoDB 7 | `27017` | no auth, replica set `rs0` |
+| MinIO API / Console | `9100` / `9101` | `minioadmin / minioadmin` |
 
-Full deployment guide: **[docs/deployment.md](docs/deployment.md)**.
+PostgreSQL, MySQL and SQL Server are published off their standard ports because a local install usually owns 5432, 3306 and 1433 — and when it does, the API connects to the wrong server and the failure looks like bad credentials. Override with `POSTGRES_PORT`, `MYSQL_PORT` or `DB_PORT`.
+
+MongoDB runs as a single-node replica set: transactions need one, so without it the unit of work cannot open a session.
+
+Full deployment guide: **[docs/getting-started.md](docs/getting-started.md)**.
 
 ---
 
@@ -189,7 +263,7 @@ Full guide: **[docs/testing.md](docs/testing.md)**.
 
 ## Adding a new resource
 
-Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md)**.
+Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md)**. Most of a new module is now declarative — describe the table and the generic repository provides the CRUD.
 
 ---
 
@@ -198,12 +272,17 @@ Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md
 | Pattern | Location |
 |---------|---------|
 | Repository | `infrastructure/repositories/` |
-| Dependency Injection | `core/di/container.ts` (tsyringe) |
+| Generic Repository | `infrastructure/repositories/base/` — one CRUD for every entity |
+| Unit of Work | `infrastructure/repositories/base/*.unit-of-work.ts` |
+| Query Object | `base/query-builder.ts` — LINQ-style `IQueryable<T>` |
+| Data Mapper | `repositories/entities.ts` — entity ↔ table mapping |
+| Dependency Injection | `core/di/` (tsyringe) — composition root, tokens, one file per module |
 | Service Layer | `application/services/` |
 | DTO | `application/dtos/` |
-| Strategy | Pluggable datasources (Dummy ↔ SQL Server) |
+| Strategy | Pluggable engine drivers (memory ↔ SQL ↔ MongoDB), one contract |
 | Singleton | Logger instances |
 | Global error handler | `presentation/middlewares/errorHandler.middleware.ts` |
+| Ambient context (IHttpContextAccessor) | `infrastructure/plugins/asyncRequestContext.plugin.ts` |
 
 ---
 

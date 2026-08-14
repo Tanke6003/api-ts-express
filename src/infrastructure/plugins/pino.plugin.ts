@@ -4,13 +4,22 @@ import pinoHttp from "pino-http";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { container, injectable } from "tsyringe";
 import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import { TOKENS } from "../../core/di/tokens";
 
 @injectable()
 export class PinoLoggerPlugin implements ILogger {
   private logger: Logger;
   private httpMiddleware: ReturnType<typeof pinoHttp>;
-  private envs: IEnvs = container.resolve("IEnvs");
+  private envs: IEnvs = container.resolve(TOKENS.IEnvs);
 
+  /**
+   * Creates an instance of PinoLoggerPlugin.
+   * @param opts - Optional configuration options.
+   * @param opts.level - The log level (default: "info" or "trace" in development).
+   * @param opts.service - The service name (default: from environment variable SERVICE_NAME or "api").
+   * @param opts.env - The environment name (default: from environment variable NODE_ENV or "production").
+   * @param opts.version - The version of the application (default: from environment variable API_VERSION or "dev").
+   */
   constructor(opts?: { level?: string; service?: string; env?: string; version?: string }) {
     const env = (opts?.env || this.envs.getEnv("NODE_ENV") || "production").toString();
     const isDev = /^(dev|development)$/i.test(env);
