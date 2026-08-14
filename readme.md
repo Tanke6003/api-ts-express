@@ -245,7 +245,7 @@ docker compose up -d mssql-init    # SQL Server: the companion applies its schem
 | PostgreSQL 16 | `5433` | `appuser / AppPassword1` |
 | MySQL 8 | `3307` | `appuser / AppPassword1` |
 | MongoDB 7 | `27017` | no auth, replica set `rs0` |
-| MinIO API / Console | `9100` / `9101` | `minioadmin / minioadmin` |
+| MinIO API / Console | `9100` / `9101` | `minioadmin / minioadmin`, bucket `my-bucket` created by `minio-init` |
 
 PostgreSQL, MySQL and SQL Server are published off their standard ports because a local install usually owns 5432, 3306 and 1433 — and when it does, the API connects to the wrong server and the failure looks like bad credentials. Override with `POSTGRES_PORT`, `MYSQL_PORT` or `DB_PORT`.
 

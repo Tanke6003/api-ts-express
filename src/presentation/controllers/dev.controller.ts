@@ -13,6 +13,25 @@ import { ApiController, Get, Post } from "../routing/route.decorators";
 import { z } from "zod";
 
 /**
+ * Topes de una subida.
+ *
+ * Sin ellos busboy acepta lo que le manden, y como el fichero se acumula en
+ * memoria con `Buffer.concat` antes de guardarlo, una subida grande es una vía
+ * directa a tumbar el proceso. El límite lo aplica el propio parser: corta el
+ * flujo al llegar al tope en vez de leerlo entero y descartarlo después.
+ */
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+/** Ficheros por petición: uno en la ruta simple, diez en la múltiple. */
+const MAX_FILES_SINGLE = 1;
+const MAX_FILES_MANY = 10;
+
+interface UploadLimits {
+  maxFiles: number;
+  maxFileSizeBytes: number;
+}
+
+/**
  * Cuerpo de una subida.
  *
  * Va a mano y no por Zod porque un fichero llega como flujo binario: no hay
@@ -106,16 +125,20 @@ export class DevController {
 
   @Post("/upload-file", {
     summary: "Sube un fichero",
+    description: `Un solo fichero, de hasta ${MAX_FILE_SIZE_MB} MB.`,
     public: true,
     requestBody: MULTIPART_SINGLE,
     responses: {
       200: { description: "Fichero guardado", ref: "UploadedFile" },
-      400: "El cuerpo no es multipart/form-data o viene mal formado",
+      400: "El cuerpo no es multipart/form-data, viene mal formado o trae más de un fichero",
+      413: `El fichero supera los ${MAX_FILE_SIZE_MB} MB`,
       502: "El almacenamiento de ficheros no responde",
     },
   })
   public uploadFile = (req: Request, res: Response, next: NextFunction): void => {
-    this.receiveFiles(req, res, next, async (files) => {
+    const limits = { maxFiles: MAX_FILES_SINGLE, maxFileSizeBytes: MAX_FILE_SIZE_BYTES };
+
+    this.receiveFiles(req, res, next, limits, async (files) => {
       const [file] = files;
       if (!file) throw new AppError("No llegó ningún fichero", 400, true, { code: "NO_FILE" });
 
@@ -125,16 +148,20 @@ export class DevController {
 
   @Post("/upload-files", {
     summary: "Sube varios ficheros",
+    description: `Hasta ${MAX_FILES_MANY} ficheros, de ${MAX_FILE_SIZE_MB} MB cada uno.`,
     public: true,
     requestBody: MULTIPART_MANY,
     responses: {
       200: { description: "Ficheros guardados", ref: "UploadedFiles" },
-      400: "El cuerpo no es multipart/form-data o viene mal formado",
+      400: `El cuerpo no es multipart/form-data, viene mal formado o trae más de ${MAX_FILES_MANY} ficheros`,
+      413: `Algún fichero supera los ${MAX_FILE_SIZE_MB} MB`,
       502: "El almacenamiento de ficheros no responde",
     },
   })
   public uploadFiles = (req: Request, res: Response, next: NextFunction): void => {
-    this.receiveFiles(req, res, next, async (files) => ({
+    const limits = { maxFiles: MAX_FILES_MANY, maxFileSizeBytes: MAX_FILE_SIZE_BYTES };
+
+    this.receiveFiles(req, res, next, limits, async (files) => ({
       paths: await this.storage().array(files),
     }));
   };
@@ -168,6 +195,7 @@ export class DevController {
     req: Request,
     res: Response,
     next: NextFunction,
+    limits: UploadLimits,
     save: (files: { buffer: Buffer; originalname: string }[]) => Promise<unknown>
   ): void {
     if (!req.is("multipart/form-data")) {
@@ -182,19 +210,72 @@ export class DevController {
       return;
     }
 
-    const busboy = Busboy({ headers: req.headers });
+    // Los topes los aplica el parser: corta el flujo en cuanto se pasa, en vez
+    // de leer el fichero entero para descartarlo después.
+    const busboy = Busboy({
+      headers: req.headers,
+      limits: { files: limits.maxFiles, fileSize: limits.maxFileSizeBytes },
+    });
+
     const files: { buffer: Buffer; originalname: string }[] = [];
+
+    /**
+     * Cierra la petición con un error, una sola vez.
+     *
+     * Al rechazar a mitad de una subida el cliente puede seguir mandando bytes,
+     * así que se desconecta el parser y se drena lo que quede: sin eso la
+     * conexión se queda a medias esperando a que alguien lea.
+     */
+    let settled = false;
+    const fail = (error: AppError): void => {
+      if (settled) return;
+      settled = true;
+
+      req.unpipe(busboy);
+      req.resume();
+      next(error);
+    };
 
     busboy.on("file", (_fieldname, file, info) => {
       const chunks: Buffer[] = [];
       file.on("data", (data: Buffer) => chunks.push(data));
+
+      // Busboy no lanza al pasarse de tamaño: trunca el flujo y avisa por aquí.
+      // Si nadie escucha, se guardaría un fichero cortado como si estuviera bien.
+      file.on("limit", () => {
+        fail(
+          new AppError(
+            `El fichero "${info.filename}" supera el máximo de ${MAX_FILE_SIZE_MB} MB.`,
+            413,
+            true,
+            { code: "FILE_TOO_LARGE" }
+          )
+        );
+      });
+
       file.on("end", () => {
+        if (file.truncated) return;
         files.push({ buffer: Buffer.concat(chunks), originalname: info.filename });
       });
     });
 
+    // Igual que con el tamaño: los ficheros de más se ignoran en silencio salvo
+    // que se atienda este aviso, y quien sube creería que entraron todos.
+    busboy.on("filesLimit", () => {
+      fail(
+        new AppError(
+          limits.maxFiles === 1
+            ? "Esta ruta acepta un solo fichero; usa /upload-files para varios."
+            : `No se pueden subir más de ${limits.maxFiles} ficheros en una petición.`,
+          400,
+          true,
+          { code: "TOO_MANY_FILES" }
+        )
+      );
+    });
+
     busboy.on("error", (error) => {
-      next(
+      fail(
         new AppError("No se pudo leer el cuerpo de la petición.", 400, true, {
           code: "MALFORMED_MULTIPART",
           cause: error,
@@ -203,6 +284,9 @@ export class DevController {
     });
 
     busboy.on("finish", () => {
+      if (settled) return;
+      settled = true;
+
       // La parte asíncrona va aquí dentro y marcada con `void`: `on` espera un
       // manejador que no devuelva nada, y así no queda una promesa suelta.
       void (async () => {

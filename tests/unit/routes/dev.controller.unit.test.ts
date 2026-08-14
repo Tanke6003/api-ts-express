@@ -129,15 +129,58 @@ describe("DevController (unit)", () => {
     });
   });
 
-  it("responde una sola vez aunque lleguen varios ficheros a /upload-file", async () => {
-    // Antes respondía dentro del `end` de cada fichero: el segundo provocaba un
-    // ERR_HTTP_HEADERS_SENT.
-    const res = await request(app)
-      .post("/api/upload-file")
-      .attach("file", Buffer.from("one"), "file1.txt")
-      .attach("file", Buffer.from("two"), "file2.txt");
+  // =============================
+  // 🚧 Límites de la subida
+  // =============================
+  describe("límites", () => {
+    /** Un fichero de N MB, para tantear el tope. */
+    const filler = (megabytes: number) => Buffer.alloc(megabytes * 1024 * 1024, "x");
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ path: "https://fake-bucket.s3.amazonaws.com/file.txt" });
+    it("acepta un fichero justo por debajo de los 5 MB", async () => {
+      const res = await request(app)
+        .post("/api/upload-file")
+        .attach("file", filler(4), "casi.bin");
+
+      expect(res.status).toBe(200);
+    });
+
+    it("rechaza con 413 un fichero de más de 5 MB", async () => {
+      // Busboy no lanza al pasarse: trunca el flujo y avisa por su evento
+      // `limit`. Sin escucharlo se guardaría un fichero cortado como bueno.
+      const res = await request(app)
+        .post("/api/upload-file")
+        .attach("file", filler(6), "grande.bin");
+
+      expect(res.status).toBe(413);
+      expect(res.body).toMatchObject({ code: "FILE_TOO_LARGE" });
+      expect(res.body.message).toContain("grande.bin");
+    });
+
+    it("/upload-file acepta uno solo y rechaza el segundo", async () => {
+      const res = await request(app)
+        .post("/api/upload-file")
+        .attach("file", Buffer.from("one"), "file1.txt")
+        .attach("file", Buffer.from("two"), "file2.txt");
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ code: "TOO_MANY_FILES" });
+      expect(res.body.message).toContain("/upload-files");
+    });
+
+    it("/upload-files acepta diez y rechaza el undécimo", async () => {
+      const conNFicheros = (total: number) => {
+        let peticion = request(app).post("/api/upload-files");
+        for (let n = 1; n <= total; n++) {
+          peticion = peticion.attach("files", Buffer.from(`f${n}`), `f${n}.txt`);
+        }
+        return peticion;
+      };
+
+      expect((await conNFicheros(10)).status).toBe(200);
+
+      const rechazado = await conNFicheros(11);
+      expect(rechazado.status).toBe(400);
+      expect(rechazado.body).toMatchObject({ code: "TOO_MANY_FILES" });
+    });
   });
 });
