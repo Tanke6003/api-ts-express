@@ -117,7 +117,7 @@ describe("AppointmentsService", () => {
         { scheduledAt: { lte: new Date("2026-12-31T23:59:59Z") } },
         { fkClient: { isNull: true } },
         {
-          $or: [{ details: { ilike: "%revisión%" } }, { guestName: { ilike: "%revisión%" } }],
+          $or: [{ details: { contains: "revisión" } }, { guestName: { contains: "revisión" } }],
         },
       ]);
     });

@@ -82,7 +82,7 @@ describe("BranchesService", () => {
 
       expect(repository.getPaged).toHaveBeenCalledWith(1, 10, {
         where: {
-          $or: [{ name: { ilike: "%norte%" } }, { address: { ilike: "%norte%" } }],
+          $or: [{ name: { contains: "norte" } }, { address: { contains: "norte" } }],
         },
         withDeleted: undefined,
         orderBy: { field: "name", direction: "asc" },

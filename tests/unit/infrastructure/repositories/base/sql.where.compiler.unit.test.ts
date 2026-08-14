@@ -43,6 +43,33 @@ describe("SqlWhereCompiler", () => {
     expect(compile({ name: { ilike: "a%" } }).sql).toBe("UPPER(NAME) LIKE UPPER(:w0)");
   });
 
+  describe("contains", () => {
+    it("envuelve el texto en comodines y declara el carácter de escape", () => {
+      const result = compile({ name: { contains: "ana" } });
+
+      expect(result.sql).toBe("UPPER(NAME) LIKE UPPER(:w0) ESCAPE '!'");
+      expect(result.binds).toEqual({ w0: "%ana%" });
+    });
+
+    it("neutraliza los comodines que vengan en el texto", () => {
+      // Sin escapar, `100%` buscaría "empieza por 100" y `a_b` casaría con
+      // `axb`: los dos son entrada normal de un formulario.
+      expect(compile({ name: { contains: "100%" } }).binds).toEqual({ w0: "%100!%%" });
+      expect(compile({ name: { contains: "a_b" } }).binds).toEqual({ w0: "%a!_b%" });
+    });
+
+    it("escapa también el propio carácter de escape", () => {
+      expect(compile({ name: { contains: "!" } }).binds).toEqual({ w0: "%!!%" });
+    });
+
+    it("el valor sigue viajando como bind, nunca dentro del SQL", () => {
+      const result = compile({ name: { contains: "'; DROP TABLE ITEMS; --" } });
+
+      expect(result.sql).toBe("UPPER(NAME) LIKE UPPER(:w0) ESCAPE '!'");
+      expect(result.sql).not.toContain("DROP");
+    });
+  });
+
   it("in y notIn generan un bind por elemento", () => {
     const result = compile({ qty: { in: [1, 2, 3] } });
 

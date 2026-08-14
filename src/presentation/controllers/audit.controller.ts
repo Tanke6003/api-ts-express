@@ -34,7 +34,7 @@ export class AuditController extends BaseController implements IAuditController 
       if (query.entity) conditions.push({ entity: query.entity.toUpperCase() });
       if (query.entityId) conditions.push({ entityId: query.entityId });
       if (query.action) conditions.push({ action: query.action });
-      if (query.changedBy) conditions.push({ changedBy: { ilike: `%${query.changedBy}%` } });
+      if (query.changedBy) conditions.push({ changedBy: { contains: query.changedBy } });
       if (query.requestId) conditions.push({ requestId: query.requestId });
 
       const paged = await this.store.getPaged(query.page, query.limit, {

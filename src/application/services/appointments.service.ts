@@ -115,10 +115,7 @@ export class AppointmentsService implements IAppointmentsService {
 
     if (query.search) {
       conditions.push({
-        $or: [
-          { details: { ilike: `%${query.search}%` } },
-          { guestName: { ilike: `%${query.search}%` } },
-        ],
+        $or: [{ details: { contains: query.search } }, { guestName: { contains: query.search } }],
       });
     }
 

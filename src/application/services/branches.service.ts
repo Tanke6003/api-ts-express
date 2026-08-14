@@ -33,7 +33,7 @@ export class BranchesService implements IBranchesService {
     // Consulta compuesta: el término busca a la vez en nombre y dirección, así
     // que las dos condiciones van en un OR dentro del AND general.
     const where: WhereFilter<IBranch> | undefined = search
-      ? { $or: [{ name: { ilike: `%${search}%` } }, { address: { ilike: `%${search}%` } }] }
+      ? { $or: [{ name: { contains: search } }, { address: { contains: search } }] }
       : undefined;
 
     const paged = await this.repository.getPaged(page, limit, {

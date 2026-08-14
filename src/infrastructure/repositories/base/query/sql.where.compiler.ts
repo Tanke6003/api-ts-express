@@ -4,7 +4,7 @@ import type {
   WhereFilter,
 } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import { EntitySchema } from "../entity-metadata";
-import { isOperatorObject } from "./filter.helpers";
+import { containsPattern, isOperatorObject, LIKE_ESCAPE } from "./filter.helpers";
 
 export interface CompiledWhere {
   /** Cuerpo del WHERE sin la palabra clave; cadena vacía si no hay condiciones. */
@@ -122,6 +122,13 @@ export class SqlWhereCompiler<T> {
     }
     if (operators.ilike !== undefined) {
       parts.push(`UPPER(${column}) LIKE UPPER(${this.bind(property, operators.ilike)})`);
+    }
+    if (operators.contains !== undefined) {
+      // El patrón se construye aquí, no lo escribe quien llama: los comodines
+      // del texto se neutralizan y la cláusula ESCAPE le dice al motor que ese
+      // carácter marca un literal.
+      const pattern = this.bind(property, containsPattern(operators.contains));
+      parts.push(`UPPER(${column}) LIKE UPPER(${pattern}) ESCAPE '${LIKE_ESCAPE}'`);
     }
 
     if (operators.in !== undefined) {

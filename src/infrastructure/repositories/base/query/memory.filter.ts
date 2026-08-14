@@ -80,6 +80,12 @@ function matchesOperators(value: unknown, operators: FieldOperators<unknown>): b
     if (value === null || value === undefined) return false;
     if (!likeToRegExp(operators.ilike, true).test(String(value))) return false;
   }
+  if (operators.contains !== undefined) {
+    // Subcadena literal, sin pasar por el patrón: aquí no hay comodines que
+    // interpretar, que es justo lo que distingue a `contains` de `ilike`.
+    if (value === null || value === undefined) return false;
+    if (!String(value).toLowerCase().includes(operators.contains.toLowerCase())) return false;
+  }
 
   if (operators.in !== undefined) {
     if (!operators.in.some((candidate) => looseEquals(value, candidate))) return false;

@@ -15,6 +15,7 @@ export const OPERATOR_KEYS = new Set([
   "like",
   "notLike",
   "ilike",
+  "contains",
   "in",
   "notIn",
   "between",
@@ -49,7 +50,36 @@ export function normalizeOrderBy<T>(
  * como regex.
  */
 export function likeToRegExp(pattern: string, caseInsensitive = false): RegExp {
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escaped = escapeRegExp(pattern);
   const translated = escaped.replace(/%/g, ".*").replace(/_/g, ".");
   return new RegExp(`^${translated}$`, caseInsensitive ? "i" : "");
+}
+
+/** Deja un texto listo para ir dentro de una expresión regular como literal. */
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Carácter de escape de los `LIKE` que genera el compilador SQL.
+ *
+ * Se usa `!` y no la barra invertida porque MySQL la trata como escape dentro
+ * del propio literal de cadena: un `ESCAPE '\'` en el SQL le llega como una
+ * comilla escapada y rompe la sentencia, mientras que `!` no significa nada
+ * especial en ninguno de los cuatro motores.
+ */
+export const LIKE_ESCAPE = "!";
+
+/**
+ * Convierte texto literal en un patrón LIKE que casa con "lo contiene".
+ *
+ * Los comodines y el propio carácter de escape se neutralizan, así que buscar
+ * `100%` busca exactamente eso y no "cualquier cosa que empiece por 100".
+ */
+export function containsPattern(value: string): string {
+  const escaped = value.replace(
+    new RegExp(`[${LIKE_ESCAPE}%_]`, "g"),
+    (match) => `${LIKE_ESCAPE}${match}`
+  );
+  return `%${escaped}%`;
 }
