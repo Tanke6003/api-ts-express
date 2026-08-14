@@ -35,8 +35,8 @@ quiso decir.
 | 1 | Endurecimiento HTTP — **aplicado** | Alto | 2-3 h |
 | 2 | Carrera en `assertSlotIsFree` — **aplicado** | Alto | 4-6 h |
 | 3 | Apagado que drena + health real — **aplicado** | Medio | 2 h |
-| 4 | Service locator, `app: any`, versionado | Bajo (deuda) | 3-4 h |
-| 5 | Escape de `%` y `_` en `ilike` | Bajo | 2 h |
+| 4 | Service locator, `app: any`, versionado — **aplicado** | Bajo (deuda) | 3-4 h |
+| 5 | Escape de `%` y `_` en `ilike` — **aplicado** | Bajo | 2 h |
 
 Orden sugerido: **1 → 3 → 5 → 2 → 4**. El 1 y el 3 son aditivos y no rompen nada;
 el 5 prepara el terreno tocando el compilador; el 2 es el que más código mueve; el
@@ -618,6 +618,25 @@ devuelve `false` cuando `authenticate` rechaza y cuando excede el timeout.
 
 ## 4. Rutas: service locator, `app: any` y versionado
 
+> **Aplicado.** Las seis clases de rutas son `@injectable()` con sus
+> dependencias en la firma, y `index.route.ts` es el único que resuelve por el
+> contenedor. `register(app: Router)` en todas; `test.route.ts` cuelga del mismo
+> router con rutas relativas, así que desaparece el caso especial. Swagger toma
+> `SERVICE_NAME` y `API_VERSION` del entorno y su `servers` apunta al prefijo,
+> con las anotaciones ya relativas.
+>
+> Diferencia con lo que se planteaba abajo: **el prefijo es configurable**
+> (`API_PREFIX`, por defecto `/api/v1`; `API_LEGACY_PREFIX` para el alias, `off`
+> para quitarlo), por decisión del autor del proyecto. El razonamiento en contra
+> queda anotado en `api.config.ts`: la variable mueve *dónde* vive la API, no
+> *qué* contrato sirve, y una v2 real seguirán siendo dos montajes en
+> `index.route.ts` porque las dos versiones tienen que responder a la vez.
+>
+> Para que la variable no sea una trampa, el prefijo se publica en
+> `/health/ready` y la interfaz de ejemplo lo lee de ahí en vez de llevarlo
+> escrito. Verificado con `API_PREFIX=servicio-citas/api/v1` y el alias apagado:
+> Swagger y salud lo reflejan, el prefijo nuevo responde 200 y `/api/...` da 404.
+
 ### Diagnóstico
 
 **a) Service locator.** Las seis clases de rutas resuelven sus dependencias en el
@@ -711,6 +730,22 @@ deben poder construirse sin `container.resolve`.
 ---
 
 ## 5. Escape de `%` y `_` en los patrones `ilike`
+
+> **Aplicado** por la vía del operador `contains`, que es la que se recomendaba:
+> el contrato gana `contains`, cada driver lo resuelve a su manera y los tres
+> sitios que construían `%…%` a mano ya no lo hacen.
+>
+> Diferencias con lo que se planteaba abajo:
+>
+> - **El carácter de escape es `!`, no la barra invertida.** MySQL trata `\`
+>   como escape dentro del propio literal de cadena, así que un `ESCAPE '\'` le
+>   llega como una comilla escapada y rompe la sentencia. Con `!` el mismo SQL
+>   vale para los cuatro motores.
+> - **`likeToRegExp` no se tocó.** El operador nuevo no pasa por él: memoria usa
+>   `includes` y Mongo un `$regex` con el texto escapado entero, que además cierra
+>   el ReDoS que había al meter el texto del usuario en una expresión regular.
+> - Verificado contra el servidor real: `?search=%` devolvía las tres sucursales
+>   y ahora devuelve cero; `?search=Centro` sigue devolviendo la suya.
 
 ### Diagnóstico
 

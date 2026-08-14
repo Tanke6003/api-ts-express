@@ -171,6 +171,20 @@ describe("Server", () => {
     expect(res.status).toBe(401);
   });
 
+  it("serves the same routes under /api/v1 and the legacy /api alias", async () => {
+    await server.configureMiddleware();
+    await server.configureRoutes();
+
+    const token = jwt.sign({ userId: 1 }, TEST_JWT_SECRET, { expiresIn: "1h" });
+    const get = (path: string) =>
+      request(server.app).get(path).set("Authorization", `Bearer ${token}`);
+
+    expect((await get("/api/v1/users")).status).toBe(200);
+    // El alias sin versión existe para no romper a quien ya llamaba así,
+    // incluida la interfaz de ejemplo. Se retira en la próxima mayor.
+    expect((await get("/api/users")).status).toBe(200);
+  });
+
   // ------------------------------------------------- endurecimiento HTTP ---
 
   it("applies helmet headers and hides the framework", async () => {

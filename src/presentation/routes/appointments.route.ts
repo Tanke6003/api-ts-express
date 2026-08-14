@@ -1,8 +1,8 @@
 // src/presentation/routes/appointments.route.ts
-import { container } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import type { Router } from "express";
-import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { IAppointmentsController } from "../../domain/interfaces/presentation/controllers/appointments.controller.interface";
+import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import type { IAppointmentsController } from "../../domain/interfaces/presentation/controllers/appointments.controller.interface";
 import { validateBody, validateQuery } from "../middlewares/validate.middleware";
 import {
   appointmentQuerySchema,
@@ -11,20 +11,18 @@ import {
 } from "../../application/validators/appointments.validators";
 import { TOKENS } from "../../core/di/tokens";
 
+@injectable()
 export class AppointmentsRoutes {
-  private appointmentsController: IAppointmentsController;
-  private jwtPlugin: ITokenPlugin;
-
-  constructor() {
-    this.appointmentsController =
-      container.resolve<IAppointmentsController>(TOKENS.IAppointmentsController);
-    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
-  }
+  constructor(
+    @inject(TOKENS.IAppointmentsController)
+    private readonly appointmentsController: IAppointmentsController,
+    @inject(TOKENS.ITokenPlugin) private readonly jwtPlugin: ITokenPlugin
+  ) {}
 
   public register(app: Router) {
     /**
      * @openapi
-     * /api/appointments:
+     * /appointments:
      *   get:
      *     tags:
      *       - Appointments
@@ -104,7 +102,7 @@ export class AppointmentsRoutes {
 
     /**
      * @openapi
-     * /api/appointments/stats:
+     * /appointments/stats:
      *   get:
      *     tags:
      *       - Appointments
@@ -134,7 +132,7 @@ export class AppointmentsRoutes {
 
     /**
      * @openapi
-     * /api/appointments/{id}:
+     * /appointments/{id}:
      *   get:
      *     tags:
      *       - Appointments
@@ -165,7 +163,7 @@ export class AppointmentsRoutes {
 
     /**
      * @openapi
-     * /api/appointments:
+     * /appointments:
      *   post:
      *     tags:
      *       - Appointments
@@ -228,7 +226,7 @@ export class AppointmentsRoutes {
 
     /**
      * @openapi
-     * /api/appointments/{id}:
+     * /appointments/{id}:
      *   put:
      *     tags:
      *       - Appointments
@@ -283,7 +281,7 @@ export class AppointmentsRoutes {
 
     /**
      * @openapi
-     * /api/appointments/{id}:
+     * /appointments/{id}:
      *   delete:
      *     tags:
      *       - Appointments
@@ -310,7 +308,7 @@ export class AppointmentsRoutes {
 
     /**
      * @openapi
-     * /api/appointments/{id}/hard:
+     * /appointments/{id}/hard:
      *   delete:
      *     tags:
      *       - Appointments
@@ -337,7 +335,7 @@ export class AppointmentsRoutes {
 
     /**
      * @openapi
-     * /api/appointments/{id}/restore:
+     * /appointments/{id}/restore:
      *   post:
      *     tags:
      *       - Appointments

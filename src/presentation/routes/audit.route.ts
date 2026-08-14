@@ -1,25 +1,23 @@
 // src/presentation/routes/audit.route.ts
-import { container } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import type { Router } from "express";
-import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { IAuditController } from "../../domain/interfaces/presentation/controllers/audit.controller.interface";
+import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import type { IAuditController } from "../../domain/interfaces/presentation/controllers/audit.controller.interface";
 import { validateQuery } from "../middlewares/validate.middleware";
 import { auditQuerySchema } from "../../application/validators/audit.validators";
 import { TOKENS } from "../../core/di/tokens";
 
+@injectable()
 export class AuditRoutes {
-  private auditController: IAuditController;
-  private jwtPlugin: ITokenPlugin;
-
-  constructor() {
-    this.auditController = container.resolve<IAuditController>(TOKENS.IAuditController);
-    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
-  }
+  constructor(
+    @inject(TOKENS.IAuditController) private readonly auditController: IAuditController,
+    @inject(TOKENS.ITokenPlugin) private readonly jwtPlugin: ITokenPlugin
+  ) {}
 
   public register(app: Router) {
     /**
      * @openapi
-     * /api/audit:
+     * /audit:
      *   get:
      *     tags:
      *       - Audit

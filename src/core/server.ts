@@ -18,6 +18,7 @@ import {
   resolveBodyLimit,
   resolveTrustProxy,
 } from "./config/security.config";
+import { resolveApiPrefix } from "./config/api.config";
 import { ILogger } from "../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { IEnvs } from "../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 import { IHealthProbe } from "../domain/interfaces/infrastructure/plugins/health-probe.interface";
@@ -137,11 +138,17 @@ export class Server {
 
     const probe: IHealthProbe = container.resolve(TOKENS.IHealthProbe);
 
+    const envs: IEnvs = container.resolve(TOKENS.IEnvs);
+
     const describe = (report: Awaited<ReturnType<IHealthProbe["report"]>>) => ({
       status: report.ready ? "ok" : report.shuttingDown ? "shutting_down" : "degraded",
       // Útil para saber contra qué driver está corriendo la interfaz web.
       dataSource: report.dataSource,
       database: report.database,
+      // Dónde está montada la API. Lo publica aquí porque `API_PREFIX` es
+      // configurable: así un cliente lo descubre en vez de darlo por supuesto,
+      // y de paso se ve de un vistazo qué está sirviendo esta instancia.
+      apiPrefix: resolveApiPrefix(envs),
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
     });

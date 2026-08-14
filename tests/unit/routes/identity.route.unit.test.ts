@@ -39,9 +39,9 @@ describe("GET /api/me", () => {
     app.use(requestContext(container.resolve<IRequestContext>("IRequestContext")));
 
     const api = express.Router();
-    new IdentityRoutes().register(api);
+    container.resolve(IdentityRoutes).register(api);
+    container.resolve(TestRoutes).register(api);
     app.use("/api", api);
-    new TestRoutes().register(app);
 
     // Los rechazos de autenticacion los formatea el manejador global.
     app.use(errorHandler);

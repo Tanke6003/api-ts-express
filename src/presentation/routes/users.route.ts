@@ -1,25 +1,24 @@
 // src/presentation/routes/user.routes.ts
 
-import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
-import { container } from "tsyringe";
+import type { Router } from "express";
+import { inject, injectable } from "tsyringe";
+import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import type { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
 import { validateBody, validateQuery } from "../middlewares/validate.middleware";
 import { createUserSchema, paginationSchema, updateUserSchema } from "../../application/validators/users.validators";
 import { TOKENS } from "../../core/di/tokens";
 
+@injectable()
 export class UsersRoutes {
-  private usersController: IUsersController;
-  private jwtPlugin: ITokenPlugin;
+  constructor(
+    @inject(TOKENS.IUsersController) private readonly usersController: IUsersController,
+    @inject(TOKENS.ITokenPlugin) private readonly jwtPlugin: ITokenPlugin
+  ) {}
 
-  constructor() {
-    this.usersController = container.resolve<IUsersController>(TOKENS.IUsersController);
-    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
-  }
-
-  public register(app: any) {
+  public register(app: Router) {
     /**
      * @openapi
-     * /api/users:
+     * /users:
      *   get:
      *     tags:
      *       - Users
@@ -59,7 +58,7 @@ export class UsersRoutes {
 
     /**
      * @openapi
-     * /api/users/{id}:
+     * /users/{id}:
      *   get:
      *     tags:
      *       - Users
@@ -92,7 +91,7 @@ export class UsersRoutes {
 
     /**
      * @openapi
-     * /api/users:
+     * /users:
      *   post:
      *     tags:
      *       - Users
@@ -129,7 +128,7 @@ export class UsersRoutes {
 
     /**
      * @openapi
-     * /api/users/{id}:
+     * /users/{id}:
      *   put:
      *     tags:
      *       - Users
@@ -174,7 +173,7 @@ export class UsersRoutes {
 
     /**
      * @openapi
-     * /api/users/{id}:
+     * /users/{id}:
      *   delete:
      *     tags:
      *       - Users

@@ -1,8 +1,8 @@
 // src/presentation/routes/branches.route.ts
-import { container } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import type { Router } from "express";
-import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { IBranchesController } from "../../domain/interfaces/presentation/controllers/branches.controller.interface";
+import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import type { IBranchesController } from "../../domain/interfaces/presentation/controllers/branches.controller.interface";
 import { validateBody, validateQuery } from "../middlewares/validate.middleware";
 import {
   branchQuerySchema,
@@ -11,19 +11,17 @@ import {
 } from "../../application/validators/branches.validators";
 import { TOKENS } from "../../core/di/tokens";
 
+@injectable()
 export class BranchesRoutes {
-  private branchesController: IBranchesController;
-  private jwtPlugin: ITokenPlugin;
-
-  constructor() {
-    this.branchesController = container.resolve<IBranchesController>(TOKENS.IBranchesController);
-    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
-  }
+  constructor(
+    @inject(TOKENS.IBranchesController) private readonly branchesController: IBranchesController,
+    @inject(TOKENS.ITokenPlugin) private readonly jwtPlugin: ITokenPlugin
+  ) {}
 
   public register(app: Router) {
     /**
      * @openapi
-     * /api/branches:
+     * /branches:
      *   get:
      *     tags:
      *       - Branches
@@ -71,7 +69,7 @@ export class BranchesRoutes {
 
     /**
      * @openapi
-     * /api/branches/{id}:
+     * /branches/{id}:
      *   get:
      *     tags:
      *       - Branches
@@ -102,7 +100,7 @@ export class BranchesRoutes {
 
     /**
      * @openapi
-     * /api/branches:
+     * /branches:
      *   post:
      *     tags:
      *       - Branches
@@ -151,7 +149,7 @@ export class BranchesRoutes {
 
     /**
      * @openapi
-     * /api/branches/{id}:
+     * /branches/{id}:
      *   put:
      *     tags:
      *       - Branches
@@ -196,7 +194,7 @@ export class BranchesRoutes {
 
     /**
      * @openapi
-     * /api/branches/{id}:
+     * /branches/{id}:
      *   delete:
      *     tags:
      *       - Branches
@@ -226,7 +224,7 @@ export class BranchesRoutes {
 
     /**
      * @openapi
-     * /api/branches/{id}/hard:
+     * /branches/{id}/hard:
      *   delete:
      *     tags:
      *       - Branches
@@ -256,7 +254,7 @@ export class BranchesRoutes {
 
     /**
      * @openapi
-     * /api/branches/{id}/restore:
+     * /branches/{id}/restore:
      *   post:
      *     tags:
      *       - Branches

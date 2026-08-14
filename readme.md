@@ -47,14 +47,14 @@ The server starts on port **3001** by default.
 | `GET /health/live` | Liveness — the process answers. Never touches the database |
 | `GET /health/ready` | Readiness — 503 if the database is down or the app is draining |
 | `GET /health` | Alias of `/health/ready` |
-| `GET /api/users` | List users |
-| `GET /api/branches` | List branches |
-| `GET /api/appointments` | List appointments |
+| `GET /api/v1/users` | List users (`/api/...` still works as an alias) |
+| `GET /api/v1/branches` | List branches |
+| `GET /api/v1/appointments` | List appointments |
 | `GET /api/swagger` | Swagger UI |
 | `GET /api/scalar` | Scalar API reference |
-| `GET /api/me` | Identity resolved from the token |
-| `GET /api/audit` | Change log (read-only) |
-| `GET /api/generate-token` | Generate a test JWT (`?userId=7&name=Ruben`) |
+| `GET /api/v1/me` | Identity resolved from the token |
+| `GET /api/v1/audit` | Change log (read-only) |
+| `GET /api/v1/generate-token` | Generate a test JWT (`?userId=7&name=Ruben`) |
 
 Out of the box `DATA_SOURCE=dummy`, so everything above works with no database. To run against Oracle:
 
@@ -121,7 +121,7 @@ await branchesRepository.hardDelete(3);   // borrado físico
 
 The same interface runs on Oracle or in memory depending on `DATA_SOURCE`. Relations are composed in the service layer (EF-style `Include`), and transactions are opened only where a use case writes to more than one table.
 
-Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/audit`.
+Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/v1/audit`.
 
 Full reference: **[docs/data-access.md](docs/data-access.md)** — the repository, the filter language, the six engines and how to set each one up. Errors, identity and the audit trail: **[docs/architecture.md](docs/architecture.md)**.
 
@@ -174,6 +174,8 @@ Copy `.env.template` to `.env.dev` (development) or `.env` (production) and fill
 | `SERVICE_NAME` | `ApiTSExpress` | Service name in logs |
 | `API_VERSION` | `1.0.0` | Shown in Swagger |
 | `JWT_SECRET` | — | **Required.** Sign JWT tokens. No insecure default — the app fails fast at startup if missing |
+| `API_PREFIX` | `/api/v1` | Where the API is mounted. Moves the surface (e.g. behind a proxy); it does not create a new version |
+| `API_LEGACY_PREFIX` | `/api` | Unversioned alias for existing clients. `off` removes it |
 | `CORS_ORIGINS` | — | Allowed origins, comma separated. As many as you need. Empty = same origin only; `*` allows any |
 | `BODY_LIMIT` | `1mb` | Max JSON / urlencoded body. Uploads stream through busboy and never reach these parsers |
 | `TRUST_PROXY_HOPS` | `0` | Trusted proxy hops in front of the app. `1` behind one nginx / load balancer |
@@ -206,7 +208,7 @@ When the server is running, open:
 - **Scalar** — `http://localhost:3001/api/scalar`
 - **OpenAPI JSON** — `http://localhost:3001/api/openapi.json`
 
-Authentication is done with a **Bearer JWT**. Click **Authorize** in Swagger, then use the token from `GET /api/generate-token`.
+Authentication is done with a **Bearer JWT**. Click **Authorize** in Swagger, then use the token from `GET /api/v1/generate-token`.
 
 ---
 
@@ -216,10 +218,10 @@ Protected routes require an `Authorization: Bearer <token>` header.
 
 ```bash
 # 1. Get a token
-curl http://localhost:3001/api/generate-token
+curl http://localhost:3001/api/v1/generate-token
 
 # 2. Use it in protected endpoints
-curl -X POST http://localhost:3001/api/users \
+curl -X POST http://localhost:3001/api/v1/users \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "Alice"}'

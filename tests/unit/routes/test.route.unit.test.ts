@@ -51,10 +51,15 @@ describe("TestRoutes (unit)", () => {
       ]),
     }));
 
-    // Inicializar Express y registrar las rutas de prueba
+    // Inicializar Express y registrar las rutas de prueba. Cuelgan del mismo
+    // router que el resto de la API, así que sus rutas son relativas y el
+    // prefijo lo pone el montaje, igual que en index.route.
     app = express();
     app.use(express.json());
-    new TestRoutes().register(app);
+
+    const api = express.Router();
+    container.resolve(TestRoutes).register(api);
+    app.use("/api", api);
   });
 
   // =============================

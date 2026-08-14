@@ -1,26 +1,24 @@
 // src/presentation/routes/identity.route.ts
-import { container } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import type { Router } from "express";
-import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
+import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import type { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
 import { TOKENS } from "../../core/di/tokens";
 
 /**
  * Identidad de la petición: quién es el usuario según el token.
  */
+@injectable()
 export class IdentityRoutes {
-  private identityController: IIdentityController;
-  private jwtPlugin: ITokenPlugin;
-
-  constructor() {
-    this.identityController = container.resolve<IIdentityController>(TOKENS.IIdentityController);
-    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
-  }
+  constructor(
+    @inject(TOKENS.IIdentityController) private readonly identityController: IIdentityController,
+    @inject(TOKENS.ITokenPlugin) private readonly jwtPlugin: ITokenPlugin
+  ) {}
 
   public register(app: Router) {
     /**
      * @openapi
-     * /api/me:
+     * /me:
      *   get:
      *     tags:
      *       - Identity

@@ -1,36 +1,36 @@
 // src/presentation/routes/test.route.ts
 
-import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
-import { Request, RequestHandler, Response } from "express";
+import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import type { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import { Request, RequestHandler, Response, Router } from "express";
 import Busboy from "busboy";
 import { S3FileStoragePlugin } from "../../infrastructure/plugins/s3FileStorage.plugin";
-import { container } from "tsyringe";
+import { inject, injectable } from "tsyringe";
 import { TOKENS } from "../../core/di/tokens";
 import { buildAuthRateLimiter } from "../../core/config/security.config";
 
+@injectable()
 export class TestRoutes {
-  private jwtPlugin: ITokenPlugin;
-  private logger: ILogger;
   /**
    * Cupo propio, mucho más estrecho que el general: un token es lo único que
    * abre el resto de la API, así que es lo primero que alguien pedirá en bucle.
    */
-  private tokenGuards: RequestHandler[];
+  private readonly tokenGuards: RequestHandler[];
 
-  constructor() {
-    this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
-    this.logger = container.resolve<ILogger>(TOKENS.ILogger);
-
-    const limiter = buildAuthRateLimiter(container.resolve<IEnvs>(TOKENS.IEnvs));
+  constructor(
+    @inject(TOKENS.ITokenPlugin) private readonly jwtPlugin: ITokenPlugin,
+    @inject(TOKENS.ILogger) private readonly logger: ILogger,
+    @inject(TOKENS.IEnvs) envs: IEnvs
+  ) {
+    const limiter = buildAuthRateLimiter(envs);
     this.tokenGuards = limiter ? [limiter] : [];
   }
 
-  public register(app: any) {
+  public register(app: Router) {
     /**
      * @openapi
-     * /api/generate-token:
+     * /generate-token:
      *   get:
      *     tags:
      *       - Test
@@ -51,7 +51,7 @@ export class TestRoutes {
      *     security:
      *       - bearerAuth: []
      */
-    app.get("/api/generate-token", ...this.tokenGuards, (req: Request, res: Response) => {
+    app.get("/generate-token", ...this.tokenGuards, (req: Request, res: Response) => {
       // Lógica para generar un token (usualmente después de validar credenciales).
       // El id va en `sub`, el claim estándar del sujeto: es lo que lee el
       // contexto de la petición y lo que usan las reglas que dependen de quién
@@ -65,7 +65,7 @@ export class TestRoutes {
     });
     /**
      * @openapi
-     * /api/upload-file:
+     * /upload-file:
      *   post:
      *     tags:
      *       - File
@@ -94,7 +94,7 @@ export class TestRoutes {
      *             example:
      *               path: uploads/1727012789000-foto.png
      */
-    app.post("/api/upload-file", (req: Request, res: Response) => {
+    app.post("/upload-file", (req: Request, res: Response) => {
       const busboy = Busboy({ headers: req.headers });
       const storage = new S3FileStoragePlugin(
   "my-bucket",
@@ -134,7 +134,7 @@ export class TestRoutes {
     });
     /**
      * @openapi
-     * /api/upload-files:
+     * /upload-files:
      *   post:
      *     tags:
      *       - File
@@ -167,7 +167,7 @@ export class TestRoutes {
      *             example:
      *               paths: ["uploads/1727012789000-foto1.png", "uploads/1727012789000-foto2.png"]
      */
-app.post("/api/upload-files", (req: Request, res: Response) => {
+app.post("/upload-files", (req: Request, res: Response) => {
   const busboy = Busboy({ headers: req.headers });
         const storage = new S3FileStoragePlugin(
   "my-bucket",
