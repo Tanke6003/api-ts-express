@@ -1,0 +1,137 @@
+// src/presentation/routing/route.decorators.ts
+//
+// Declaración de rutas sobre el propio controlador, al estilo de Angular o
+// Nest: el método dice qué verbo sirve, en qué ruta, qué valida y qué responde,
+// y de ahí salen a la vez el enrutado y la documentación.
+//
+// El objetivo no es ahorrarse el `app.get(...)` —eso son treinta líneas por
+// módulo— sino que **la ruta, la validación y el OpenAPI dejen de escribirse
+// tres veces**. Hoy el esquema de Zod dice que `limit` es un entero de 1 a 100,
+// el bloque `@openapi` lo repite a mano y nada obliga a que coincidan; en
+// cuanto uno cambia, el otro miente. Aquí sólo existe el esquema.
+import type { RequestHandler } from "express";
+import type { ZodType } from "zod";
+
+export type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
+
+/** Tipo de un parámetro de ruta, para documentarlo. */
+export type PathParamType = "integer" | "string";
+
+export interface RouteOptions {
+  /** Una línea; es lo que se ve en la lista de Swagger. */
+  summary?: string;
+  description?: string;
+  /** Esquema del cuerpo. Se valida y se documenta con él. */
+  body?: ZodType;
+  /** Esquema de la query. Cada propiedad se publica como un parámetro. */
+  query?: ZodType;
+  /** Parámetros de la ruta (`/users/:id` -> `{ id: "integer" }`). */
+  params?: Record<string, PathParamType>;
+  /** Códigos de respuesta y su descripción. */
+  responses?: Record<number, string>;
+  /**
+   * Sin token. Por defecto **toda** ruta exige JWT: si abrir una es un
+   * descuido, que el descuido sea cerrarla y no al revés.
+   */
+  public?: boolean;
+  /** Middlewares extra, antes del manejador y después de la validación. */
+  use?: RequestHandler[];
+}
+
+export interface RouteMetadata extends RouteOptions {
+  method: HttpMethod;
+  path: string;
+  /** Nombre de la propiedad del controlador que atiende la ruta. */
+  handler: string;
+}
+
+export interface ControllerMetadata {
+  prefix: string;
+  tag?: string;
+  routes: RouteMetadata[];
+}
+
+/**
+ * Metadatos por clase.
+ *
+ * Se indexa por el constructor y no por nombre para que dos controladores
+ * homónimos en módulos distintos no se pisen.
+ */
+const REGISTRY = new Map<object, ControllerMetadata>();
+
+function metadataOf(target: object): ControllerMetadata {
+  let metadata = REGISTRY.get(target);
+  if (!metadata) {
+    metadata = { prefix: "", routes: [] };
+    REGISTRY.set(target, metadata);
+  }
+  return metadata;
+}
+
+/**
+ * Marca la clase como controlador HTTP y le da su prefijo.
+ *
+ * Los decoradores de método corren **antes** que el de clase, así que cuando
+ * este llega la lista de rutas ya está poblada; por eso sólo completa el
+ * prefijo en vez de crear la entrada.
+ */
+export function ApiController(prefix: string, options: { tag?: string } = {}) {
+  return function (target: new (...args: never[]) => object): void {
+    const metadata = metadataOf(target);
+    metadata.prefix = prefix;
+    metadata.tag = options.tag;
+  };
+}
+
+/**
+ * Fábrica de los decoradores de verbo.
+ *
+ * Decora propiedades, no métodos del prototipo, porque los controladores de
+ * este proyecto declaran sus manejadores como funciones flecha —así `this`
+ * queda atado sin `.bind()`—. Un decorador de propiedad recibe el prototipo y
+ * el nombre, que es todo lo que hace falta para registrar.
+ */
+function route(method: HttpMethod) {
+  return (path: string, options: RouteOptions = {}) =>
+    function (target: object, propertyKey: string | symbol): void {
+      const constructor = (target as { constructor: object }).constructor;
+      metadataOf(constructor).routes.push({
+        ...options,
+        method,
+        path,
+        handler: String(propertyKey),
+      });
+    };
+}
+
+export const Get = route("get");
+export const Post = route("post");
+export const Put = route("put");
+export const Patch = route("patch");
+export const Delete = route("delete");
+
+/**
+ * Une el prefijo del controlador con el de la ruta.
+ *
+ * Vive aquí, y no en cada constructor, para que el enrutado y la documentación
+ * no puedan discrepar: `@Get("/")` sobre `/users` es `/users`, no `/users/`.
+ * Express trata las dos como la misma, pero en el documento de OpenAPI serían
+ * dos entradas distintas.
+ */
+export function joinPath(prefix: string, path: string): string {
+  if (path === "" || path === "/") return prefix;
+  return `${prefix}${path}`;
+}
+
+/** Metadatos de un controlador decorado, o `null` si no lo está. */
+export function getControllerMetadata(target: object): ControllerMetadata | null {
+  const metadata = REGISTRY.get(target);
+  // Un prefijo vacío significa que alguien puso verbos pero olvidó la clase.
+  if (!metadata) return null;
+  return metadata;
+}
+
+/** Todos los controladores registrados. Lo usa el generador de OpenAPI. */
+export function registeredControllers(): [object, ControllerMetadata][] {
+  return [...REGISTRY.entries()];
+}

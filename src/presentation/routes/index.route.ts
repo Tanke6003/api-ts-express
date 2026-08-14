@@ -1,7 +1,10 @@
 // src/presentation/routes/index.route.ts
 import express, { Application, Router } from "express";
 import { container } from "tsyringe";
-import { UsersRoutes } from "./users.route";
+import { UsersController } from "../controllers/users.controller";
+import { registerController } from "../routing/router.builder";
+import type { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import type { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
 import { BranchesRoutes } from "./branches.route";
 import { AppointmentsRoutes } from "./appointments.route";
 import { IdentityRoutes } from "./identity.route";
@@ -40,7 +43,19 @@ export class IndexRoutes {
    * montar el contenedor entero.
    */
   private static registerV1(router: Router): void {
-    container.resolve(UsersRoutes).register(router);
+    // Usuarios declara sus rutas con decoradores sobre el propio controlador;
+    // el resto todavía tiene su fichero de rutas. Las dos formas conviven a
+    // propósito mientras se migran, y este es el único sitio que lo nota.
+    const jwt = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
+    registerController(
+      router,
+      UsersController,
+      // Por token, no por clase: así el contenedor sigue siendo el que decide
+      // qué implementación atiende, igual que con el resto de módulos.
+      container.resolve<IUsersController>(TOKENS.IUsersController),
+      jwt.middleware
+    );
+
     container.resolve(BranchesRoutes).register(router);
     container.resolve(AppointmentsRoutes).register(router);
     container.resolve(IdentityRoutes).register(router);

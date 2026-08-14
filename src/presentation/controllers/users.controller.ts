@@ -1,15 +1,30 @@
 // src/presentation/controllers/users.controller.ts
 import { Request, Response, NextFunction } from "express";
-import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
+import type { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
 import type { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
 import { inject, injectable } from "tsyringe";
 import { AppError } from "../../core/errors/app-error";
-import type { PaginationInput } from "../../application/validators/users.validators";
+import {
+  createUserSchema,
+  paginationSchema,
+  updateUserSchema,
+  type PaginationInput,
+} from "../../application/validators/users.validators";
 import { BaseController } from "./base.controller";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { TOKENS } from "../../core/di/tokens";
+import { ApiController, Delete, Get, Post, Put } from "../routing/route.decorators";
 
+/**
+ * Usuarios.
+ *
+ * Las rutas se declaran aquí, sobre cada manejador, en vez de en un fichero
+ * aparte. De estos decoradores salen dos cosas a la vez —el enrutado y el
+ * OpenAPI—, y la validación es literalmente el mismo esquema de Zod que
+ * documenta el endpoint, así que no pueden discrepar.
+ */
 @injectable()
+@ApiController("/users", { tag: "Users" })
 export class UsersController extends BaseController implements IUsersController {
   constructor(
     @inject(TOKENS.IUsersService) private readonly usersService: IUsersService,
@@ -18,6 +33,11 @@ export class UsersController extends BaseController implements IUsersController 
     super(context);
   }
 
+  @Get("/", {
+    summary: "Listado paginado de usuarios",
+    query: paginationSchema,
+    responses: { 200: "Lista paginada de usuarios" },
+  })
   public getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = (req.validatedQuery as PaginationInput | undefined) ?? {
@@ -31,6 +51,11 @@ export class UsersController extends BaseController implements IUsersController 
     }
   };
 
+  @Get("/:id", {
+    summary: "Obtiene un usuario por id",
+    params: { id: "integer" },
+    responses: { 200: "Usuario encontrado", 404: "Usuario no encontrado" },
+  })
   public getUserById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = Number(req.params.id);
@@ -43,6 +68,11 @@ export class UsersController extends BaseController implements IUsersController 
     }
   };
 
+  @Post("/", {
+    summary: "Crea un usuario",
+    body: createUserSchema,
+    responses: { 201: "Usuario creado", 400: "Error de validación" },
+  })
   public createUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       await this.usersService.createUser(req.body);
@@ -52,6 +82,12 @@ export class UsersController extends BaseController implements IUsersController 
     }
   };
 
+  @Put("/:id", {
+    summary: "Actualiza un usuario",
+    params: { id: "integer" },
+    body: updateUserSchema,
+    responses: { 200: "Usuario actualizado", 404: "Usuario no encontrado" },
+  })
   public updateUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = Number(req.params.id);
@@ -64,6 +100,11 @@ export class UsersController extends BaseController implements IUsersController 
     }
   };
 
+  @Delete("/:id", {
+    summary: "Baja lógica de un usuario",
+    params: { id: "integer" },
+    responses: { 204: "Usuario dado de baja", 404: "Usuario no encontrado" },
+  })
   public deleteUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = Number(req.params.id);

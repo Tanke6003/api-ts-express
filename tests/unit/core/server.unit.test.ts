@@ -134,7 +134,42 @@ describe("Server", () => {
 
     const res = await request(server.app).get("/api/openapi.json");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ openapi: "3.0.0" });
+    expect(res.body).toMatchObject({ openapi: "3.0.0" });
+  });
+
+  it("documents the decorated controllers without a line of hand-written YAML", async () => {
+    await server.configureMiddleware();
+    await server.configureSwagger();
+
+    const { body } = await request(server.app).get("/api/openapi.json");
+    const list = body.paths["/users"].get;
+    const byId = body.paths["/users/{id}"].put;
+
+    expect(list).toMatchObject({
+      tags: ["Users"],
+      summary: "Listado paginado de usuarios",
+      security: [{ bearerAuth: [] }],
+    });
+
+    // Los parámetros salen del esquema de Zod que además valida la petición, no
+    // de un bloque de comentarios: no pueden discrepar.
+    expect(list.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ in: "query", name: "page" }),
+        expect.objectContaining({ in: "query", name: "limit" }),
+      ])
+    );
+
+    expect(byId.parameters).toEqual([
+      { in: "path", name: "id", required: true, schema: { type: "integer" } },
+    ]);
+    expect(byId.requestBody.content["application/json"].schema).toMatchObject({
+      type: "object",
+      properties: { name: { type: "string", minLength: 1, maxLength: 100 } },
+    });
+
+    // El 401 lo pone el guard, así que lo documenta el generador y no cada ruta.
+    expect(byId.responses["401"]).toBeDefined();
   });
 
   it("should expose scalar docs at /api/scalar", async () => {

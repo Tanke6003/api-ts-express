@@ -6,10 +6,9 @@ import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import { IndexRoutes } from "../presentation/routes/index.route";
-import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 import { container, injectable } from "tsyringe";
-import { getSwaggerOptions } from "./config/swagger.config";
+import { buildOpenApiSpec } from "./config/swagger.config";
 import {
   areDocsEnabled,
   buildCorsOptions,
@@ -104,7 +103,9 @@ export class Server {
   }
 
   async configureSwagger() {
-    const swaggerSpec = swaggerJsdoc(getSwaggerOptions());
+    // Una sola especificación para Swagger y para Scalar: Scalar la lee del
+    // mismo `/api/openapi.json`, así que documentar dos veces no hace falta.
+    const swaggerSpec = buildOpenApiSpec();
 
     this.app.use(
       "/api/swagger",
