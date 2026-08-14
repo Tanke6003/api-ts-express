@@ -27,9 +27,24 @@ const TEST_JWT_SECRET = "unit-test-secret";
 
 describe("Server", () => {
   let server: Server;
+  let healthProbe: { report: jest.Mock; beginShutdown: jest.Mock };
+
+  /** Estado que devuelve el sondeo de salud; los tests lo ajustan a su caso. */
+  const healthy = {
+    ready: true,
+    dataSource: "memory",
+    database: "not_applicable" as const,
+    shuttingDown: false,
+  };
 
   beforeEach(() => {
     container.reset();
+
+    healthProbe = {
+      report: jest.fn().mockResolvedValue(healthy),
+      beginShutdown: jest.fn(),
+    };
+    container.register("IHealthProbe", { useValue: healthProbe });
 
     container.register<IEnvs>("IEnvs", {
       useValue: {
@@ -208,6 +223,123 @@ describe("Server", () => {
     expect(blocked.status).toBe(403);
     expect(blocked.body).toMatchObject({ status: "error", code: "CORS_ORIGIN_NOT_ALLOWED" });
     expect(blocked.body).toHaveProperty("requestId");
+  });
+
+  // ------------------------------------------------------------- salud ----
+
+  it("keeps /health/live up even when the database is down", async () => {
+    healthProbe.report.mockResolvedValue({ ...healthy, ready: false, database: "down" });
+
+    await server.configureMiddleware();
+    await server.configureRoutes();
+
+    // Vivacidad no consulta la base: reiniciar el proceso no arregla una base
+    // ajena, así que este sondeo no debe provocarlo.
+    const res = await request(server.app).get("/health/live");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "ok" });
+    expect(healthProbe.report).not.toHaveBeenCalled();
+  });
+
+  it("answers 503 on /health/ready when the database is down", async () => {
+    healthProbe.report.mockResolvedValue({
+      ready: false,
+      dataSource: "postgres",
+      database: "down",
+      shuttingDown: false,
+    });
+
+    await server.configureMiddleware();
+    await server.configureRoutes();
+
+    const res = await request(server.app).get("/health/ready");
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({ status: "degraded", database: "down", dataSource: "postgres" });
+  });
+
+  it("answers 503 while draining, and /health is the same check", async () => {
+    healthProbe.report.mockResolvedValue({ ...healthy, ready: false, shuttingDown: true });
+
+    await server.configureMiddleware();
+    await server.configureRoutes();
+
+    for (const path of ["/health", "/health/ready"]) {
+      const res = await request(server.app).get(path);
+      expect(res.status).toBe(503);
+      expect(res.body).toMatchObject({ status: "shutting_down" });
+    }
+  });
+
+  it("reports ok on /health when everything is up", async () => {
+    await server.configureMiddleware();
+    await server.configureRoutes();
+
+    const res = await request(server.app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "ok", database: "not_applicable" });
+  });
+
+  // ------------------------------------------------------------ apagado ----
+
+  it("close() is a no-op when the server never listened", async () => {
+    await expect(server.close()).resolves.toBeUndefined();
+  });
+
+  it("close() drains: the in-flight request finishes and new ones are refused", async () => {
+    jest.spyOn(Server.prototype, "configureScalar").mockImplementationOnce(async () => {});
+
+    // Un controlador lento es la única forma de que haya algo realmente en
+    // vuelo cuando se cierra; es justo la petición que hoy se cortaba a media
+    // respuesta en cada despliegue.
+    container.register("IUsersController", {
+      useValue: {
+        getAllUsers: (_req: any, res: any) => setTimeout(() => res.json({ ok: true }), 150),
+        getUserById: jest.fn(),
+        createUser: jest.fn(),
+        updateUser: jest.fn(),
+        deleteUser: jest.fn(),
+      },
+    });
+
+    const draining = new Server(0);
+    await draining.run();
+
+    const base = `http://127.0.0.1:${draining.address!.port}`;
+    const token = jwt.sign({ userId: 1 }, TEST_JWT_SECRET, { expiresIn: "1h" });
+
+    // El `.then` no es decorativo: supertest es perezoso y no envía nada hasta
+    // que alguien se suscribe. Sin él la petición saldría después del cierre.
+    const inFlight = request(base)
+      .get("/api/users")
+      .set("Authorization", `Bearer ${token}`)
+      .then((response) => response);
+    // Tiempo suficiente para que la petición esté dentro del controlador, pero
+    // no para que haya respondido.
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    const closed = draining.close();
+
+    await expect(inFlight).resolves.toMatchObject({ status: 200, body: { ok: true } });
+    await expect(closed).resolves.toBeUndefined();
+
+    // Y ya no acepta nada nuevo.
+    await expect(request(base).get("/health/live")).rejects.toThrow();
+  });
+
+  it("run() keeps the http server so it can be closed, and close() is idempotent", async () => {
+    // Scalar carga su módulo con un `import()` dinámico, que jest no resuelve
+    // en CommonJS; aquí lo que se prueba es el ciclo de vida, no la doc.
+    jest.spyOn(Server.prototype, "configureScalar").mockImplementationOnce(async () => {});
+
+    // Puerto 0: el sistema asigna uno libre, así que el test no choca con nada.
+    const listening = new Server(0);
+    await listening.run();
+
+    await expect(listening.close()).resolves.toBeUndefined();
+    await expect(listening.close()).resolves.toBeUndefined();
   });
 
   it("rejects a body over the configured limit with a 413", async () => {

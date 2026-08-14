@@ -17,6 +17,7 @@ export const TOKENS = {
   ITokenPlugin: "ITokenPlugin",
   IFileStorage: "IFileStorage",
   IRequestContext: "IRequestContext",
+  IHealthProbe: "IHealthProbe",
 
   // ------------------------------------------------------------ persistencia --
   // Un store es el repositorio genérico ya montado sobre el motor activo; el

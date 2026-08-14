@@ -34,7 +34,7 @@ quiso decir.
 |---|------|--------|----------|
 | 1 | Endurecimiento HTTP — **aplicado** | Alto | 2-3 h |
 | 2 | Carrera en `assertSlotIsFree` — **aplicado** | Alto | 4-6 h |
-| 3 | Apagado que drena + health real | Medio | 2 h |
+| 3 | Apagado que drena + health real — **aplicado** | Medio | 2 h |
 | 4 | Service locator, `app: any`, versionado | Bajo (deuda) | 3-4 h |
 | 5 | Escape de `%` y `_` en `ilike` | Bajo | 2 h |
 
@@ -473,6 +473,27 @@ donde de verdad se prueban el bloqueo y el índice.
 ---
 
 ## 3. Apagado que drena y health check real
+
+> **Aplicado.** `Server` guarda el `http.Server`, expone `close()` y `address`,
+> y `main.ts` drena en cuatro pasos con temporizador de rescate. El sondeo es
+> `HealthProbePlugin` (caché de 3 s, tope de 2 s), registrado en
+> `persistence.module` porque ahí está la conexión. Tres rutas: `/health/live`,
+> `/health/ready` y `/health` como alias, las tres fuera del rate limiter.
+>
+> Diferencias con lo que se planteaba abajo:
+>
+> - **El sondeo entra por el contenedor** (`TOKENS.IHealthProbe`) en vez de
+>   exportar un `checkConnection` desde `container.ts`. Importar el contenedor
+>   desde `server.ts` habría disparado el registro entero de la DI con sólo
+>   importar la clase, y eso rompe los tests que montan el servidor con dobles.
+> - **Los `console.log` del arranque** pasaron al logger de paso, que era el
+>   punto 3.5 de la lista.
+> - **Verificación:** las tres rutas comprobadas contra un servidor real
+>   (`DATA_SOURCE=dummy`, puerto 3999) y un test que arranca en un puerto libre,
+>   deja una petición a medias, cierra, y comprueba que esa termina con 200
+>   mientras las nuevas conexiones se rechazan. En Windows no se puede probar la
+>   señal: `SIGTERM` no dispara manejadores de Node, así que la secuencia se
+>   prueba en proceso y no por señal.
 
 ### Diagnóstico
 

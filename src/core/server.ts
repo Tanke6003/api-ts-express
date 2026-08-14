@@ -1,5 +1,7 @@
 // src/core/server.ts
 import express, { Application } from "express";
+import http from "http";
+import type { AddressInfo } from "net";
 import path from "path";
 import cors from "cors";
 import helmet from "helmet";
@@ -18,6 +20,7 @@ import {
 } from "./config/security.config";
 import { ILogger } from "../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { IEnvs } from "../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import { IHealthProbe } from "../domain/interfaces/infrastructure/plugins/health-probe.interface";
 import { errorHandler, notFoundHandler } from "../presentation/middlewares/errorHandler.middleware";
 import { requestContext } from "../presentation/middlewares/requestContext.middleware";
 import { IRequestContext } from "../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
@@ -28,6 +31,12 @@ export class Server {
   private readonly port: number;
   public app: Application = express();
   private routes = IndexRoutes;
+  /**
+   * El servidor HTTP, para poder cerrarlo. Sin guardarlo, un apagado ordenado no
+   * tiene forma de dejar de aceptar conexiones y las peticiones en vuelo se
+   * cortan a media respuesta.
+   */
+  private httpServer?: http.Server;
 
   constructor(port: number) {
     this.port = port;
@@ -114,19 +123,47 @@ export class Server {
     });
   }
 
+  /**
+   * Rutas de negocio y las de salud.
+   *
+   * Salud son dos preguntas distintas y se responden por separado, porque un
+   * orquestador hace cosas opuestas con cada una: si el proceso no está *vivo*
+   * lo reinicia, y si no está *listo* le quita el tráfico. Con la base caída lo
+   * correcto es lo segundo: reiniciar no arregla una base ajena, y quitarle el
+   * tráfico manda las peticiones a una réplica que sí puede atenderlas.
+   */
   async configureRoutes() {
     this.routes.register(this.app);
 
-    this.app.get("/health", (_req, res) => {
+    const probe: IHealthProbe = container.resolve(TOKENS.IHealthProbe);
+
+    const describe = (report: Awaited<ReturnType<IHealthProbe["report"]>>) => ({
+      status: report.ready ? "ok" : report.shuttingDown ? "shutting_down" : "degraded",
+      // Útil para saber contra qué driver está corriendo la interfaz web.
+      dataSource: report.dataSource,
+      database: report.database,
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+    });
+
+    /** Vivacidad: sólo dice que el proceso responde. Nunca toca la base. */
+    this.app.get("/health/live", (_req, res) => {
       res.status(200).json({
         status: "ok",
-        // Útil para saber contra qué driver está corriendo la interfaz web.
-        dataSource: (process.env.DATA_SOURCE || "dummy").toLowerCase(),
         timestamp: new Date().toISOString(),
         uptime: Math.floor(process.uptime()),
       });
     });
 
+    /** Disponibilidad: 503 con la base caída o mientras se drena. */
+    const readiness = async (_req: express.Request, res: express.Response) => {
+      const report = await probe.report();
+      res.status(report.ready ? 200 : 503).json(describe(report));
+    };
+
+    this.app.get("/health/ready", readiness);
+    // Alias histórico; lo consume la interfaz de ejemplo (public/js/api.js).
+    this.app.get("/health", readiness);
   }
 
   /**
@@ -154,18 +191,46 @@ export class Server {
     this.configureErrorHandling();
 
     const docsEnabled = areDocsEnabled(envs);
+    const logger: ILogger = container.resolve(TOKENS.ILogger);
 
-    this.app.listen(this.port, () => {
-      console.log(`Server running on port ${this.port}`);
-      console.log(`UI:      http://localhost:${this.port}/`);
-      console.log(`Users:   http://localhost:${this.port}/api/users`);
-      // No se anuncia lo que no está montado: con la documentación apagada,
-      // estas dos líneas mandarían a un 404.
-      if (docsEnabled) {
-        console.log(`Swagger: http://localhost:${this.port}/api/swagger`);
-        console.log(`Scalar:  http://localhost:${this.port}/api/scalar`);
-      }
-      console.log(`Health:  http://localhost:${this.port}/health`);
+    this.httpServer = this.app.listen(this.port, () => {
+      const base = `http://localhost:${this.port}`;
+      logger.info("Servidor escuchando", {
+        port: this.port,
+        ui: `${base}/`,
+        users: `${base}/api/users`,
+        // No se anuncia lo que no está montado: con la documentación apagada
+        // estas dos direcciones darían un 404.
+        swagger: docsEnabled ? `${base}/api/swagger` : undefined,
+        scalar: docsEnabled ? `${base}/api/scalar` : undefined,
+        health: `${base}/health/ready`,
+      });
+    });
+  }
+
+  /** Dirección en la que quedó escuchando, o `null` si no está escuchando. */
+  get address(): AddressInfo | null {
+    const address = this.httpServer?.address();
+    return address && typeof address !== "string" ? address : null;
+  }
+
+  /**
+   * Deja de aceptar conexiones y espera a que terminen las peticiones en vuelo.
+   *
+   * `close()` por sí solo no basta: con keep-alive, un cliente ocioso mantiene
+   * su conexión abierta y la promesa no se resolvería hasta que él la cierre.
+   * `closeIdleConnections()` suelta justo esas —las que no tienen petición en
+   * curso— y deja terminar a las que sí.
+   */
+  async close(): Promise<void> {
+    const server = this.httpServer;
+    if (!server) return;
+
+    this.httpServer = undefined;
+
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+      server.closeIdleConnections();
     });
   }
 }

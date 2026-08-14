@@ -44,7 +44,9 @@ The server starts on port **3001** by default.
 | URL | Description |
 |-----|-------------|
 | `/` | Web UI — appointments, branches and users |
-| `GET /health` | Health check (reports the active `dataSource`) |
+| `GET /health/live` | Liveness — the process answers. Never touches the database |
+| `GET /health/ready` | Readiness — 503 if the database is down or the app is draining |
+| `GET /health` | Alias of `/health/ready` |
 | `GET /api/users` | List users |
 | `GET /api/branches` | List branches |
 | `GET /api/appointments` | List appointments |
@@ -179,6 +181,8 @@ Copy `.env.template` to `.env.dev` (development) or `.env` (production) and fill
 | `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX` | `900000` / `10` | Rate limit for the routes that hand out credentials |
 | `CSP_ENABLED` | `false` | Content-Security-Policy. Off by default: it breaks the demo UI, Swagger and Scalar |
 | `DOCS_ENABLED` | — | Publish Swagger / Scalar / `openapi.json`. Default: everywhere except production |
+| `SHUTDOWN_DELAY_MS` | `0` | Gap between reporting "not ready" and closing the socket. Behind Kubernetes, `5000` |
+| `SHUTDOWN_TIMEOUT_MS` | `10000` | Whole-shutdown budget. Keep it below the orchestrator's grace period |
 | `DATA_SOURCE` | `dummy` | `dummy` (in-memory) / `oracle` / `sqlserver` / `postgres` / `mysql` / `mongodb`. An unknown value fails at startup instead of falling back to memory |
 | `LOG_DRIVER` | `pino` | Logger implementation: `pino` / `winston` |
 | `LOG_LEVEL` | `trace` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |

@@ -193,7 +193,9 @@ curl -X POST http://localhost:3001/api/users \
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/health` | — | Status, active `dataSource`, timestamp, uptime |
+| `GET` | `/health/live` | — | Liveness: the process answers. Never touches the database |
+| `GET` | `/health/ready` | — | Readiness: 503 if the database is down or the app is draining |
+| `GET` | `/health` | — | Alias of `/health/ready` |
 | `GET` | `/api/generate-token` | — | Development JWT; accepts `userId`, `name`, `email` |
 | `GET` | `/api/users` | Bearer | Paginated list (`page`, `limit`) |
 | `GET` | `/api/users/:id` | Bearer | Single user |
@@ -299,18 +301,37 @@ npm run start:win # Windows
 
 Never commit `.env` files — use the platform's secret store. The startup validation is the safety net, not the strategy: it refuses to boot without the secrets, but it cannot tell a strong secret from `change_me`.
 
-The process drains its connection pool on `SIGINT` and `SIGTERM`, so orchestrators that stop containers with a signal get a clean shutdown for free.
+On `SIGINT` and `SIGTERM` the process drains in four steps: it stops reporting
+itself as ready, waits `SHUTDOWN_DELAY_MS` for the load balancer to notice, stops
+accepting connections and lets the in-flight requests finish, and only then
+returns the connection pool. A watchdog capped at `SHUTDOWN_TIMEOUT_MS` forces
+the exit if any step hangs.
 
-`GET /health` is the endpoint for load balancer probes:
+That waiting step is what removes the 502s on a rolling deploy: closing the
+socket before the balancer knows loses whatever it routed in the meantime.
+Behind Kubernetes, set `SHUTDOWN_DELAY_MS=5000` and keep `SHUTDOWN_TIMEOUT_MS`
+below `terminationGracePeriodSeconds`.
+
+Probes are split, because an orchestrator does opposite things with each answer:
+
+| Endpoint | Question | Behaviour |
+|----------|----------|-----------|
+| `GET /health/live` | Is the process alive? | Always `200`. Never touches the database — restarting cannot fix someone else's database |
+| `GET /health/ready` | Can it take traffic? | `503` if the database is down or the app is draining, so the balancer routes elsewhere |
+| `GET /health` | — | Alias of `/health/ready` |
 
 ```json
 {
   "status": "ok",
   "dataSource": "postgres",
+  "database": "up",
   "timestamp": "2025-01-01T00:00:00.000Z",
   "uptime": 42
 }
 ```
+
+The database check is capped at 2 s and its result cached for 3 s, so a probe
+every second does not turn into a query every second against every replica.
 
 GitHub Actions runs lint, TypeScript build, tests with coverage and a dependency audit as parallel jobs on every push and pull request (`.github/workflows/ci.yml`, plus standalone `lint.yml` and `test.yml`). No repository secrets are needed as configured.
 
