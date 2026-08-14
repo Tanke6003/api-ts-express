@@ -4,6 +4,7 @@ import type { IIdentityController } from "../../../domain/interfaces/presentatio
 import type { IAuditController } from "../../../domain/interfaces/presentation/controllers/audit.controller.interface";
 import { IdentityController } from "../../../presentation/controllers/identity.controller";
 import { AuditController } from "../../../presentation/controllers/audit.controller";
+import { DevController } from "../../../presentation/controllers/dev.controller";
 import { TOKENS } from "../tokens";
 
 /**
@@ -17,4 +18,5 @@ export function registerSystem(): void {
     useClass: IdentityController,
   });
   container.register<IAuditController>(TOKENS.IAuditController, { useClass: AuditController });
+  container.register(TOKENS.IDevController, { useClass: DevController });
 }

@@ -90,6 +90,14 @@ describe("Server", () => {
     container.register("IIdentityController", {
       useValue: { me: jest.fn((_req: any, res: any) => res.json({ id: "1" })) },
     });
+    container.register("IDevController", {
+      useValue: {
+        generateToken: jest.fn((_req: any, res: any) => res.json({ token: "t" })),
+        uploadFile: jest.fn((_req: any, res: any) => res.json({ path: "p" })),
+        uploadFiles: jest.fn((_req: any, res: any) => res.json({ paths: [] })),
+        tokenRateLimit: [],
+      },
+    });
 
     container.register<ILogger>("ILogger", {
       useValue: {
@@ -134,7 +142,9 @@ describe("Server", () => {
 
     const res = await request(server.app).get("/api/openapi.json");
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ openapi: "3.0.0" });
+    // 3.1 porque su esquema es JSON Schema 2020-12, que es lo que emite Zod.
+    expect(res.body).toMatchObject({ openapi: "3.1.0" });
+    expect(res.body.info).toMatchObject({ title: expect.any(String) });
   });
 
   it("documents the decorated controllers without a line of hand-written YAML", async () => {

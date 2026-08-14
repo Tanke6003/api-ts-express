@@ -5,6 +5,7 @@ import type { IRequestContext } from "../../domain/interfaces/infrastructure/plu
 import { IIdentityController } from "../../domain/interfaces/presentation/controllers/identity.controller.interface";
 import { BaseController } from "./base.controller";
 import { TOKENS } from "../../core/di/tokens";
+import { ApiController, Get } from "../routing/route.decorators";
 
 /**
  * Publica la identidad que la API resolvió del token: el mismo usuario que el
@@ -14,11 +15,18 @@ import { TOKENS } from "../../core/di/tokens";
  * que evita repetir la extracción en cada controlador.
  */
 @injectable()
+@ApiController("/me", { tag: "Identity", token: TOKENS.IIdentityController })
 export class IdentityController extends BaseController implements IIdentityController {
   constructor(@inject(TOKENS.IRequestContext) context: IRequestContext) {
     super(context);
   }
 
+  @Get("/", {
+    summary: "Identidad resuelta a partir del token",
+    description:
+      "Devuelve el usuario que la API extrajo del JWT. Es el mismo que el repositorio genérico escribe en las columnas CREATED_BY / UPDATED_BY.",
+    responses: { 200: { description: "Identidad del usuario autenticado", ref: "Identity" } },
+  })
   public me = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       // La ruta va detrás del guard de JWT, así que aquí siempre hay usuario:

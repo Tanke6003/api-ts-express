@@ -56,7 +56,9 @@ export function registerController(
     if (!route.public) chain.push(guard);
     if (route.body) chain.push(validateBody(route.body));
     if (route.query) chain.push(validateQuery(route.query));
-    if (route.use) chain.push(...route.use);
+    if (route.use) {
+      chain.push(...(typeof route.use === "function" ? route.use(controller) : route.use));
+    }
 
     // El manejador es una propiedad de instancia (función flecha), así que `this`
     // ya viene atado y no hace falta `.bind()`.

@@ -24,7 +24,7 @@ import { ApiController, Delete, Get, Post, Put } from "../routing/route.decorato
  * documenta el endpoint, así que no pueden discrepar.
  */
 @injectable()
-@ApiController("/users", { tag: "Users" })
+@ApiController("/users", { tag: "Users", token: TOKENS.IUsersController })
 export class UsersController extends BaseController implements IUsersController {
   constructor(
     @inject(TOKENS.IUsersService) private readonly usersService: IUsersService,
@@ -36,7 +36,9 @@ export class UsersController extends BaseController implements IUsersController 
   @Get("/", {
     summary: "Listado paginado de usuarios",
     query: paginationSchema,
-    responses: { 200: "Lista paginada de usuarios" },
+    // La forma de la respuesta la define el DTO, no un esquema de Zod, así que
+    // se referencia el componente que ya declara `users.dtos.ts`.
+    responses: { 200: { description: "Lista paginada de usuarios", ref: "PaginatedUsers" } },
   })
   public getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

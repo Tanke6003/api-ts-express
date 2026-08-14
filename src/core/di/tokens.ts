@@ -44,6 +44,8 @@ export const TOKENS = {
   IAppointmentsController: "IAppointmentsController",
   IIdentityController: "IIdentityController",
   IAuditController: "IAuditController",
+  /** Utilidades de desarrollo: token de prueba y subida de ficheros. */
+  IDevController: "IDevController",
 } as const;
 
 /** Cualquiera de los identificadores de arriba. */

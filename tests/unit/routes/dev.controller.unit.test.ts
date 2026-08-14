@@ -5,7 +5,8 @@ import { IEnvs } from "../../../src/domain/interfaces/infrastructure/plugins/env
 import { ITokenPlugin } from "../../../src/domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
 import { S3FileStoragePlugin } from "../../../src/infrastructure/plugins/s3FileStorage.plugin";
-import { TestRoutes } from "../../../src/presentation/routes/test.route";
+import { DevController } from "../../../src/presentation/controllers/dev.controller";
+import { registerController } from "../../../src/presentation/routing/router.builder";
 import { IRequestContext } from "../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
 import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
@@ -13,7 +14,7 @@ import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/l
 // mock del S3FileStoragePlugin
 jest.mock("../../../src/infrastructure/plugins/s3FileStorage.plugin");
 
-describe("TestRoutes (unit)", () => {
+describe("DevController (unit)", () => {
   let app: express.Express;
 
   beforeEach(() => {
@@ -58,7 +59,8 @@ describe("TestRoutes (unit)", () => {
     app.use(express.json());
 
     const api = express.Router();
-    container.resolve(TestRoutes).register(api);
+    const jwt = container.resolve<ITokenPlugin>("ITokenPlugin");
+    registerController(api, DevController, container.resolve(DevController), jwt.middleware);
     app.use("/api", api);
   });
 

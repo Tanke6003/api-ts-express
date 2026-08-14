@@ -5,8 +5,9 @@ cosas a la vez: el enrutado de Express, la validación de la petición y la
 documentación de OpenAPI. No hay que escribirlas por separado y no pueden
 discrepar entre sí.
 
-`UsersController` es el módulo ya migrado; el resto todavía usa ficheros de
-rutas con bloques `@openapi`. Las dos formas conviven.
+No queda ningún fichero de rutas ni un solo comentario `@openapi` en el
+proyecto. Los seis controladores declaran lo suyo y `routing/index.route.ts`
+—setenta líneas— recorre el registro y los monta.
 
 ---
 
@@ -128,20 +129,31 @@ Un par de decisiones técnicas detrás:
 
 ---
 
-## Migrar un módulo que aún tiene fichero de rutas
+## Añadir un módulo
 
-1. Copia cada `app.<verbo>(...)` a su decorador sobre el manejador
-   correspondiente del controlador, con el mismo esquema de validación.
-2. Traslada el `summary` y los códigos de respuesta del bloque `@openapi` a las
-   opciones del decorador. El resto del bloque —parámetros, cuerpo— no se
-   traslada: se genera solo.
-3. Borra el fichero de rutas y su clase.
-4. En `index.route.ts`, cambia la línea `container.resolve(XRoutes).register(router)`
-   por `registerController(router, XController, container.resolve(TOKENS.IXController), jwt.middleware)`.
+1. Decora su controlador con `@ApiController("/loquesea", { tag, token })` y
+   cada manejador con su verbo.
+2. Declara sus DTOs con `defineDto` en `application/dtos/` y añádelos al barril
+   `dtos/index.ts`.
+3. Añade una línea de `import` en `routing/index.route.ts`, que es lo que
+   ejecuta los decoradores y mete el controlador en el registro.
 
-Cuando no quede ningún fichero de rutas, `swagger.config.ts` puede dejar de
-listar `./src/presentation/routes/*.ts` en `apis` y swagger-jsdoc deja de hacer
-falta para las rutas.
+No hay que tocar nada más: ni rutas, ni documentación, ni una tabla de módulos.
+
+## Los DTOs también se declaran una vez
+
+`defineDto("User", z.object({...}))` publica el componente de OpenAPI y
+`z.infer` da el tipo de TypeScript. Antes era una interfaz más un bloque
+`@openapi` que la repetía en YAML: 168 líneas de comentario en los tres ficheros
+de DTOs, sin nada que obligara a que coincidieran.
+
+`definePagedDto("PaginatedUsers", userDto)` envuelve un DTO en la respuesta
+paginada de la casa, con el elemento por referencia.
+
+Cuidado con una cosa: un DTO se registra al **cargarse** su módulo, y el resto
+del código los importa como tipos, que TypeScript borra al compilar. Por eso
+existe el barril `dtos/index.ts` y por eso `swagger.config.ts` lo importa. Un
+DTO que no esté en el barril no aparece en la documentación.
 
 ---
 

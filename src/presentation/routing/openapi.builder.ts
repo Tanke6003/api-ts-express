@@ -8,7 +8,12 @@
 // escrito a mano: la misma información que ya estaba en el validador, repetida
 // sin nada que garantizara que coincidían.
 import { z, type ZodType } from "zod";
-import { joinPath, type ControllerMetadata, type RouteMetadata } from "./route.decorators";
+import {
+  joinPath,
+  type ControllerMetadata,
+  type ResponseSpec,
+  type RouteMetadata,
+} from "./route.decorators";
 
 /** Documento de OpenAPI, en lo que a este generador respecta. */
 type OpenApiPaths = Record<string, Record<string, unknown>>;
@@ -58,22 +63,96 @@ function pathParameters(params: RouteMetadata["params"]): Record<string, unknown
   }));
 }
 
+/** Nombre del componente con el sobre de error común de la API. */
+export const ERROR_SCHEMA_NAME = "ErrorResponse";
+
+/**
+ * Forma de **cualquier** error de la API.
+ *
+ * La produce un único sitio —el manejador global— así que se declara una vez y
+ * se referencia desde todas las respuestas 4xx y 5xx. Antes no estaba
+ * documentada en ninguna parte: un cliente veía "401 Unauthorized" y tenía que
+ * adivinar que el cuerpo trae un `code` estable sobre el que ramificar.
+ */
+export const ERROR_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    status: { type: "string", const: "error" },
+    code: {
+      type: "string",
+      description: "Código estable; es sobre lo que conviene ramificar.",
+      examples: ["VALIDATION_ERROR", "NO_TOKEN", "APPOINTMENT_OVERLAP"],
+    },
+    message: { type: "string" },
+    requestId: {
+      type: "string",
+      description: "Mismo valor que la cabecera X-Request-Id. Sirve para el soporte.",
+    },
+    timestamp: { type: "string", format: "date-time" },
+    path: { type: "string" },
+    method: { type: "string" },
+    errors: {
+      type: "array",
+      description: "Sólo en errores de validación: qué campo y por qué.",
+      items: {
+        type: "object",
+        properties: { field: { type: "string" }, message: { type: "string" } },
+        required: ["field", "message"],
+      },
+    },
+  },
+  required: ["status", "code", "message", "timestamp", "path", "method"],
+} as const;
+
+const errorContent = {
+  content: { "application/json": { schema: { $ref: `#/components/schemas/${ERROR_SCHEMA_NAME}` } } },
+};
+
+/** Cuerpo de una respuesta, sea por referencia a un componente o generado. */
+function contentOf(spec: Exclude<ResponseSpec, string>): Record<string, unknown> {
+  if (spec.ref) {
+    return {
+      content: {
+        "application/json": { schema: { $ref: `#/components/schemas/${spec.ref}` } },
+      },
+    };
+  }
+  if (spec.schema) {
+    return { content: { "application/json": { schema: toSchema(spec.schema) } } };
+  }
+  return {};
+}
+
 /**
  * Respuestas declaradas más las que se cumplen siempre.
  *
- * El 401 no se escribe en cada ruta: lo pone el guard, así que lo pone también
- * la documentación en toda ruta que no sea pública.
+ * Dos cosas se añaden solas, porque son ciertas en toda la API y repetirlas en
+ * cada ruta sólo daría ocasión de olvidarlas:
+ *
+ *  - el 401 en cualquier ruta que pase por el guard;
+ *  - el cuerpo de error en todo 4xx y 5xx que no describa otro.
  */
 function responsesOf(route: RouteMetadata): Record<string, unknown> {
-  const declared = Object.entries(route.responses ?? { 200: "OK" }).map(
-    ([code, description]) => [code, { description }] as const
-  );
+  const declared: Record<string, unknown> = {};
 
-  const responses = Object.fromEntries(declared) as Record<string, unknown>;
-  if (!route.public && !responses["401"]) {
-    responses["401"] = { description: "Falta el token o no es válido" };
+  for (const [code, spec] of Object.entries(route.responses ?? { 200: "OK" })) {
+    const normalized = typeof spec === "string" ? { description: spec } : spec;
+    declared[code] = { description: normalized.description, ...contentOf(normalized) };
   }
-  return responses;
+
+  if (!route.public && !declared["401"]) {
+    declared["401"] = { description: "Falta el token o no es válido" };
+  }
+
+  for (const [code, response] of Object.entries(declared)) {
+    const isFailure = Number(code) >= 400;
+    const hasContent = "content" in (response as Record<string, unknown>);
+    if (isFailure && !hasContent) {
+      declared[code] = { ...(response as Record<string, unknown>), ...errorContent };
+    }
+  }
+
+  return declared;
 }
 
 function operationOf(route: RouteMetadata, tag?: string): Record<string, unknown> {
@@ -81,6 +160,10 @@ function operationOf(route: RouteMetadata, tag?: string): Record<string, unknown
 
   return {
     ...(tag ? { tags: [tag] } : {}),
+    // El nombre del manejador ya identifica la operación y es único dentro del
+    // controlador. Es lo que usan los generadores de cliente para nombrar el
+    // método, y sin él inventan uno a partir de la ruta y el verbo.
+    operationId: route.handler,
     ...(route.summary ? { summary: route.summary } : {}),
     ...(route.description ? { description: route.description } : {}),
     ...(route.public ? {} : { security: [{ bearerAuth: [] }] }),

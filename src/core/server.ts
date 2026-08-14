@@ -5,7 +5,7 @@ import type { AddressInfo } from "net";
 import path from "path";
 import cors from "cors";
 import helmet from "helmet";
-import { IndexRoutes } from "../presentation/routes/index.route";
+import { IndexRoutes } from "../presentation/routing/index.route";
 import swaggerUi, { SwaggerUiOptions } from "swagger-ui-express";
 import { container, injectable } from "tsyringe";
 import { buildOpenApiSpec } from "./config/swagger.config";

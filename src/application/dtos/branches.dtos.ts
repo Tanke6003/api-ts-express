@@ -1,59 +1,25 @@
-/**
- * @openapi
- * components:
- *   schemas:
- *     Branch:
- *       type: object
- *       properties:
- *         id:
- *           type: integer
- *           example: 1
- *         name:
- *           type: string
- *           example: Sucursal Centro
- *         address:
- *           type: string
- *           nullable: true
- *           example: Av. Juárez 100, Centro
- *         phone:
- *           type: string
- *           nullable: true
- *           example: "+52 55 5000 0001"
- *         opensAt:
- *           type: string
- *           example: "09:00"
- *         closesAt:
- *           type: string
- *           example: "19:00"
- *         available:
- *           type: boolean
- *           example: true
- *     PaginatedBranches:
- *       type: object
- *       properties:
- *         data:
- *           type: array
- *           items:
- *             $ref: '#/components/schemas/Branch'
- *         total:
- *           type: integer
- *         page:
- *           type: integer
- *         limit:
- *           type: integer
- *         pages:
- *           type: integer
- */
-export interface BranchDTO {
-  id: number;
-  name: string;
-  address?: string | null;
-  phone?: string | null;
-  opensAt?: string;
-  closesAt?: string;
-  /** Estado del borrado lógico; sólo se ve al consultar con `withDeleted`. */
-  available?: boolean;
-}
+// src/application/dtos/branches.dtos.ts
+import { z } from "zod";
+import { defineDto, definePagedDto } from "./dto.registry";
+
+export const branchDto = defineDto(
+  "Branch",
+  z.object({
+    id: z.int().meta({ examples: [1] }),
+    name: z.string().meta({ examples: ["Sucursal Centro"] }),
+    address: z.string().nullish().meta({ examples: ["Av. Juárez 100, Centro"] }),
+    phone: z.string().nullish().meta({ examples: ["+52 55 5000 0001"] }),
+    opensAt: z.string().optional().meta({ examples: ["09:00"] }),
+    closesAt: z.string().optional().meta({ examples: ["19:00"] }),
+    available: z.boolean().optional().meta({
+      description: "Estado del borrado lógico; sólo se ve al consultar con `withDeleted`.",
+    }),
+  })
+);
+
+export const paginatedBranchesDto = definePagedDto("PaginatedBranches", branchDto);
+
+export type BranchDTO = z.infer<typeof branchDto>;
 
 export interface CreateBranchDTO {
   name: string;

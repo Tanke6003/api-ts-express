@@ -17,6 +17,27 @@ export type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
 /** Tipo de un parámetro de ruta, para documentarlo. */
 export type PathParamType = "integer" | "string";
 
+/**
+ * Una respuesta documentada.
+ *
+ * La forma corta es sólo la descripción, que basta para un 204 o para un error.
+ * Cuando la respuesta lleva cuerpo hay dos maneras de describirlo:
+ *
+ * - `ref`: nombre de un componente ya declarado (`PaginatedUsers`). Es lo que
+ *   usan las respuestas de éxito, porque su forma la define el DTO y no hay un
+ *   esquema de Zod de salida del que derivarla.
+ * - `schema`: un tipo de Zod, si lo hay. Se genera igual que el del cuerpo de
+ *   la petición.
+ */
+export type ResponseSpec =
+  | string
+  | {
+      description: string;
+      /** Componente de `components.schemas`, sin el `#/...`. */
+      ref?: string;
+      schema?: ZodType;
+    };
+
 export interface RouteOptions {
   /** Una línea; es lo que se ve en la lista de Swagger. */
   summary?: string;
@@ -27,15 +48,22 @@ export interface RouteOptions {
   query?: ZodType;
   /** Parámetros de la ruta (`/users/:id` -> `{ id: "integer" }`). */
   params?: Record<string, PathParamType>;
-  /** Códigos de respuesta y su descripción. */
-  responses?: Record<number, string>;
+  /** Códigos de respuesta y qué devuelven. */
+  responses?: Record<number, ResponseSpec>;
   /**
    * Sin token. Por defecto **toda** ruta exige JWT: si abrir una es un
    * descuido, que el descuido sea cerrarla y no al revés.
    */
   public?: boolean;
-  /** Middlewares extra, antes del manejador y después de la validación. */
-  use?: RequestHandler[];
+  /**
+   * Middlewares extra, entre la validación y el manejador.
+   *
+   * Admite una función porque un decorador se evalúa al cargar la clase, cuando
+   * todavía no hay instancia: si el middleware depende de algo que se inyecta
+   * —un limitador configurado por entorno, por ejemplo—, se pide aquí y el
+   * constructor del router lo resuelve con la instancia ya montada.
+   */
+  use?: RequestHandler[] | ((controller: object) => RequestHandler[]);
 }
 
 export interface RouteMetadata extends RouteOptions {
@@ -48,6 +76,15 @@ export interface RouteMetadata extends RouteOptions {
 export interface ControllerMetadata {
   prefix: string;
   tag?: string;
+  /**
+   * Token con el que el contenedor resuelve quién atiende.
+   *
+   * Va aquí para que montar la API sea recorrer el registro: sin él habría que
+   * mantener a mano una tabla de clase a token, que es justo la lista que se
+   * olvida de actualizar al añadir un módulo. La clase aporta las rutas; el
+   * token, la implementación, que así se puede sustituir en un test.
+   */
+  token?: string;
   routes: RouteMetadata[];
 }
 
@@ -75,11 +112,12 @@ function metadataOf(target: object): ControllerMetadata {
  * este llega la lista de rutas ya está poblada; por eso sólo completa el
  * prefijo en vez de crear la entrada.
  */
-export function ApiController(prefix: string, options: { tag?: string } = {}) {
+export function ApiController(prefix: string, options: { tag?: string; token?: string } = {}) {
   return function (target: new (...args: never[]) => object): void {
     const metadata = metadataOf(target);
     metadata.prefix = prefix;
     metadata.tag = options.tag;
+    metadata.token = options.token;
   };
 }
 
