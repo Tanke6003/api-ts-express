@@ -13,6 +13,7 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Architecture | Clean Architecture (Presentation → Application → Domain → Infrastructure) |
 | Dependency Injection | tsyringe |
 | Authentication | JWT (Bearer token), with the identity exposed per request via AsyncLocalStorage |
+| HTTP hardening | Helmet, per-IP rate limiting, CORS allowlist, 1 MB body cap, docs off in production |
 | Error handling | Single global handler: stable codes, request id, driver-error mapping |
 | Database | Oracle, SQL Server, PostgreSQL, MySQL/MariaDB, MongoDB or in-memory — selected via `DATA_SOURCE`, all on the same generic repository |
 | Data access | Generic repository with EF/LINQ-style CRUD, chainable queries, soft & hard delete, and a Unit of Work |
@@ -171,6 +172,13 @@ Copy `.env.template` to `.env.dev` (development) or `.env` (production) and fill
 | `SERVICE_NAME` | `ApiTSExpress` | Service name in logs |
 | `API_VERSION` | `1.0.0` | Shown in Swagger |
 | `JWT_SECRET` | — | **Required.** Sign JWT tokens. No insecure default — the app fails fast at startup if missing |
+| `CORS_ORIGINS` | — | Allowed origins, comma separated. As many as you need. Empty = same origin only; `*` allows any |
+| `BODY_LIMIT` | `1mb` | Max JSON / urlencoded body. Uploads stream through busboy and never reach these parsers |
+| `TRUST_PROXY_HOPS` | `0` | Trusted proxy hops in front of the app. `1` behind one nginx / load balancer |
+| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | `60000` / `120` | Global rate limit per IP. `RATE_LIMIT_MAX=0` disables it. `/health*` is exempt |
+| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX` | `900000` / `10` | Rate limit for the routes that hand out credentials |
+| `CSP_ENABLED` | `false` | Content-Security-Policy. Off by default: it breaks the demo UI, Swagger and Scalar |
+| `DOCS_ENABLED` | — | Publish Swagger / Scalar / `openapi.json`. Default: everywhere except production |
 | `DATA_SOURCE` | `dummy` | `dummy` (in-memory) / `oracle` / `sqlserver` / `postgres` / `mysql` / `mongodb`. An unknown value fails at startup instead of falling back to memory |
 | `LOG_DRIVER` | `pino` | Logger implementation: `pino` / `winston` |
 | `LOG_LEVEL` | `trace` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |

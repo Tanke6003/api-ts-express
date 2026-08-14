@@ -155,4 +155,84 @@ describe("Server", () => {
     const res = await request(server.app).get("/api/users");
     expect(res.status).toBe(401);
   });
+
+  // ------------------------------------------------- endurecimiento HTTP ---
+
+  it("applies helmet headers and hides the framework", async () => {
+    await server.configureMiddleware();
+    await server.configureRoutes();
+
+    const res = await request(server.app).get("/health");
+
+    expect(res.headers["x-powered-by"]).toBeUndefined();
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    // La CSP viene apagada por defecto: rompería la interfaz de ejemplo.
+    expect(res.headers["content-security-policy"]).toBeUndefined();
+  });
+
+  it("advertises the rate limit and does not spend quota on health checks", async () => {
+    await server.configureMiddleware();
+    await server.configureRoutes();
+
+    const res = await request(server.app).get("/api/users");
+
+    // Los health checks quedan fuera del limitador, así que no llevan cabecera.
+    expect(res.headers["ratelimit"]).toBeDefined();
+    expect((await request(server.app).get("/health")).headers["ratelimit"]).toBeUndefined();
+  });
+
+  it("rejects an origin outside the whitelist with the API error format", async () => {
+    container.register<IEnvs>("IEnvs", {
+      useValue: {
+        getEnv: (key: string) => {
+          if (key === "JWT_SECRET") return TEST_JWT_SECRET;
+          if (key === "PORT") return "3000";
+          if (key === "CORS_ORIGINS") return "https://app.midominio.com,http://localhost:5173";
+          return "";
+        },
+      },
+    });
+
+    await server.configureMiddleware();
+    await server.configureRoutes();
+    server.configureErrorHandling();
+
+    const allowed = await request(server.app)
+      .get("/health")
+      .set("Origin", "http://localhost:5173");
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+
+    const blocked = await request(server.app).get("/health").set("Origin", "http://evil.test");
+    expect(blocked.status).toBe(403);
+    expect(blocked.body).toMatchObject({ status: "error", code: "CORS_ORIGIN_NOT_ALLOWED" });
+    expect(blocked.body).toHaveProperty("requestId");
+  });
+
+  it("rejects a body over the configured limit with a 413", async () => {
+    container.register<IEnvs>("IEnvs", {
+      useValue: {
+        getEnv: (key: string) => {
+          if (key === "JWT_SECRET") return TEST_JWT_SECRET;
+          if (key === "PORT") return "3000";
+          if (key === "BODY_LIMIT") return "1kb";
+          return "";
+        },
+      },
+    });
+
+    await server.configureMiddleware();
+    await server.configureRoutes();
+    server.configureErrorHandling();
+
+    const token = jwt.sign({ userId: 1 }, TEST_JWT_SECRET, { expiresIn: "1h" });
+    const res = await request(server.app)
+      .post("/api/users")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "x".repeat(4096) });
+
+    expect(res.status).toBe(413);
+    expect(res.body).toMatchObject({ status: "error", code: "PAYLOAD_TOO_LARGE" });
+  });
 });

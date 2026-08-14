@@ -2,18 +2,29 @@
 
 import { ITokenPlugin } from "../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { Request, Response } from "express";
+import { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import { Request, RequestHandler, Response } from "express";
 import Busboy from "busboy";
 import { S3FileStoragePlugin } from "../../infrastructure/plugins/s3FileStorage.plugin";
 import { container } from "tsyringe";
 import { TOKENS } from "../../core/di/tokens";
+import { buildAuthRateLimiter } from "../../core/config/security.config";
 
 export class TestRoutes {
   private jwtPlugin: ITokenPlugin;
   private logger: ILogger;
+  /**
+   * Cupo propio, mucho más estrecho que el general: un token es lo único que
+   * abre el resto de la API, así que es lo primero que alguien pedirá en bucle.
+   */
+  private tokenGuards: RequestHandler[];
+
   constructor() {
     this.jwtPlugin = container.resolve<ITokenPlugin>(TOKENS.ITokenPlugin);
     this.logger = container.resolve<ILogger>(TOKENS.ILogger);
+
+    const limiter = buildAuthRateLimiter(container.resolve<IEnvs>(TOKENS.IEnvs));
+    this.tokenGuards = limiter ? [limiter] : [];
   }
 
   public register(app: any) {
@@ -40,7 +51,7 @@ export class TestRoutes {
      *     security:
      *       - bearerAuth: []
      */
-    app.get("/api/generate-token", (req: Request, res: Response) => {
+    app.get("/api/generate-token", ...this.tokenGuards, (req: Request, res: Response) => {
       // Lógica para generar un token (usualmente después de validar credenciales).
       // El id va en `sub`, el claim estándar del sujeto: es lo que lee el
       // contexto de la petición y lo que usan las reglas que dependen de quién
