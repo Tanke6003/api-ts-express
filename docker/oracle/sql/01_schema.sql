@@ -98,6 +98,23 @@ CREATE INDEX IX_APPT_CLIENT    ON APPOINTMENTS (FK_CLIENT);
 CREATE INDEX IX_APPT_SCHEDULED ON APPOINTMENTS (SCHEDULED_AT);
 CREATE INDEX IX_APPT_AVAILABLE ON APPOINTMENTS (AVAILABLE);
 
+-- Ultima red contra la doble reserva.
+--
+-- La aplicacion ya serializa el alta bloqueando la sucursal (SELECT ... FOR
+-- UPDATE), pero ese bloqueo solo alcanza a las peticiones del mismo proceso:
+-- con dos instancias corriendo, la garantia tiene que estar aqui.
+--
+-- Cubre el mismo inicio exacto, no el solape parcial.
+--
+-- Oracle no tiene indices parciales, asi que se emula con uno basado en
+-- funcion: las filas que no deben participar producen (NULL, NULL), y una
+-- entrada enteramente nula no se indexa, con lo que no compite por la unicidad.
+-- Es la forma canonica de escribir "unico solo cuando se cumple X" en Oracle.
+CREATE UNIQUE INDEX UX_APPT_SLOT ON APPOINTMENTS (
+  CASE WHEN AVAILABLE = 1 AND STATUS <> 'CANCELLED' THEN FK_BRANCH    END,
+  CASE WHEN AVAILABLE = 1 AND STATUS <> 'CANCELLED' THEN SCHEDULED_AT END
+);
+
 -- =============================================================================
 -- AUDIT_LOG: bitacora de cambios. La escribe el repositorio generico despues de
 -- cada escritura, dentro de la misma transaccion que la operacion auditada.

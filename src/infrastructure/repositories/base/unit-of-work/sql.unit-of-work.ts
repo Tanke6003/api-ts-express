@@ -54,15 +54,24 @@ export class SqlUnitOfWork implements IUnitOfWork {
         return repository;
       };
 
-      const scope: ITransactionScope = {
-        repository: <T extends object, TKey = number>(entity: string): IGenericRepository<T, TKey> => {
-          const cached = bound.get(entity);
-          if (cached) return cached as IGenericRepository<T, TKey>;
+      const boundRepositoryOf = (entity: string): SqlGenericRepository<never, never> => {
+        const cached = bound.get(entity);
+        if (cached) return cached as SqlGenericRepository<never, never>;
 
-          const rebound = baseRepositoryOf(entity).withExecutor(tx);
-          bound.set(entity, rebound);
-          return rebound as unknown as IGenericRepository<T, TKey>;
-        },
+        const rebound = baseRepositoryOf(entity).withExecutor(tx);
+        bound.set(entity, rebound);
+        return rebound;
+      };
+
+      const scope: ITransactionScope = {
+        repository: <T extends object, TKey = number>(entity: string): IGenericRepository<T, TKey> =>
+          boundRepositoryOf(entity) as unknown as IGenericRepository<T, TKey>,
+
+        // El bloqueo va por el mismo executor que el resto de la transacción,
+        // así que lo libera su commit o su rollback. La sentencia la escribe el
+        // dialecto, que es donde vive lo que cambia entre motores.
+        lockRow: (entity: string, id: unknown): Promise<boolean> =>
+          boundRepositoryOf(entity).lockById(id as never),
       };
 
       return work(scope);

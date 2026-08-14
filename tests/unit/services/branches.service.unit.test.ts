@@ -40,6 +40,7 @@ describe("BranchesService", () => {
         work({
           repository: (entity: string) =>
             entity === ENTITY_NAMES.BRANCHES ? scopedBranches : scopedAppointments,
+          lockRow: jest.fn().mockResolvedValue(true),
         })
       ),
     };

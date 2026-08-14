@@ -86,6 +86,11 @@ export class BranchesService implements IBranchesService {
    */
   async softDelete(id: number): Promise<boolean> {
     return this.unitOfWork.execute(async (scope) => {
+      // El mismo bloqueo que toma el alta de citas: sin él, una cita podría
+      // colarse en la sucursal entre la baja y la cancelación de su agenda, y
+      // quedaría viva en una sucursal cerrada. Primera sentencia, como allí.
+      await scope.lockRow(ENTITY_NAMES.BRANCHES, id);
+
       const branches = scope.repository<IBranch>(ENTITY_NAMES.BRANCHES);
       const appointments = scope.repository<IAppointment>(ENTITY_NAMES.APPOINTMENTS);
 
@@ -122,6 +127,10 @@ export class BranchesService implements IBranchesService {
    */
   async hardDelete(id: number): Promise<boolean> {
     return this.unitOfWork.execute(async (scope) => {
+      // Mismo bloqueo que el alta de citas, por el mismo motivo: que no entre
+      // una cita nueva entre el borrado de la agenda y el de la sucursal.
+      await scope.lockRow(ENTITY_NAMES.BRANCHES, id);
+
       const branches = scope.repository<IBranch>(ENTITY_NAMES.BRANCHES);
       const appointments = scope.repository<IAppointment>(ENTITY_NAMES.APPOINTMENTS);
 

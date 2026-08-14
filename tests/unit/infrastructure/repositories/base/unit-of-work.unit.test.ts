@@ -49,6 +49,63 @@ describe("MemoryUnitOfWork", () => {
       unitOfWork.execute(async (scope) => scope.repository("DESCONOCIDA"))
     ).rejects.toThrow(/no está registrada en la unidad de trabajo/);
   });
+
+  describe("aislamiento", () => {
+    it("lockRow dice si la fila existe", async () => {
+      await unitOfWork.execute(async (scope) => {
+        expect(await scope.lockRow("ITEMS", 1)).toBe(true);
+        expect(await scope.lockRow("ITEMS", 999)).toBe(false);
+      });
+    });
+
+    it("no entrelaza dos transacciones: la segunda ve lo que confirmó la primera", async () => {
+      const observed: number[] = [];
+
+      // Cada bloque lee, cede el control al bucle de eventos y escribe. Sin
+      // exclusión las dos leerían 3 y las dos insertarían: es exactamente la
+      // forma de la carrera de "comprobar y luego escribir".
+      const transaction = () =>
+        unitOfWork.execute(async (scope) => {
+          const items = scope.repository<ITestItem>("ITEMS");
+          const before = await items.count();
+          observed.push(before);
+
+          await new Promise((resolve) => setImmediate(resolve));
+          await items.insert({ name: `item-${before}`, qty: 1 });
+        });
+
+      await Promise.all([transaction(), transaction(), transaction()]);
+
+      // Cada una arrancó con lo que dejó la anterior, no con la misma foto.
+      expect(observed).toEqual([3, 4, 5]);
+      expect(await store.count()).toBe(6);
+    });
+
+    it("una transacción que falla no revierte lo que otra ya había confirmado", async () => {
+      await unitOfWork.execute(async (scope) => {
+        await scope.repository<ITestItem>("ITEMS").insert({ name: "confirmada", qty: 1 });
+      });
+
+      await expect(
+        unitOfWork.execute(async (scope) => {
+          await scope.repository<ITestItem>("ITEMS").insert({ name: "revertida", qty: 1 });
+          throw new Error("fallo");
+        })
+      ).rejects.toThrow("fallo");
+
+      const names = (await store.getAll()).map((item) => item.name);
+      expect(names).toContain("confirmada");
+      expect(names).not.toContain("revertida");
+    });
+
+    it("un fallo no rompe la cola: la siguiente transacción sigue corriendo", async () => {
+      await expect(unitOfWork.execute(async () => Promise.reject(new Error("boom")))).rejects.toThrow(
+        "boom"
+      );
+
+      await expect(unitOfWork.execute(async () => "sigue viva")).resolves.toBe("sigue viva");
+    });
+  });
 });
 
 describe("SqlUnitOfWork", () => {
@@ -111,5 +168,26 @@ describe("SqlUnitOfWork", () => {
         throw new Error("fallo");
       })
     ).rejects.toThrow("fallo");
+  });
+
+  describe("lockRow", () => {
+    it("bloquea la fila por la conexión de la transacción, no por el pool", async () => {
+      transactionExecutor.queue({ rows: [{ PK_ITEM: 1 }] });
+
+      const locked = await unitOfWork.execute((scope) => scope.lockRow("ITEMS", 1));
+
+      expect(locked).toBe(true);
+      expect(executor.calls).toHaveLength(0);
+
+      const [call] = transactionExecutor.calls;
+      expect(call.sql).toBe("SELECT PK_ITEM FROM ITEMS WHERE PK_ITEM = :pk FOR UPDATE");
+      expect(call.binds).toEqual({ pk: 1 });
+    });
+
+    it("devuelve false si la fila no existe", async () => {
+      transactionExecutor.queue({ rows: [] });
+
+      await expect(unitOfWork.execute((scope) => scope.lockRow("ITEMS", 99))).resolves.toBe(false);
+    });
   });
 });

@@ -51,6 +51,15 @@ export interface SqlDialect {
   toBindValue(value: unknown): unknown;
   /** Cláusula de paginación. */
   buildPagination(hasTake: boolean): string;
+  /**
+   * Lectura que bloquea una fila por PK hasta el commit, con el bind `:pk`.
+   *
+   * Es lo que serializa un caso de uso que decide en función de lo que lee. Los
+   * tres motores que hablan SQL estándar lo escriben igual; T-SQL no tiene
+   * `FOR UPDATE` y lo resuelve con hints, que es justo el tipo de diferencia que
+   * este dialecto existe para absorber.
+   */
+  buildRowLock(table: string, primaryKeyColumn: string): string;
 }
 
 /** Nombre del bind de salida y del alias con el que vuelve la PK generada. */
@@ -61,6 +70,13 @@ const STANDARD_PAGINATION = (hasTake: boolean): string =>
   ` OFFSET :pgskip ROWS${hasTake ? " FETCH NEXT :pgtake ROWS ONLY" : ""}`;
 
 const passthrough = (value: unknown): unknown => value;
+
+/**
+ * `SELECT ... FOR UPDATE`, que hablan Oracle, PostgreSQL y MySQL/InnoDB. El
+ * bloqueo se libera con el commit o el rollback, nunca a mano.
+ */
+const STANDARD_ROW_LOCK = (table: string, primaryKeyColumn: string): string =>
+  `SELECT ${primaryKeyColumn} FROM ${table} WHERE ${primaryKeyColumn} = :pk FOR UPDATE`;
 
 /**
  * Manda las fechas en UTC y sin offset.
@@ -112,6 +128,7 @@ export const oracleDialect: SqlDialect = {
   // node-oracledb enlaza un Date de JS conservando el instante.
   toBindValue: passthrough,
   buildPagination: STANDARD_PAGINATION,
+  buildRowLock: STANDARD_ROW_LOCK,
 };
 
 /**
@@ -136,6 +153,15 @@ export const sqlServerDialect: SqlDialect = {
 
   toBindValue: asUtcWallClock,
   buildPagination: STANDARD_PAGINATION,
+
+  /**
+   * T-SQL no tiene `FOR UPDATE`; el equivalente son los hints. `UPDLOCK` toma el
+   * bloqueo de actualización que impide que dos sesiones lean a la vez con
+   * intención de escribir, y `HOLDLOCK` lo mantiene hasta el commit en vez de
+   * soltarlo al acabar la sentencia, que es lo que hace falta aquí.
+   */
+  buildRowLock: (table, primaryKeyColumn) =>
+    `SELECT ${primaryKeyColumn} FROM ${table} WITH (UPDLOCK, HOLDLOCK) WHERE ${primaryKeyColumn} = :pk`,
 };
 
 /**
@@ -168,6 +194,7 @@ export const postgresDialect: SqlDialect = {
   // TIMESTAMPTZ: no hay nada que ajustar.
   toBindValue: passthrough,
   buildPagination: STANDARD_PAGINATION,
+  buildRowLock: STANDARD_ROW_LOCK,
 };
 
 /**
@@ -198,4 +225,6 @@ export const mysqlDialect: SqlDialect = {
    */
   buildPagination: (hasTake) =>
     hasTake ? " LIMIT :pgtake OFFSET :pgskip" : " LIMIT 18446744073709551615 OFFSET :pgskip",
+
+  buildRowLock: STANDARD_ROW_LOCK,
 };

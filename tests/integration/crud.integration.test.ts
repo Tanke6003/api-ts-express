@@ -149,6 +149,38 @@ describe("citas", () => {
     expect(choque.body.code).toBe("CONFLICT");
   });
 
+  it("diez peticiones simultáneas por el mismo hueco sólo agendan una", async () => {
+    const scheduledAt = future(400);
+    const intento = (n: number) =>
+      request(app)
+        .post("/api/appointments")
+        .set("Authorization", auth)
+        .send({ branchId: 1, guestName: `Concurrente ${n}`, scheduledAt, durationMin: 30 });
+
+    const respuestas = await Promise.all(Array.from({ length: 10 }, (_, n) => intento(n)));
+
+    // Qué prueba esto y qué no: contra el driver de memoria no llega a
+    // entrelazarse nada aunque se quite la exclusión, porque sin E/S real cada
+    // petición recorre el servicio entera en un mismo turno del bucle de
+    // eventos. Es decir, aquí esto es un guardián del contrato del endpoint
+    // —una sola cita gana el hueco—, no la prueba de que la carrera esté
+    // cerrada; esa es la de MemoryUnitOfWork, que fuerza el entrelazado con un
+    // `setImmediate` a mitad de la transacción.
+    //
+    // El mismo test contra un motor real (DATA_SOURCE=postgres) sí ejercita el
+    // bloqueo: ahí cada sentencia es un viaje por red y las diez transacciones
+    // se solapan de verdad.
+    expect(respuestas.filter((r) => r.status === 201)).toHaveLength(1);
+    expect(respuestas.filter((r) => r.status === 409)).toHaveLength(9);
+
+    // Y la agenda tiene una sola cita a esa hora, no diez.
+    const agenda = await request(app)
+      .get(`/api/appointments?branchId=1&from=${scheduledAt}&to=${scheduledAt}`)
+      .set("Authorization", auth);
+
+    expect(agenda.body.total).toBe(1);
+  });
+
   it("los totales por estado responden al filtro de sucursal", async () => {
     const res = await request(app).get("/api/appointments/stats").set("Authorization", auth);
 

@@ -1,4 +1,5 @@
 import { AppointmentsService } from "../../../src/application/services/appointments.service";
+import { ENTITY_NAMES } from "../../../src/domain/models/entity-names";
 import { IAppointment } from "../../../src/domain/models/appointments.model";
 import { IBranch } from "../../../src/domain/models/branches.model";
 import { IUser } from "../../../src/domain/models/users.model";
@@ -26,6 +27,8 @@ describe("AppointmentsService", () => {
   let repository: any;
   let branchesRepository: any;
   let usersRepository: any;
+  let scope: any;
+  let unitOfWork: any;
   let service: AppointmentsService;
 
   beforeEach(() => {
@@ -47,8 +50,27 @@ describe("AppointmentsService", () => {
       find: jest.fn().mockResolvedValue([client]),
     };
 
+    // El ámbito de la transacción devuelve los mismos dobles que fuera de ella:
+    // aquí se prueban las reglas del servicio, y que la unidad de trabajo enlace
+    // de verdad los repositorios es cosa de sus propios tests.
+    scope = {
+      repository: (entity: string) => {
+        if (entity === ENTITY_NAMES.BRANCHES) return branchesRepository;
+        if (entity === ENTITY_NAMES.USERS) return usersRepository;
+        return repository;
+      },
+      lockRow: jest.fn().mockResolvedValue(true),
+    };
+    unitOfWork = { execute: jest.fn((work: any) => work(scope)) };
+
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-    service = new AppointmentsService(repository, branchesRepository, usersRepository, logger as never);
+    service = new AppointmentsService(
+      repository,
+      branchesRepository,
+      usersRepository,
+      unitOfWork,
+      logger as never
+    );
   });
 
   // ==========================================  consultas compuestas  =======
@@ -175,6 +197,33 @@ describe("AppointmentsService", () => {
       repository.insert.mockImplementation(async (entity: Partial<IAppointment>) =>
         appointment(entity)
       );
+    });
+
+    it("comprueba y escribe dentro de una transacción, bloqueando antes la sucursal", async () => {
+      await service.create(base);
+
+      expect(unitOfWork.execute).toHaveBeenCalledTimes(1);
+      expect(scope.lockRow).toHaveBeenCalledWith(ENTITY_NAMES.BRANCHES, 1);
+
+      // El bloqueo tiene que ser la primera sentencia de la transacción: si se
+      // consulta antes, en MySQL la instantánea queda fijada y las lecturas
+      // posteriores no verían lo que otra transacción acaba de confirmar.
+      const lock = scope.lockRow.mock.invocationCallOrder[0];
+      expect(lock).toBeLessThan(branchesRepository.getById.mock.invocationCallOrder[0]);
+      expect(lock).toBeLessThan(repository.find.mock.invocationCallOrder[0]);
+      expect(lock).toBeLessThan(repository.insert.mock.invocationCallOrder[0]);
+    });
+
+    it("traduce la violación del índice único al conflicto de solape", async () => {
+      // Lo que llega cuando dos instancias ganan la comprobación a la vez y es
+      // la base la que corta: PostgreSQL 23505, con la forma que espera
+      // `error-mapper`.
+      repository.insert.mockRejectedValue(Object.assign(new Error("duplicate key"), { code: "23505" }));
+
+      await expect(service.create(base)).rejects.toMatchObject({
+        statusCode: 409,
+        code: "APPOINTMENT_OVERLAP",
+      });
     });
 
     it("agenda una cita de invitado con los valores por defecto", async () => {

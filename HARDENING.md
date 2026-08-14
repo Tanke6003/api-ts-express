@@ -33,7 +33,7 @@ quiso decir.
 | # | Tema | Riesgo | Esfuerzo |
 |---|------|--------|----------|
 | 1 | Endurecimiento HTTP — **aplicado** | Alto | 2-3 h |
-| 2 | Carrera en `assertSlotIsFree` | Alto | 4-6 h |
+| 2 | Carrera en `assertSlotIsFree` — **aplicado** | Alto | 4-6 h |
 | 3 | Apagado que drena + health real | Medio | 2 h |
 | 4 | Service locator, `app: any`, versionado | Bajo (deuda) | 3-4 h |
 | 5 | Escape de `%` y `_` en `ilike` | Bajo | 2 h |
@@ -241,6 +241,29 @@ de `/api/swagger` con `NODE_ENV=production`.
 ---
 
 ## 2. Carrera en `assertSlotIsFree`
+
+> **Aplicado.** `ITransactionScope.lockRow` + `SqlDialect.buildRowLock` en los
+> cuatro dialectos, `SqlGenericRepository.lockById`, y las tres unidades de
+> trabajo. `AppointmentsService.create` y `update` comprueban y escriben dentro
+> de la transacción; `BranchesService.softDelete` y `hardDelete` toman el mismo
+> bloqueo para no colarse entre medias. Índice único en los cinco esquemas de
+> `docker/`, y la violación se traduce al 409 de solape.
+>
+> Diferencias con lo que se planteaba abajo:
+>
+> - **Memoria serializa la transacción entera** en vez de bloquear por fila. Con
+>   bloqueo por fila el rollback por instantánea seguía roto: dos transacciones
+>   solapadas fotografían el mismo estado, y si la segunda falla restaura una
+>   foto anterior a lo que la primera ya confirmó, borrándolo.
+> - **`update` no toma un segundo bloqueo** cuando la cita se movió de sucursal
+>   entre la lectura previa y el bloqueo: responde 409 `APPOINTMENT_MOVED` y pide
+>   reintentar. Pedir los dos bloqueos abriría un interbloqueo con quien los pida
+>   al revés.
+> - **El test de concurrencia por HTTP no prueba la carrera** contra el driver de
+>   memoria: sin E/S real cada petición recorre el servicio entera en un mismo
+>   turno del bucle de eventos, así que pasa igual con y sin arreglo. La prueba
+>   de verdad es la de `MemoryUnitOfWork`, que fuerza el entrelazado con un
+>   `setImmediate` — verificada fallando antes del cambio y pasando después.
 
 ### Diagnóstico
 

@@ -122,6 +122,35 @@ CREATE INDEX IX_APPT_CLIENT    ON APPOINTMENTS (FK_CLIENT);
 CREATE INDEX IX_APPT_SCHEDULED ON APPOINTMENTS (SCHEDULED_AT);
 CREATE INDEX IX_APPT_AVAILABLE ON APPOINTMENTS (AVAILABLE);
 
+-- Ultima red contra la doble reserva.
+--
+-- La aplicacion ya serializa el alta bloqueando la sucursal, pero ese bloqueo
+-- solo alcanza a las peticiones que pasan por el mismo proceso: con dos
+-- instancias corriendo, la garantia tiene que estar aqui.
+--
+-- Cubre el mismo inicio exacto, no el solape parcial (una cita de 30 min a las
+-- 10:00 y otra a las 10:15 pasan las dos). El solape real se puede expresar en
+-- PostgreSQL con una restriccion EXCLUDE; ver la nota de abajo.
+--
+-- El indice es parcial porque una cita cancelada o dada de baja no ocupa el
+-- hueco: si contara, no se podria reagendar lo que se acaba de cancelar.
+CREATE UNIQUE INDEX UX_APPT_SLOT ON APPOINTMENTS (FK_BRANCH, SCHEDULED_AT)
+  WHERE AVAILABLE = 1 AND STATUS <> 'CANCELLED';
+
+-- Regla completa, opcional. Con btree_gist, PostgreSQL es el unico de los cinco
+-- motores que sabe rechazar el solape parcial de forma declarativa. Si se
+-- activa, sustituye al indice de arriba en vez de acompanarlo.
+--
+--   CREATE EXTENSION IF NOT EXISTS btree_gist;
+--   ALTER TABLE APPOINTMENTS ADD CONSTRAINT EX_APPT_OVERLAP
+--     EXCLUDE USING gist (
+--       FK_BRANCH WITH =,
+--       tstzrange(
+--         SCHEDULED_AT,
+--         SCHEDULED_AT + (DURATION_MIN || ' minutes')::interval
+--       ) WITH &&
+--     ) WHERE (AVAILABLE = 1 AND STATUS <> 'CANCELLED');
+
 -- =============================================================================
 -- AUDIT_LOG: bitacora de cambios. La escribe el repositorio generico despues de
 -- cada escritura, dentro de la misma transaccion que la operacion auditada.
