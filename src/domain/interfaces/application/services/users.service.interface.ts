@@ -1,11 +1,10 @@
 // src/domain/interfaces/services/users.service.interface.ts
 
-import { PaginatedDTO, PaginationDTO, UserDTO } from "../../../../application/dtos/users.dtos";
+import type { ICrudService } from "../../../../application/services/crud.service";
+import type { UserDTO } from "../../../../application/dtos/users.dtos";
 
-export interface IUsersService {
-  getAllUsers(pagination: PaginationDTO): Promise<PaginatedDTO<UserDTO>>;
-  getUserById(id: number): Promise<UserDTO | null>;
-  createUser(user: UserDTO): Promise<boolean>;
-  updateUser(id: number, user: Partial<UserDTO>): Promise<boolean>;
-  deleteUser(id: number): Promise<boolean>;
-}
+/**
+ * Usuarios no añade nada al CRUD, así que su contrato es el genérico. Cuando
+ * aparezca una consulta propia se declara aquí, encima.
+ */
+export type IUsersService = ICrudService<UserDTO>;

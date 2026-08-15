@@ -84,7 +84,7 @@ describe("GET /api/users/:id", () => {
       .get("/api/users/9999")
       .set("Authorization", `Bearer ${bearerToken}`);
     expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ message: "User not found" });
+    expect(res.body).toMatchObject({ code: "NOT_FOUND" });
   });
 });
 
@@ -141,7 +141,7 @@ describe("PUT /api/users/:id", () => {
       .set("Authorization", `Bearer ${bearerToken}`)
       .send({ name: "Ghost" });
     expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ message: "User not found" });
+    expect(res.body).toMatchObject({ code: "NOT_FOUND" });
   });
 });
 

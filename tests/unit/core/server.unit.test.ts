@@ -61,11 +61,11 @@ describe("Server", () => {
 
     container.register("IUsersController", {
       useValue: {
-        getAllUsers: jest.fn((_req: any, res: any, _next: any) => res.json([])),
-        getUserById: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1 })),
-        createUser: jest.fn((_req: any, res: any, _next: any) => res.status(201).json({ id: 2 })),
-        updateUser: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1, updated: true })),
-        deleteUser: jest.fn((_req: any, res: any, _next: any) => res.status(204).send()),
+        list: jest.fn((_req: any, res: any, _next: any) => res.json([])),
+        getOne: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1 })),
+        create: jest.fn((_req: any, res: any, _next: any) => res.status(201).json({ id: 2 })),
+        update: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1, updated: true })),
+        softDelete: jest.fn((_req: any, res: any, _next: any) => res.status(204).send()),
       },
     });
 
@@ -157,7 +157,7 @@ describe("Server", () => {
 
     expect(list).toMatchObject({
       tags: ["Users"],
-      summary: "Listado paginado de usuarios",
+      summary: "Listado paginado: el usuario",
       security: [{ bearerAuth: [] }],
     });
 
@@ -355,11 +355,11 @@ describe("Server", () => {
     // respuesta en cada despliegue.
     container.register("IUsersController", {
       useValue: {
-        getAllUsers: (_req: any, res: any) => setTimeout(() => res.json({ ok: true }), 150),
-        getUserById: jest.fn(),
-        createUser: jest.fn(),
-        updateUser: jest.fn(),
-        deleteUser: jest.fn(),
+        list: (_req: any, res: any) => setTimeout(() => res.json({ ok: true }), 150),
+        getOne: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        softDelete: jest.fn(),
       },
     });
 
