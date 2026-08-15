@@ -2,9 +2,9 @@
 import {
   Transactional,
   TransactionalService,
-} from "../../../src/application/transactions/transactional";
-import type { IUnitOfWork } from "../../../src/domain/interfaces/infrastructure/repositories/unit-of-work.interface";
-import type { ITransactionContext } from "../../../src/domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
+} from "../../../../src/application/transactions/transactional";
+import type { IUnitOfWork } from "../../../../src/domain/interfaces/infrastructure/repositories/unit-of-work.interface";
+import type { ITransactionContext } from "../../../../src/domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 
 /**
  * Unidad de trabajo y contexto de mentira, encadenados como los de verdad: el

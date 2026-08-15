@@ -1,6 +1,6 @@
-import { BaseController } from "../../../src/presentation/controllers/base.controller";
-import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
-import { AppError } from "../../../src/core/errors/app-error";
+import { BaseController } from "../../../../src/presentation/controllers/base.controller";
+import { AsyncRequestContextPlugin } from "../../../../src/infrastructure/plugins/asyncRequestContext.plugin";
+import { AppError } from "../../../../src/core/errors/app-error";
 
 /** Expone los miembros protegidos para poder comprobarlos desde el test. */
 class ProbeController extends BaseController {

@@ -1,8 +1,8 @@
-import { AppointmentsService } from "../../../src/application/services/appointments.service";
-import { ENTITY_NAMES } from "../../../src/domain/models/entity-names";
-import { IAppointment } from "../../../src/domain/models/appointments.model";
-import { IBranch } from "../../../src/domain/models/branches.model";
-import { IUser } from "../../../src/domain/models/users.model";
+import { AppointmentsService } from "../../../../src/application/services/appointments.service";
+import { ENTITY_NAMES } from "../../../../src/domain/models/entity-names";
+import { IAppointment } from "../../../../src/domain/models/appointments.model";
+import { IBranch } from "../../../../src/domain/models/branches.model";
+import { IUser } from "../../../../src/domain/models/users.model";
 
 const HOUR = 60 * 60 * 1000;
 const future = (hours = 24) => new Date(Date.now() + hours * HOUR);

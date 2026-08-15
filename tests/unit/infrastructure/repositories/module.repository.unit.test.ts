@@ -1,10 +1,10 @@
-import { BaseModuleRepository } from "../../../src/infrastructure/repositories/base/module.repository";
-import { MemoryGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { BaseModuleRepository } from "../../../../src/infrastructure/repositories/base/module.repository";
+import { MemoryGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
 import {
   ITestItem,
   SEED,
   TEST_ENTITY,
-} from "../infrastructure/repositories/base/test-entity";
+} from "./base/test-entity";
 
 class ItemsRepository extends BaseModuleRepository<ITestItem> {
   constructor(store: never, logger: never) {

@@ -57,12 +57,32 @@ reports/
 
 ```
 tests/
-├── unit/          # Shared machinery, and each module's own rules
-├── e2e/           # One flow per entity, over the whole HTTP stack
-├── contract/      # The suite every repository driver must pass
-├── mocks/         # Shared doubles
-└── setup/         # test-env.ts — env vars the suite runs with
+├── unit/            # Mirrors src/ one to one
+│   ├── application/     services, transactions, mapping, queries, validators
+│   ├── core/            config, di, errors, server
+│   ├── infrastructure/  plugins, repositories (+ base/)
+│   └── presentation/    controllers, middlewares, routing, utils
+├── e2e/             # One file per entity, plus the cross-cutting ones
+│   ├── support/api.ts   bootstrap() — mounts the API and mints a token
+│   ├── users.e2e.test.ts
+│   ├── branches.e2e.test.ts
+│   ├── appointments.e2e.test.ts
+│   ├── audit.e2e.test.ts
+│   ├── identity.e2e.test.ts
+│   ├── dev.e2e.test.ts
+│   └── errors.e2e.test.ts   the error envelope, which belongs to no module
+├── contract/        # The suite every repository driver must pass
+├── mocks/           # Shared doubles
+└── setup/           # test-env.ts — env vars the suite runs with
 ```
+
+`unit/` mirrors `src/` so a test is where you would look for it. It used to have
+three folders for the presentation layer —`controllers/`, `routes/`,
+`presentation/`— and two for the application one, which meant guessing.
+
+The e2e share `support/api.ts`: it mounts the whole application over the
+in-memory driver and returns the app plus a token. It never calls `run()`, so
+nothing listens on a port and two suites can run at once without colliding.
 
 `testMatch` picks up `tests/unit/**` and `tests/e2e/**`. Both run on every
 `npm test`: the e2e uses the in-memory driver over supertest, so it needs

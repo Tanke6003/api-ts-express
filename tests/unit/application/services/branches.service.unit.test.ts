@@ -4,9 +4,9 @@
 // validación del horario y las dos bajas que arrastran la agenda. Paginar,
 // mapear a DTO o devolver null cuando no hay fila es de `CrudService` y se
 // prueba allí; repetirlo aquí sería probar el framework a través del módulo.
-import { BranchesService } from "../../../src/application/services/branches.service";
-import { ENTITY_NAMES } from "../../../src/domain/models/entity-names";
-import { IBranch } from "../../../src/domain/models/branches.model";
+import { BranchesService } from "../../../../src/application/services/branches.service";
+import { ENTITY_NAMES } from "../../../../src/domain/models/entity-names";
+import { IBranch } from "../../../../src/domain/models/branches.model";
 
 const branch = (over: Partial<IBranch> = {}): IBranch => ({
   pkBranch: 1,

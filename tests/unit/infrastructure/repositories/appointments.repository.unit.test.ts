@@ -1,16 +1,16 @@
-import { oracleDialect } from "../../../src/infrastructure/repositories/base/dialects/sql.dialect";
-import { SqlGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
-import { AppointmentsRepository } from "../../../src/infrastructure/repositories/appointments.repository";
-import { BranchesRepository } from "../../../src/infrastructure/repositories/branches.repository";
-import { MemoryGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
-import { APPOINTMENTS_ENTITY, BRANCHES_ENTITY } from "../../../src/infrastructure/repositories/entities";
-import { APPOINTMENTS_SEED, BRANCHES_SEED } from "../../../src/infrastructure/repositories/seed-data";
-import { IAppointment } from "../../../src/domain/models/appointments.model";
-import { IBranch } from "../../../src/domain/models/branches.model";
+import { oracleDialect } from "../../../../src/infrastructure/repositories/base/dialects/sql.dialect";
+import { SqlGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
+import { AppointmentsRepository } from "../../../../src/infrastructure/repositories/appointments.repository";
+import { BranchesRepository } from "../../../../src/infrastructure/repositories/branches.repository";
+import { MemoryGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/memory.generic.repository";
+import { APPOINTMENTS_ENTITY, BRANCHES_ENTITY } from "../../../../src/infrastructure/repositories/entities";
+import { APPOINTMENTS_SEED, BRANCHES_SEED } from "../../../../src/infrastructure/repositories/seed-data";
+import { IAppointment } from "../../../../src/domain/models/appointments.model";
+import { IBranch } from "../../../../src/domain/models/branches.model";
 import {
   FakeSqlExecutor,
   silentLogger,
-} from "../infrastructure/repositories/base/fake-sql-executor";
+} from "./base/fake-sql-executor";
 
 describe("AppointmentsRepository", () => {
   const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } as never;

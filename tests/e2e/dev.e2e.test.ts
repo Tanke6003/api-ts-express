@@ -1,19 +1,19 @@
 import request from "supertest";
 import express from "express";
 import { container } from "tsyringe";
-import { IEnvs } from "../../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
-import { ITokenPlugin } from "../../../src/domain/interfaces/infrastructure/plugins/token.plugin.interface";
-import { JwtPlugin } from "../../../src/infrastructure/plugins/jwt.plugin";
-import { S3FileStoragePlugin } from "../../../src/infrastructure/plugins/s3FileStorage.plugin";
-import { DevController } from "../../../src/presentation/controllers/dev.controller";
-import { registerController } from "../../../src/presentation/routing/router.builder";
-import { errorHandler } from "../../../src/presentation/middlewares/errorHandler.middleware";
-import { IRequestContext } from "../../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
-import { AsyncRequestContextPlugin } from "../../../src/infrastructure/plugins/asyncRequestContext.plugin";
-import { ILogger } from "../../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import { IEnvs } from "../../src/domain/interfaces/infrastructure/plugins/envs.plugin.interface";
+import { ITokenPlugin } from "../../src/domain/interfaces/infrastructure/plugins/token.plugin.interface";
+import { JwtPlugin } from "../../src/infrastructure/plugins/jwt.plugin";
+import { S3FileStoragePlugin } from "../../src/infrastructure/plugins/s3FileStorage.plugin";
+import { DevController } from "../../src/presentation/controllers/dev.controller";
+import { registerController } from "../../src/presentation/routing/router.builder";
+import { errorHandler } from "../../src/presentation/middlewares/errorHandler.middleware";
+import { IRequestContext } from "../../src/domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { AsyncRequestContextPlugin } from "../../src/infrastructure/plugins/asyncRequestContext.plugin";
+import { ILogger } from "../../src/domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 
 // mock del S3FileStoragePlugin
-jest.mock("../../../src/infrastructure/plugins/s3FileStorage.plugin");
+jest.mock("../../src/infrastructure/plugins/s3FileStorage.plugin");
 
 describe("DevController (unit)", () => {
   let app: express.Express;

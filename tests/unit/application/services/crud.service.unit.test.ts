@@ -1,6 +1,6 @@
 // tests/unit/application/crud.service.unit.test.ts
-import { CrudService } from "../../../src/application/services/crud.service";
-import type { IGenericRepository } from "../../../src/domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import { CrudService } from "../../../../src/application/services/crud.service";
+import type { IGenericRepository } from "../../../../src/domain/interfaces/infrastructure/repositories/generic.repository.interface";
 
 interface Item {
   pkItem: number;

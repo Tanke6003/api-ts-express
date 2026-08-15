@@ -8,18 +8,18 @@
 // allí pasaría igual con el mecanismo y sin él: no demostraría nada. Con SQL la
 // diferencia es observable —la sentencia sale por la conexión de la transacción
 // o por el pool— y es exactamente lo que hay que comprobar.
-import { AsyncTransactionContextPlugin } from "../../../src/infrastructure/plugins/asyncTransactionContext.plugin";
-import { oracleDialect } from "../../../src/infrastructure/repositories/base/dialects/sql.dialect";
-import { SqlGenericRepository } from "../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
-import { SqlUnitOfWork } from "../../../src/infrastructure/repositories/base/unit-of-work/sql.unit-of-work";
-import { UsersRepository } from "../../../src/infrastructure/repositories/users.repository";
-import { USERS_ENTITY } from "../../../src/infrastructure/repositories/entities";
-import { ENTITY_NAMES } from "../../../src/domain/models/entity-names";
-import type { IUser } from "../../../src/domain/models/users.model";
+import { AsyncTransactionContextPlugin } from "../../../../src/infrastructure/plugins/asyncTransactionContext.plugin";
+import { oracleDialect } from "../../../../src/infrastructure/repositories/base/dialects/sql.dialect";
+import { SqlGenericRepository } from "../../../../src/infrastructure/repositories/base/drivers/sql.generic.repository";
+import { SqlUnitOfWork } from "../../../../src/infrastructure/repositories/base/unit-of-work/sql.unit-of-work";
+import { UsersRepository } from "../../../../src/infrastructure/repositories/users.repository";
+import { USERS_ENTITY } from "../../../../src/infrastructure/repositories/entities";
+import { ENTITY_NAMES } from "../../../../src/domain/models/entity-names";
+import type { IUser } from "../../../../src/domain/models/users.model";
 import {
   FakeSqlExecutor,
   silentLogger,
-} from "../infrastructure/repositories/base/fake-sql-executor";
+} from "./base/fake-sql-executor";
 
 describe("transacción ambiental", () => {
   /** Conexión del pool, con auto-commit. */
