@@ -18,18 +18,23 @@ import { PaginatedDTO } from "../dtos/common.dtos";
 import { AppError } from "../../core/errors/app-error";
 import { branchMapper } from "../mapping/profiles";
 import { TOKENS } from "../../core/di/tokens";
+import type { ITransactionContext } from "../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
+import { Transactional, TransactionalService } from "../transactions/transactional";
 
 @injectable()
-export class BranchesService implements IBranchesService {
+export class BranchesService extends TransactionalService implements IBranchesService {
   constructor(
     @inject(TOKENS.IBranchesRepository) private readonly repository: IBranchesRepository,
     // Inyectado y no sacado del ámbito de la transacción: dentro de ella se
     // apunta solo, y así la dependencia se ve en la firma.
     @inject(TOKENS.IAppointmentsRepository)
     private readonly appointmentsRepository: IAppointmentsRepository,
-    @inject(TOKENS.IUnitOfWork) private readonly unitOfWork: IUnitOfWork,
+    @inject(TOKENS.IUnitOfWork) unitOfWork: IUnitOfWork,
+    @inject(TOKENS.ITransactionContext) transactions: ITransactionContext,
     @inject(TOKENS.ILogger) private readonly logger: ILogger
-  ) {}
+  ) {
+    super(unitOfWork, transactions);
+  }
 
   async getAll(query: BranchQueryDTO): Promise<PaginatedDTO<BranchDTO>> {
     const { page, limit, search, withDeleted } = query;
@@ -88,30 +93,29 @@ export class BranchesService implements IBranchesService {
    * Son dos escrituras en tablas distintas y una a medias dejaría citas vivas en
    * una sucursal cerrada, así que van en la misma transacción.
    */
+  @Transactional()
   async softDelete(id: number): Promise<boolean> {
-    return this.unitOfWork.execute(async (transaction) => {
-      // El mismo bloqueo que toma el alta de citas: sin él, una cita podría
-      // colarse en la sucursal entre la baja y la cancelación de su agenda, y
-      // quedaría viva en una sucursal cerrada. Primera sentencia, como allí.
-      await transaction.lockRow(ENTITY_NAMES.BRANCHES, id);
+    // El mismo bloqueo que toma el alta de citas: sin él, una cita podría
+    // colarse en la sucursal entre la baja y la cancelación de su agenda, y
+    // quedaría viva en una sucursal cerrada. Primera sentencia, como allí.
+    await this.lockRow(ENTITY_NAMES.BRANCHES, id);
 
-      const deleted = await this.repository.softDelete(id);
-      if (!deleted) return false;
+    const deleted = await this.repository.softDelete(id);
+    if (!deleted) return false;
 
-      const cancelled = await this.appointmentsRepository.updateWhere(
-        {
-          $and: [
-            { fkBranch: id },
-            { scheduledAt: { gte: new Date() } },
-            { status: { notIn: ["CANCELLED", "DONE"] } },
-          ],
-        },
-        { status: "CANCELLED" }
-      );
+    const cancelled = await this.appointmentsRepository.updateWhere(
+      {
+        $and: [
+          { fkBranch: id },
+          { scheduledAt: { gte: new Date() } },
+          { status: { notIn: ["CANCELLED", "DONE"] } },
+        ],
+      },
+      { status: "CANCELLED" }
+    );
 
-      this.logger.warn("Sucursal dada de baja", { id, citasCanceladas: cancelled });
-      return true;
-    });
+    this.logger.warn("Sucursal dada de baja", { id, citasCanceladas: cancelled });
+    return true;
   }
 
   async restore(id: number): Promise<boolean> {
@@ -126,29 +130,28 @@ export class BranchesService implements IBranchesService {
    * hay que borrarlas primero o la base rechaza el DELETE. Ambas cosas en la
    * misma transacción para no quedarse a medio camino.
    */
+  @Transactional()
   async hardDelete(id: number): Promise<boolean> {
-    return this.unitOfWork.execute(async (transaction) => {
-      // Mismo bloqueo que el alta de citas, por el mismo motivo: que no entre
-      // una cita nueva entre el borrado de la agenda y el de la sucursal.
-      await transaction.lockRow(ENTITY_NAMES.BRANCHES, id);
+    // Mismo bloqueo que el alta de citas, por el mismo motivo: que no entre una
+    // cita nueva entre el borrado de la agenda y el de la sucursal.
+    await this.lockRow(ENTITY_NAMES.BRANCHES, id);
 
-      const removedAppointments = await this.appointmentsRepository.hardDeleteWhere({
-        fkBranch: id,
-      });
-      const deleted = await this.repository.hardDelete(id);
-
-      if (!deleted) {
-        // Provoca el rollback: si la sucursal no existía, tampoco deberían
-        // haberse borrado citas.
-        throw new AppError("Branch not found", 404);
-      }
-
-      this.logger.warn("Sucursal eliminada definitivamente", {
-        id,
-        citasEliminadas: removedAppointments,
-      });
-      return true;
+    const removedAppointments = await this.appointmentsRepository.hardDeleteWhere({
+      fkBranch: id,
     });
+    const deleted = await this.repository.hardDelete(id);
+
+    if (!deleted) {
+      // Provoca el rollback: si la sucursal no existía, tampoco deberían
+      // haberse borrado citas.
+      throw new AppError("Branch not found", 404);
+    }
+
+    this.logger.warn("Sucursal eliminada definitivamente", {
+      id,
+      citasEliminadas: removedAppointments,
+    });
+    return true;
   }
 
   /** El horario de cierre debe ser posterior al de apertura. */

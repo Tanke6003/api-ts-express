@@ -28,6 +28,7 @@ describe("AppointmentsService", () => {
   let branchesRepository: any;
   let usersRepository: any;
   let scope: any;
+  let transactions: any;
   let unitOfWork: any;
   let service: AppointmentsService;
 
@@ -61,7 +62,20 @@ describe("AppointmentsService", () => {
       },
       lockRow: jest.fn().mockResolvedValue(true),
     };
-    unitOfWork = { execute: jest.fn((work: any) => work(scope)) };
+    // La transacción se publica en el contexto mientras corre el bloque, que es
+    // lo que hace que `this.lockRow(...)` del servicio la encuentre.
+    let active: unknown;
+    transactions = { current: () => active, run: (s: unknown, fn: any) => fn() };
+    unitOfWork = {
+      execute: jest.fn(async (work: any) => {
+        active = scope;
+        try {
+          return await work(scope);
+        } finally {
+          active = undefined;
+        }
+      }),
+    };
 
     const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
     service = new AppointmentsService(
@@ -69,6 +83,7 @@ describe("AppointmentsService", () => {
       branchesRepository,
       usersRepository,
       unitOfWork,
+      transactions,
       logger as never
     );
   });

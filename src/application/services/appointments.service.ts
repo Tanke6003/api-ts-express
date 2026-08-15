@@ -11,10 +11,10 @@ import type { WhereFilter } from "../../domain/interfaces/infrastructure/reposit
 import type { IUnitOfWork } from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { ENTITY_NAMES } from "../../domain/models/entity-names";
-import { IAppointment } from "../../domain/models/appointments.model";
+import type { IAppointment } from "../../domain/models/appointments.model";
 import { IBranch } from "../../domain/models/branches.model";
 import { IUser } from "../../domain/models/users.model";
-import {
+import type {
   AppointmentDTO,
   AppointmentQueryDTO,
   CreateAppointmentDTO,
@@ -26,6 +26,8 @@ import { appointmentMapper } from "../mapping/profiles";
 import { AppError } from "../../core/errors/app-error";
 import { normalizeError } from "../../core/errors/error-mapper";
 import { TOKENS } from "../../core/di/tokens";
+import type { ITransactionContext } from "../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
+import { Transactional, TransactionalService } from "../transactions/transactional";
 
 const DEFAULT_DURATION_MIN = 30;
 /** Tope de `CK_APPT_DURATION`; acota la ventana de búsqueda de solapes. */
@@ -40,14 +42,17 @@ const MINUTE_MS = 60_000;
  * relaciones (el equivalente a los `Include` de EF, ver `loadRelated`).
  */
 @injectable()
-export class AppointmentsService implements IAppointmentsService {
+export class AppointmentsService extends TransactionalService implements IAppointmentsService {
   constructor(
     @inject(TOKENS.IAppointmentsRepository) private readonly repository: IAppointmentsRepository,
     @inject(TOKENS.IBranchesRepository) private readonly branchesRepository: IBranchesRepository,
     @inject(TOKENS.IUsersRepository) private readonly usersRepository: IUsersRepository,
-    @inject(TOKENS.IUnitOfWork) private readonly unitOfWork: IUnitOfWork,
+    @inject(TOKENS.IUnitOfWork) unitOfWork: IUnitOfWork,
+    @inject(TOKENS.ITransactionContext) transactions: ITransactionContext,
     @inject(TOKENS.ILogger) private readonly logger: ILogger
-  ) {}
+  ) {
+    super(unitOfWork, transactions);
+  }
 
   // --------------------------------------------------------------- lectura --
 
@@ -119,6 +124,19 @@ export class AppointmentsService implements IAppointmentsService {
    * las altas de otras sucursales.
    */
   async create(appointment: CreateAppointmentDTO): Promise<AppointmentDTO> {
+    const created = await this.persistNew(appointment);
+
+    this.logger.info("Cita creada", { id: created.pkAppointment });
+    // La proyección se queda fuera de la transacción: son lecturas que no
+    // deciden nada, y dentro sólo alargarían el bloqueo de la sucursal. Por eso
+    // lo transaccional vive en un método aparte y no en éste.
+    const [dto] = await this.toDTOs([created]);
+    return dto;
+  }
+
+  /** El núcleo transaccional del alta: comprobar el hueco y ocuparlo. */
+  @Transactional()
+  private async persistNew(appointment: CreateAppointmentDTO): Promise<IAppointment> {
     const scheduledAt = new Date(appointment.scheduledAt);
     if (scheduledAt.getTime() <= Date.now()) {
       throw new AppError("La cita debe agendarse en el futuro", 400);
@@ -126,48 +144,40 @@ export class AppointmentsService implements IAppointmentsService {
 
     const durationMin = appointment.durationMin ?? DEFAULT_DURATION_MIN;
 
-    const created = await this.runGuardingSlot(appointment.branchId, () =>
-      this.unitOfWork.execute(async (transaction) => {
-        // Primera sentencia de la transacción, y tiene que serlo: ver la nota
-        // sobre instantáneas en `ITransactionScope.lockRow`. No se mira lo que
-        // devuelve porque el error de "no existe" lo da `requireBranch`, que
-        // además distingue la sucursal dada de baja.
-        await transaction.lockRow(ENTITY_NAMES.BRANCHES, appointment.branchId);
+    // Primera sentencia de la transacción, y tiene que serlo: ver la nota sobre
+    // instantáneas en `ITransactionScope.lockRow`. No se mira lo que devuelve
+    // porque el error de "no existe" lo da `requireBranch`, que además
+    // distingue la sucursal dada de baja.
+    await this.lockRow(ENTITY_NAMES.BRANCHES, appointment.branchId);
 
-        // De aquí en adelante los repositorios inyectados ya operan dentro de
-        // la transacción: la encuentran en el contexto (`ITransactionContext`).
-        await this.requireBranch(appointment.branchId);
+    // De aquí en adelante los repositorios inyectados ya operan dentro de la
+    // transacción: la encuentran en el contexto (`ITransactionContext`).
+    await this.requireBranch(appointment.branchId);
 
-        const guestName = (appointment.guestName ?? "").trim();
-        if (appointment.clientId != null) {
-          await this.requireClient(appointment.clientId);
-        } else if (guestName.length === 0) {
-          throw new AppError(
-            "Indica un cliente registrado o el nombre con el que se agenda la cita",
-            400
-          );
-        }
+    const guestName = (appointment.guestName ?? "").trim();
+    if (appointment.clientId != null) {
+      await this.requireClient(appointment.clientId);
+    } else if (guestName.length === 0) {
+      throw new AppError(
+        "Indica un cliente registrado o el nombre con el que se agenda la cita",
+        400
+      );
+    }
 
-        await this.assertSlotIsFree(appointment.branchId, scheduledAt, durationMin);
+    await this.assertSlotIsFree(appointment.branchId, scheduledAt, durationMin);
 
-        return this.repository.insert({
-          fkBranch: appointment.branchId,
-          fkClient: appointment.clientId ?? null,
-          // Con cliente registrado el nombre sale del Include, no se duplica aquí.
-          guestName: appointment.clientId != null ? null : guestName,
-          scheduledAt,
-          durationMin,
-          status: appointment.status ?? "PENDING",
-          details: appointment.details ?? null,
-        });
+    return this.runGuardingSlot(appointment.branchId, () =>
+      this.repository.insert({
+        fkBranch: appointment.branchId,
+        fkClient: appointment.clientId ?? null,
+        // Con cliente registrado el nombre sale del Include, no se duplica aquí.
+        guestName: appointment.clientId != null ? null : guestName,
+        scheduledAt,
+        durationMin,
+        status: appointment.status ?? "PENDING",
+        details: appointment.details ?? null,
       })
     );
-
-    this.logger.info("Cita creada", { id: created.pkAppointment });
-    // La proyección va fuera de la transacción: son lecturas que no deciden
-    // nada, y mantenerlas dentro sólo alargaría el bloqueo de la sucursal.
-    const [dto] = await this.toDTOs([created]);
-    return dto;
   }
 
   /**
@@ -175,20 +185,34 @@ export class AppointmentsService implements IAppointmentsService {
    * función de lo que lee, así que va bloqueando la sucursal de destino.
    */
   async update(id: number, changes: UpdateAppointmentDTO): Promise<AppointmentDTO | null> {
-    // Lectura previa con un único fin: saber qué sucursal hay que bloquear. La
-    // decisión no se toma con esto —puede quedarse viejo—, sino con la relectura
-    // que se hace ya dentro de la transacción.
+    // Lectura previa con un único fin: saber qué sucursal hay que bloquear.
+    // Tiene que ir **antes** de abrir la transacción, y por eso este método no
+    // lleva `@Transactional()`: dentro, un SELECT normal previo al bloqueo
+    // fijaría la instantánea de MySQL y las comprobaciones posteriores verían
+    // un estado viejo. La decisión no se toma con esta lectura —puede quedarse
+    // atrás— sino con la relectura que se hace ya dentro.
     const existing = await this.repository.getById(id);
     if (!existing) return null;
 
-    const targetBranch = changes.branchId ?? existing.fkBranch;
+    const updated = await this.applyUpdate(id, changes, changes.branchId ?? existing.fkBranch);
+    if (!updated) return null;
 
-    const updated = await this.runGuardingSlot(targetBranch, () =>
-      this.unitOfWork.execute(async (transaction) => {
-        await transaction.lockRow(ENTITY_NAMES.BRANCHES, targetBranch);
+    const [dto] = await this.toDTOs([updated]);
+    return dto;
+  }
 
-        const current = await this.repository.getById(id);
-        if (!current) return null;
+  /** El núcleo transaccional de la edición, con la sucursal ya decidida. */
+  @Transactional()
+  private async applyUpdate(
+    id: number,
+    changes: UpdateAppointmentDTO,
+    targetBranch: number
+  ): Promise<IAppointment | null> {
+    return this.runGuardingSlot(targetBranch, async () => {
+      await this.lockRow(ENTITY_NAMES.BRANCHES, targetBranch);
+
+      const current = await this.repository.getById(id);
+      if (!current) return null;
 
         // Se valida sobre el resultado combinado, no sobre el parche: un PATCH
         // que sólo trae la hora sigue teniendo que cumplir todas las reglas.
@@ -243,14 +267,8 @@ export class AppointmentsService implements IAppointmentsService {
           await this.assertSlotIsFree(merged.fkBranch, merged.scheduledAt, merged.durationMin, id);
         }
 
-        return this.repository.update(id, merged);
-      })
-    );
-
-    if (!updated) return null;
-
-    const [dto] = await this.toDTOs([updated]);
-    return dto;
+      return this.repository.update(id, merged);
+    });
   }
 
   /** Borrado lógico: la cita desaparece de la agenda pero queda el histórico. */

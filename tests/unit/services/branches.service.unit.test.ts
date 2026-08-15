@@ -16,6 +16,7 @@ describe("BranchesService", () => {
   let repository: any;
   let appointmentsRepository: any;
   let lockRow: jest.Mock;
+  let transactions: any;
   let unitOfWork: any;
   let logger: any;
   let service: BranchesService;
@@ -41,10 +42,31 @@ describe("BranchesService", () => {
     // de `BaseModuleRepository` y se prueba en su propio test. Aquí sólo importa
     // que el servicio abra la transacción y bloquee antes de escribir.
     lockRow = jest.fn().mockResolvedValue(true);
-    unitOfWork = { execute: jest.fn((work: any) => work({ repository: jest.fn(), lockRow })) };
+    const scope = { repository: jest.fn(), lockRow };
+
+    // El contexto publica la transacción mientras corre el bloque; es lo que
+    // hace que `this.lockRow(...)` del servicio la encuentre.
+    let active: unknown;
+    transactions = { current: () => active, run: (_s: unknown, fn: any) => fn() };
+    unitOfWork = {
+      execute: jest.fn(async (work: any) => {
+        active = scope;
+        try {
+          return await work(scope);
+        } finally {
+          active = undefined;
+        }
+      }),
+    };
 
     logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-    service = new BranchesService(repository, appointmentsRepository, unitOfWork, logger);
+    service = new BranchesService(
+      repository,
+      appointmentsRepository,
+      unitOfWork,
+      transactions,
+      logger
+    );
   });
 
   describe("getAll", () => {

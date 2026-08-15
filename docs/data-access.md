@@ -305,6 +305,40 @@ How each engine implements it:
 | MongoDB | A `ClientSession` passed to every operation. `withTransaction` **retries** on transient server errors, so the block may run more than once and must not carry side effects outside the database. |
 | In memory | Snapshots every store before running and restores them if the block throws. Transactions are queued and run one at a time: Node is single-threaded but that is not isolation — between the `await` of a read and the write that depends on it the event loop serves other requests, and two overlapping snapshots would also break the rollback, since a failure in the second would restore over what the first had already committed. |
 
+### `@Transactional()`
+
+A service method that extends `TransactionalService` can declare the boundary
+with a decorator instead of wrapping its body:
+
+```typescript
+@Transactional()
+async softDelete(id: number): Promise<boolean> {
+  await this.lockRow(ENTITY_NAMES.BRANCHES, id);
+  const deleted = await this.repository.softDelete(id);
+  ...
+}
+```
+
+`this.lockRow(...)` comes from the base class and reads the open transaction
+from the context, so the lock stays explicit without the scope being passed
+around. Outside a transaction it fails immediately saying the method is missing
+its decorator — the silent failure would be writing without a lock and believing
+there is exclusion.
+
+A decorated method calling another **joins** the open transaction rather than
+nesting a second one, so both share a commit.
+
+Two cases where the explicit `unitOfWork.execute(...)` is still the right tool,
+and both appear in `AppointmentsService`:
+
+- **Something must be read before the transaction opens.** `update` reads the
+  appointment to know which branch to lock; done inside, that plain SELECT would
+  pin MySQL's snapshot before the lock. The public method reads, and a decorated
+  private one holds the transactional core.
+- **Something must stay outside.** `create` projects the result into a DTO after
+  committing: they are reads that decide nothing, and inside they would only
+  hold the branch lock for longer.
+
 ### `scope.lockRow(entity, id)`
 
 Locks a row until commit. Transactions asking for the same row queue up behind it.
