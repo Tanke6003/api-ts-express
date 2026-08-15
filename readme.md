@@ -11,6 +11,7 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Framework | Express 5 |
 | Language | TypeScript 5 (strict mode) |
 | Architecture | Clean Architecture (Presentation → Application → Domain → Infrastructure) |
+| Routing | Declared on the controller: one decorator gives the route, the validation and the OpenAPI operation |
 | Dependency Injection | tsyringe |
 | Authentication | JWT (Bearer token), with the identity exposed per request via AsyncLocalStorage |
 | HTTP hardening | Helmet, per-IP rate limiting, CORS allowlist, 1 MB body cap, docs off in production |
@@ -18,7 +19,7 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Database | Oracle, SQL Server, PostgreSQL, MySQL/MariaDB, MongoDB or in-memory — selected via `DATA_SOURCE`, all on the same generic repository |
 | Data access | Generic repository with EF/LINQ-style CRUD, chainable queries, soft & hard delete, and a Unit of Work |
 | Logging | Pino (structured JSON, pino-pretty in dev) or Winston — selected via `LOG_DRIVER` |
-| API Docs | Swagger UI + Scalar |
+| API Docs | Swagger UI + Scalar, generated from the route decorators and the Zod schemas — no hand-written annotations |
 | File Storage | Local filesystem or AWS S3 / MinIO |
 | Web UI | Static HTML + vanilla JS + Tailwind, served from `public/` |
 | Testing | Jest — unit, integration |
@@ -73,16 +74,16 @@ For a detailed walkthrough see **[docs/getting-started.md](docs/getting-started.
 src/
 ├── main.ts                     # Entry point
 ├── core/
-│   ├── config/                 # Swagger configuration, env validation
+│   ├── config/                 # OpenAPI, security, API prefix, env validation
 │   ├── di/                     # Composition root, tokens, one module per feature
 │   └── errors/                 # AppError + driver-error mapping
 ├── presentation/               # HTTP layer
-│   ├── controllers/
+│   ├── controllers/            # Each one declares its own routes with decorators
 │   ├── middlewares/            # httpLogger, errorHandler, JWT guard, request context
-│   ├── routes/                 # OpenAPI-annotated route definitions
+│   ├── routing/                # Decorators, router builder, OpenAPI builder, mounting
 │   └── utils/                  # parse-id and other HTTP helpers
 ├── application/                # Business logic
-│   ├── dtos/                   # Data Transfer Objects
+│   ├── dtos/                   # Zod schemas: TS type + OpenAPI component
 │   ├── queries/                # loadRelated — EF-style Include, batched
 │   ├── services/               # Business rules & compound queries
 │   └── validators/             # Zod schemas
@@ -210,6 +211,12 @@ When the server is running, open:
 
 Authentication is done with a **Bearer JWT**. Click **Authorize** in Swagger, then use the token from `GET /api/v1/generate-token`.
 
+The document is generated: the paths come from the route decorators and every
+schema from Zod, so there is not a line of hand-written OpenAPI in the project
+and the docs cannot drift from what the code validates. It is OpenAPI 3.1,
+because its schema *is* JSON Schema 2020-12 — exactly what Zod emits. See
+**[docs/decorated-routes.md](docs/decorated-routes.md)**.
+
 ---
 
 ## Authentication (JWT)
@@ -277,7 +284,9 @@ Full guide: **[docs/testing.md](docs/testing.md)**.
 
 ## Adding a new resource
 
-Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md)**. Most of a new module is now declarative — describe the table and the generic repository provides the CRUD.
+Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md)**. Most of a new module is now declarative — describe the table and the generic repository provides the CRUD, decorate the controller and the routes, the validation and the documentation come with it.
+
+How the decorators work, and how to declare a DTO once: **[docs/decorated-routes.md](docs/decorated-routes.md)**.
 
 ---
 
@@ -297,6 +306,7 @@ Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md
 | Singleton | Logger instances |
 | Global error handler | `presentation/middlewares/errorHandler.middleware.ts` |
 | Ambient context (IHttpContextAccessor) | `infrastructure/plugins/asyncRequestContext.plugin.ts` |
+| Declarative routing | `presentation/routing/` — `@ApiController` / `@Get`… drive routing, validation and docs |
 
 ---
 

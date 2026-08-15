@@ -154,13 +154,17 @@ npm run dev:win:pretty   # Windows, piped through pino-pretty
 All three run `tsx watch src/main.ts`, so edits reload without a build step. The boot log ends with:
 
 ```
-Server running on port 3001
-UI:      http://localhost:3001/
-Users:   http://localhost:3001/api/users
-Swagger: http://localhost:3001/api/swagger
-Scalar:  http://localhost:3001/api/scalar
-Health:  http://localhost:3001/health
+INFO: Servidor escuchando
+  port: 3001
+  ui: http://localhost:3001/
+  users: http://localhost:3001/api/v1/users
+  swagger: http://localhost:3001/api/swagger
+  scalar: http://localhost:3001/api/scalar
+  health: http://localhost:3001/health/ready
 ```
+
+Swagger and Scalar only appear when the documentation is published — everywhere
+except production, unless `DOCS_ENABLED` says otherwise.
 
 With a real driver the process authenticates against the database *before* it starts listening, and exits with code 1 if that fails. A wrong password shows up in the boot log rather than in a user's first request.
 
@@ -178,14 +182,22 @@ Coverage lands in `reports/coverage/`, the test report in `reports/tests-report.
 
 ## 4. The endpoints
 
-Everything except `/health`, `/api/generate-token` and the upload routes requires `Authorization: Bearer <token>`.
+Everything except `/health*`, `/api/v1/generate-token` and the upload routes
+requires `Authorization: Bearer <token>`. Routes require a token unless they
+declare `public: true`, so forgetting the flag closes an endpoint rather than
+opening one.
+
+The API is mounted at `API_PREFIX` (`/api/v1` by default) and also answers under
+the unversioned `/api` while `API_LEGACY_PREFIX` is on. The prefix in use is
+published by `/health/ready`, so a client can discover it instead of assuming
+it.
 
 ```bash
 curl http://localhost:3001/health
-curl http://localhost:3001/api/generate-token          # ?userId=7&name=Ruben to simulate a user
+curl http://localhost:3001/api/v1/generate-token          # ?userId=7&name=Ruben to simulate a user
 
-TOKEN=$(curl -s http://localhost:3001/api/generate-token | jq -r .token)
-curl -X POST http://localhost:3001/api/users \
+TOKEN=$(curl -s http://localhost:3001/api/v1/generate-token | jq -r .token)
+curl -X POST http://localhost:3001/api/v1/users \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "Alice", "email": "alice@example.com"}'
@@ -196,31 +208,31 @@ curl -X POST http://localhost:3001/api/users \
 | `GET` | `/health/live` | — | Liveness: the process answers. Never touches the database |
 | `GET` | `/health/ready` | — | Readiness: 503 if the database is down or the app is draining |
 | `GET` | `/health` | — | Alias of `/health/ready` |
-| `GET` | `/api/generate-token` | — | Development JWT; accepts `userId`, `name`, `email` |
-| `GET` | `/api/users` | Bearer | Paginated list (`page`, `limit`) |
-| `GET` | `/api/users/:id` | Bearer | Single user |
-| `POST` | `/api/users` | Bearer | Create — `name` required, `email` / `phone` / `isClient` optional |
-| `PUT` | `/api/users/:id` | Bearer | Update |
-| `DELETE` | `/api/users/:id` | Bearer | Logical delete |
-| `GET` | `/api/branches` | Bearer | Paginated list |
-| `GET` | `/api/branches/:id` | Bearer | Single branch |
-| `POST` | `/api/branches` | Bearer | Create |
-| `PUT` | `/api/branches/:id` | Bearer | Update |
-| `DELETE` | `/api/branches/:id` | Bearer | Logical delete |
-| `DELETE` | `/api/branches/:id/hard` | Bearer | Physical delete |
-| `POST` | `/api/branches/:id/restore` | Bearer | Undo a logical delete |
-| `GET` | `/api/appointments` | Bearer | Paginated list; filters combine with AND |
-| `GET` | `/api/appointments/stats` | Bearer | Aggregates |
-| `GET` | `/api/appointments/:id` | Bearer | Single appointment |
-| `POST` | `/api/appointments` | Bearer | Create |
-| `PUT` | `/api/appointments/:id` | Bearer | Update |
-| `DELETE` | `/api/appointments/:id` | Bearer | Logical delete |
-| `DELETE` | `/api/appointments/:id/hard` | Bearer | Physical delete |
-| `POST` | `/api/appointments/:id/restore` | Bearer | Undo a logical delete |
-| `GET` | `/api/me` | Bearer | Identity resolved from the token |
-| `GET` | `/api/audit` | Bearer | Change log, read-only |
-| `POST` | `/api/upload-file` | — | Single file, multipart |
-| `POST` | `/api/upload-files` | — | Multiple files, multipart |
+| `GET` | `/api/v1/generate-token` | — | Development JWT; accepts `userId`, `name`, `email` |
+| `GET` | `/api/v1/users` | Bearer | Paginated list (`page`, `limit`) |
+| `GET` | `/api/v1/users/:id` | Bearer | Single user |
+| `POST` | `/api/v1/users` | Bearer | Create — `name` required, `email` / `phone` / `isClient` optional |
+| `PUT` | `/api/v1/users/:id` | Bearer | Update |
+| `DELETE` | `/api/v1/users/:id` | Bearer | Logical delete |
+| `GET` | `/api/v1/branches` | Bearer | Paginated list |
+| `GET` | `/api/v1/branches/:id` | Bearer | Single branch |
+| `POST` | `/api/v1/branches` | Bearer | Create |
+| `PUT` | `/api/v1/branches/:id` | Bearer | Update |
+| `DELETE` | `/api/v1/branches/:id` | Bearer | Logical delete |
+| `DELETE` | `/api/v1/branches/:id/hard` | Bearer | Physical delete |
+| `POST` | `/api/v1/branches/:id/restore` | Bearer | Undo a logical delete |
+| `GET` | `/api/v1/appointments` | Bearer | Paginated list; filters combine with AND |
+| `GET` | `/api/v1/appointments/stats` | Bearer | Aggregates |
+| `GET` | `/api/v1/appointments/:id` | Bearer | Single appointment |
+| `POST` | `/api/v1/appointments` | Bearer | Create |
+| `PUT` | `/api/v1/appointments/:id` | Bearer | Update |
+| `DELETE` | `/api/v1/appointments/:id` | Bearer | Logical delete |
+| `DELETE` | `/api/v1/appointments/:id/hard` | Bearer | Physical delete |
+| `POST` | `/api/v1/appointments/:id/restore` | Bearer | Undo a logical delete |
+| `GET` | `/api/v1/me` | Bearer | Identity resolved from the token |
+| `GET` | `/api/v1/audit` | Bearer | Change log, read-only |
+| `POST` | `/api/v1/upload-file` | — | One file, multipart, up to 5 MB |
+| `POST` | `/api/v1/upload-files` | — | Up to 10 files, multipart, 5 MB each |
 
 Interactive documentation is generated from the OpenAPI annotations on the route files:
 

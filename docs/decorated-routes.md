@@ -15,7 +15,7 @@ proyecto. Los seis controladores declaran lo suyo y `routing/index.route.ts`
 
 ```typescript
 @injectable()
-@ApiController("/users", { tag: "Users" })
+@ApiController("/users", { tag: "Users", token: TOKENS.IUsersController })
 export class UsersController extends BaseController implements IUsersController {
   constructor(
     @inject(TOKENS.IUsersService) private readonly usersService: IUsersService,
@@ -44,15 +44,14 @@ export class UsersController extends BaseController implements IUsersController 
 }
 ```
 
-Y en la raíz de composición, una línea:
+Y en la raíz de composición, nada por módulo: `routing/index.route.ts` recorre
+el registro y monta lo que encuentre. Lo único que hace falta es que la clase se
+cargue, y de eso se encarga su `import`.
 
 ```typescript
-registerController(
-  router,
-  UsersController,
-  container.resolve<IUsersController>(TOKENS.IUsersController),
-  jwt.middleware
-);
+for (const [type, metadata] of registeredControllers()) {
+  registerController(router, type, container.resolve(metadata.token), jwt.middleware);
+}
 ```
 
 ---
@@ -61,7 +60,7 @@ registerController(
 
 | Decorador | Qué declara |
 |-----------|-------------|
-| `@ApiController(prefix, { tag })` | Prefijo del controlador y etiqueta de Swagger |
+| `@ApiController(prefix, { tag, token })` | Prefijo, etiqueta de Swagger y el token con el que el contenedor resuelve quién atiende |
 | `@Get` `@Post` `@Put` `@Patch` `@Delete` | Verbo y ruta, relativa al prefijo |
 
 Opciones de una ruta:
@@ -69,12 +68,18 @@ Opciones de una ruta:
 | Opción | Efecto en el enrutado | Efecto en la documentación |
 |--------|----------------------|---------------------------|
 | `body` | Monta `validateBody(schema)` | `requestBody` con el esquema JSON del validador |
+| `requestBody` | — | Cuerpo que no es JSON, descrito a mano: una subida `multipart/form-data` |
 | `query` | Monta `validateQuery(schema)` | Un `parameter` por propiedad del esquema |
 | `params` | — | Un `parameter` de ruta por entrada, obligatorio |
 | `public: true` | **No** monta el guard de JWT | Omite `security` y el 401 |
 | `use` | Middlewares extra tras la validación | — |
 | `summary` / `description` | — | Lo que se lee en Swagger |
-| `responses` | — | Códigos y sus descripciones |
+| `responses` | — | Códigos, su descripción y su cuerpo (`ref` a un componente, o `schema` de Zod) |
+
+Un 4xx o 5xx que no describa cuerpo referencia solo el componente
+`ErrorResponse`, que es el sobre que devuelve el manejador global de errores.
+Así el cliente ve en la documentación el `code` estable sobre el que ramificar y
+el `requestId` que citar al soporte.
 
 La cadena que se monta es siempre la misma, y en este orden:
 

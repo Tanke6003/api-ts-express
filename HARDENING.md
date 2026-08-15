@@ -1,5 +1,12 @@
 # Plan de endurecimiento y correcciones
 
+> **Los cinco puntos están aplicados.** Este documento se conserva porque el
+> diagnóstico sigue explicando *por qué* el código quedó como quedó, y cada
+> apartado abre con una nota de en qué se apartó la solución de lo que aquí se
+> planteaba. Lo que vino después del plan —rutas por decoradores, OpenAPI
+> generado, límites de subida— está en
+> [docs/decorated-routes.md](docs/decorated-routes.md) y en el CHANGELOG.
+
 Guía de implementación para cinco puntos pendientes. Cada uno lleva el diagnóstico
 con su referencia exacta al código, por qué importa, cómo resolverlo y cómo
 comprobar que quedó resuelto.

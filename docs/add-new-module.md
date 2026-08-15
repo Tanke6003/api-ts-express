@@ -16,10 +16,12 @@ Create the files in this order (inner layers first):
 4. DTOs
 5. Zod validators
 6. Service (business rules)
-7. Controller
-8. Routes
-9. DI registration
-10. Tests
+7. Controller — which declares its own routes
+8. DI registration
+9. Tests
+
+There is no step for routes or for documentation: both come out of the
+decorators on the controller. See **[decorated-routes.md](decorated-routes.md)**.
 
 Steps 1–3 contain no SQL at all.
 
@@ -128,26 +130,28 @@ export class ProductsRepository
 
 ## Step 4 — DTOs
 
-`src/application/dtos/products.dtos.ts`. Annotate with `@openapi` so the schema shows up in Swagger:
+`src/application/dtos/products.dtos.ts`. Declare it once with Zod: `z.infer`
+gives the TypeScript type and the registry publishes the OpenAPI component, so
+there is no schema to write in a comment and nothing that can drift from the
+code.
 
 ```typescript
-/**
- * @openapi
- * components:
- *   schemas:
- *     Product:
- *       type: object
- *       properties:
- *         id: { type: integer, example: 1 }
- *         name: { type: string, example: Teclado }
- *         price: { type: number, example: 499.9 }
- */
-export interface ProductDTO {
-  id: number;
-  name: string;
-  price: number;
-  available?: boolean;
-}
+import { z } from "zod";
+import { defineDto, definePagedDto } from "./dto.registry";
+
+export const productDto = defineDto(
+  "Product",
+  z.object({
+    id: z.int().meta({ examples: [1] }),
+    name: z.string().meta({ examples: ["Teclado"] }),
+    price: z.number().meta({ examples: [499.9] }),
+    available: z.boolean().optional(),
+  })
+);
+
+export const paginatedProductsDto = definePagedDto("PaginatedProducts", productDto);
+
+export type ProductDTO = z.infer<typeof productDto>;
 
 export interface CreateProductDTO {
   name: string;
@@ -164,7 +168,13 @@ export interface ProductQueryDTO {
 }
 ```
 
-`PaginationDTO` and `PaginatedDTO<T>` are shared — import them from `application/dtos/common.dtos`.
+`PaginationDTO` and `PaginatedDTO<T>` are shared — import them from
+`application/dtos/common.dtos`.
+
+**Add the file to the `dtos/index.ts` barrel.** A DTO registers itself when its
+module *loads*, and everywhere else imports it as a type, which TypeScript
+erases. A DTO missing from the barrel simply will not appear in the
+documentation.
 
 ---
 
@@ -269,13 +279,24 @@ async hardDelete(id: number): Promise<boolean> {
 
 ## Step 7 — Controller
 
-Thin: parse, delegate, map to HTTP. Use `parseId` so `/products/abc` returns 400 instead of querying a nonsense id.
+Thin: parse, delegate, map to HTTP. Use `parseId` so `/products/abc` returns 400
+instead of querying a nonsense id.
+
+The routes live here too. Each decorator produces three things at once — the
+Express route, the request validation and the OpenAPI operation — from a single
+declaration, so they cannot disagree.
 
 ```typescript
 @injectable()
+@ApiController("/products", { tag: "Products", token: TOKENS.IProductsController })
 export class ProductsController implements IProductsController {
-  constructor(@inject("IProductsService") private readonly service: IProductsService) {}
+  constructor(@inject(TOKENS.IProductsService) private readonly service: IProductsService) {}
 
+  @Get("/", {
+    summary: "Listado paginado de productos",
+    query: productQuerySchema,
+    responses: { 200: { description: "Productos encontrados", ref: "PaginatedProducts" } },
+  })
   public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const query = (req.validatedQuery as ProductQueryInput | undefined) ?? {
@@ -287,6 +308,11 @@ export class ProductsController implements IProductsController {
     }
   };
 
+  @Delete("/:id", {
+    summary: "Baja lógica de un producto",
+    params: { id: "integer" },
+    responses: { 204: "Producto dado de baja", 404: "Producto no encontrado" },
+  })
   public softDelete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const deleted = await this.service.softDelete(parseId(req.params.id, "product"));
@@ -299,38 +325,26 @@ export class ProductsController implements IProductsController {
 }
 ```
 
-`req.validatedQuery` is typed `unknown`; the controller asserts the shape its own schema produces.
+`req.validatedQuery` is typed `unknown`; the controller asserts the shape its own
+schema produces.
+
+Three things worth knowing, all covered in
+**[decorated-routes.md](decorated-routes.md)**:
+
+- **Every route requires a token** unless it declares `public: true`. Forgetting
+  the flag closes an endpoint rather than opening one.
+- **Declaration order is route order.** `/products/stats` must be declared before
+  `/products/:id`, or `stats` is parsed as an id — same rule as in a route file,
+  now enforced by where the method sits in the class.
+- **The 401 and the error body are added for you.** Any 4xx or 5xx without an
+  explicit body references the shared `ErrorResponse` component.
+
+To mount it, add one `import` line to `src/presentation/routing/index.route.ts`.
+That import is what runs the decorators; the registry does the rest.
 
 ---
 
-## Step 8 — Routes
-
-`src/presentation/routes/products.route.ts`, with `@openapi` JSDoc on each handler:
-
-```typescript
-app.get(
-  "/products",
-  this.jwtPlugin.middleware,
-  validateQuery(productQuerySchema),
-  this.productsController.getAll.bind(this.productsController)
-);
-
-app.delete("/products/:id", this.jwtPlugin.middleware, this.productsController.softDelete.bind(...));
-app.delete("/products/:id/hard", this.jwtPlugin.middleware, this.productsController.hardDelete.bind(...));
-app.post("/products/:id/restore", this.jwtPlugin.middleware, this.productsController.restore.bind(...));
-```
-
-> Register literal paths **before** parametric ones — `/products/stats` must come before `/products/:id`, or `stats` is parsed as an id.
-
-Mount it in `src/presentation/routes/index.route.ts`:
-
-```typescript
-new ProductsRoutes().register(apiRouter);
-```
-
----
-
-## Step 9 — DI registration
+## Step 8 — DI registration
 
 In `src/core/di/repository.factory.ts`, add the store to each builder — SQL, MongoDB and memory — and to the unit-of-work registry. The builders differ only in which driver class they instantiate:
 
@@ -379,7 +393,7 @@ compiles fine and only blows up when that class is constructed.
 
 ---
 
-## Step 10 — Tests
+## Step 9 — Tests
 
 Coverage thresholds are enforced per layer, so a module without tests fails `npm test`. Mirror the existing suites:
 
@@ -400,12 +414,12 @@ The generic repository itself is already covered; you don't need to retest CRUD.
 - [ ] Mapping in `repositories/entities.ts` (+ `seed-data.ts`, + the DDL of each engine you use)
 - [ ] Repository contract (`IGenericRepository<T>`, plus extra methods only if needed)
 - [ ] `XRepository extends BaseModuleRepository<T>`
-- [ ] DTOs with `@openapi` annotations
+- [ ] DTOs declared with `defineDto`, and the file added to the `dtos/index.ts` barrel
 - [ ] Zod validators for body and query
 - [ ] Service with the business rules
 - [ ] Controller using `parseId`
-- [ ] Routes with OpenAPI JSDoc, literal paths before parametric ones
+- [ ] `@ApiController` + a verb decorator per handler, literal paths declared before parametric ones
 - [ ] Store, repository, service and controller registered in the DI container
-- [ ] Router mounted in `index.route.ts`
+- [ ] `import` of the controller added to `routing/index.route.ts`
 - [ ] Tests for service, controller, repository and validators
 - [ ] `npm test` and `npm run lint` clean

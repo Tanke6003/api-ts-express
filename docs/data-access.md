@@ -161,7 +161,7 @@ await appointments.find({
     fkBranch: 1,
     durationMin: { gte: 30, lte: 90 },
     status: { notIn: ["CANCELLED", "DONE"] },
-    guestName: { ilike: "%walk-in%" },
+    guestName: { contains: "walk-in" },
     fkClient: { isNull: true },
     scheduledAt: { between: [from, to] },
   },
@@ -170,7 +170,7 @@ await appointments.find({
 // Nested groups
 await branches.getPaged(page, limit, {
   where: {
-    $or: [{ name: { ilike: `%${search}%` } }, { address: { ilike: `%${search}%` } }],
+    $or: [{ name: { contains: search } }, { address: { contains: search } }],
   },
 });
 ```
@@ -180,6 +180,7 @@ await branches.getPaged(page, limit, {
 | `eq` `ne` `gt` `gte` `lt` `lte` | `=` `<>` `>` `>=` `<` `<=` | `$eq` `$ne` `$gt` `$gte` `$lt` `$lte` | comparison on a normalised value |
 | `like` / `notLike` | `LIKE` / `NOT LIKE` | anchored `$regex` / `$not` | anchored `RegExp` |
 | `ilike` | `UPPER(col) LIKE UPPER(:bind)` | `$regex` with the `i` flag | case-insensitive `RegExp` |
+| `contains` | `UPPER(col) LIKE UPPER(:bind) ESCAPE '!'` | escaped `$regex`, `i` flag | `String.includes`, lowercased |
 | `in` / `notIn` | `IN (…)` / `NOT IN (…)` | `$in` / `$nin` | `some` / every |
 | `between` | `BETWEEN … AND …` | `$gte` + `$lte` | both bounds |
 | `isNull` | `IS NULL` / `IS NOT NULL` | `$eq: null` / `$ne: null` | `null` or absent |
@@ -190,7 +191,14 @@ Details that are easy to get wrong and are therefore fixed by the contract suite
 - A bare `null` (`{ tag: null }`) means `IS NULL`. On MongoDB it is translated to `$eq: null`, which also matches documents where the field is absent — what a SQL engine understands by "column without a value".
 - An **empty list** is not invalid syntax: `in: []` compiles to `1 = 0` and `notIn: []` to `1 = 1` on SQL, and to `$in: []` on MongoDB. Dynamic filters hit this constantly.
 - A **property that is not mapped throws** rather than silently matching nothing.
-- A `%` or `_` written by the user is escaped before the LIKE pattern becomes a regular expression, so it cannot turn into an arbitrary regex.
+- **`contains` is the operator for user input.** `like` and `ilike` take a
+  *pattern*, so a `%` or a `_` typed into a form becomes a wildcard: searching
+  `%` returns the whole table and `a_b` matches `axb`. `contains` takes literal
+  text, neutralises the wildcards and declares an `ESCAPE` clause; each driver
+  implements the meaning natively, so the caller has no pattern to get wrong.
+  The escape character is `!` and not a backslash because MySQL treats the
+  backslash as an escape inside the string literal itself, and `ESCAPE ''`
+  would reach it as an escaped quote.
 - Filters on the same field never collide: the Mongo translator splits them into several documents instead of overwriting a key, and SQL joins them with `AND`.
 
 Three translators keep those semantics aligned — `SqlWhereCompiler`, `toMongoFilter` and `matchesFilter` — and each one resolves field names through `EntitySchema` and values through `toColumnValue`, so a model boolean is compared against the stored `1/0` and a date travels as a `Date`.
@@ -245,7 +253,15 @@ Calling `softDelete` or `restore` on an entity whose metadata declares no `softD
 
 **Not everything is wrapped in a transaction.** A single statement is already atomic and travels with auto-commit; wrapping it would only add a round trip.
 
-A transaction is opened when a use case writes in more than one place and a half-finished result would be invalid. That boundary is the service, not the repository:
+A transaction is opened in two cases, and the boundary is the service, not the
+repository:
+
+1. **The use case writes in more than one place** and a half-finished result
+   would be invalid.
+2. **It decides based on what it just read**, even if it then writes a single
+   row. Checking that an appointment slot is free and taking it are two
+   statements, and another request fits between them. Here the transaction is
+   not about atomicity but about isolation, and it comes with `lockRow`.
 
 ```typescript
 async hardDelete(id: number): Promise<boolean> {
@@ -274,7 +290,34 @@ How each engine implements it:
 | Oracle | One pooled connection with `autoCommit: false`, commit or rollback around the block. |
 | SQL Server · PostgreSQL · MySQL | Sequelize's managed transaction; the block receives an executor bound to it. |
 | MongoDB | A `ClientSession` passed to every operation. `withTransaction` **retries** on transient server errors, so the block may run more than once and must not carry side effects outside the database. |
-| In memory | Snapshots every store before running and restores them if the block throws. It reproduces the failure behaviour, not isolation between concurrent operations — that is the database's job. |
+| In memory | Snapshots every store before running and restores them if the block throws. Transactions are queued and run one at a time: Node is single-threaded but that is not isolation — between the `await` of a read and the write that depends on it the event loop serves other requests, and two overlapping snapshots would also break the rollback, since a failure in the second would restore over what the first had already committed. |
+
+### `scope.lockRow(entity, id)`
+
+Locks a row until commit. Transactions asking for the same row queue up behind it.
+
+It is what a use case needs when the decision to write depends on what it just
+read. Locking the **parent** row — the branch of an appointment, not the
+appointment — serialises only the callers that actually compete, and lets other
+branches book in parallel.
+
+**It has to be the transaction's first statement.** MySQL defaults to REPEATABLE
+READ and pins the snapshot on the first consistent read; if a plain SELECT runs
+before the lock, later reads keep seeing the old state even once the lock is
+granted. A locking read does not pin a snapshot, so opening with it makes the
+checks see the latest committed data on all four engines.
+
+| Engine | Statement |
+|--------|-----------|
+| Oracle · PostgreSQL · MySQL | `SELECT pk FROM t WHERE pk = :pk FOR UPDATE` |
+| SQL Server | `SELECT pk FROM t WITH (UPDLOCK, HOLDLOCK) WHERE pk = :pk` — T-SQL has no `FOR UPDATE`; `HOLDLOCK` is what keeps it until commit |
+| MongoDB | No locking read exists. The guarantee comes from a unique index instead, and the driver returns a duplicate-key error the mapper turns into a 409 |
+| In memory | Nothing to lock: the whole transaction already runs exclusively |
+
+The lock only reaches the requests of one process. With more than one instance
+running, the guarantee has to be in the database — which is why `APPOINTMENTS`
+carries a unique index on `(FK_BRANCH, SCHEDULED_AT)`, partial so a cancelled
+appointment does not hold the slot.
 
 ---
 
