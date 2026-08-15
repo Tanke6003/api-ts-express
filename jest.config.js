@@ -29,15 +29,14 @@ module.exports = {
   ],
 
   collectCoverage: true,
-  collectCoverageFrom: [
-    "src/**/*.ts",
-    "!src/main.ts",
-    "!src/**/index.ts",
-    "!src/**/*.d.ts",
-    "!src/core/di/container.ts",
-    "!src/**/*.interface.ts",
-    "!src/**/config/*.ts",
-  ],
+  // Sólo se excluye lo que **no tiene código que ejecutar**: las declaraciones
+  // de tipos, que desaparecen al compilar.
+  //
+  // Todo lo demás cuenta aunque no tenga un test, y aparece al 0 %. Antes se
+  // excluían `config/`, los barriles, el contenedor y `main.ts`, y eso no subía
+  // la calidad: escondía el arranque, el apagado y la política de seguridad,
+  // que son justo el código donde un fallo no lo ve nadie hasta producción.
+  collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts", "!src/**/*.interface.ts"],
 
   coverageDirectory: "reports/coverage",
   coverageReporters: ["json", "lcov", "text", "text-summary", "html"],

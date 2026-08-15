@@ -44,14 +44,20 @@ export abstract class CrudController extends BaseController implements ICrudCont
     super(context);
   }
 
-  /** Traduce lo que ya validó el esquema de la ruta. */
+  /**
+   * Traduce lo que ya validó el esquema de la ruta.
+   *
+   * La query entera baja al servicio: la paginación la entiende este
+   * controlador, y lo demás —una búsqueda, un filtro propio— lo interpreta
+   * `CrudService.buildWhere`, que es donde vive esa decisión.
+   */
   private paging(req: Request): { page: number; limit: number; options: ListOptions } {
     const query = (req.validatedQuery as PagedQuery | undefined) ?? {};
 
     return {
       page: query.page ?? 1,
       limit: query.limit ?? 10,
-      options: { withDeleted: query.withDeleted },
+      options: { withDeleted: query.withDeleted, query },
     };
   }
 

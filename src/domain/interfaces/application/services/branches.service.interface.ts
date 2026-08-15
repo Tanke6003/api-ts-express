@@ -1,26 +1,10 @@
-// src/domain/interfaces/application/services/branches.service.interface.ts
-import {
-  BranchDTO,
-  BranchQueryDTO,
-  CreateBranchDTO,
-  UpdateBranchDTO,
-} from "../../../../application/dtos/branches.dtos";
-import { PaginatedDTO } from "../../../../application/dtos/common.dtos";
+// src/domain/interfaces/services/branches.service.interface.ts
 
-export interface IBranchesService {
-  getAll(query: BranchQueryDTO): Promise<PaginatedDTO<BranchDTO>>;
-  getById(id: number): Promise<BranchDTO | null>;
-  create(branch: CreateBranchDTO): Promise<BranchDTO>;
-  update(id: number, branch: UpdateBranchDTO): Promise<BranchDTO | null>;
-  /**
-   * Baja lógica. Arrastra la cancelación de las citas futuras de la sucursal,
-   * así que es una operación transaccional.
-   */
-  softDelete(id: number): Promise<boolean>;
+import type { ICrudService } from "../../../../application/services/crud.service";
+import type { BranchDTO } from "../../../../application/dtos/branches.dtos";
+
+/** El CRUD estándar más las dos operaciones propias de una sucursal. */
+export interface IBranchesService extends ICrudService<BranchDTO> {
   restore(id: number): Promise<boolean>;
-  /**
-   * Baja física. Borra antes las citas que la referencian por clave foránea,
-   * dentro de la misma transacción.
-   */
   hardDelete(id: number): Promise<boolean>;
 }

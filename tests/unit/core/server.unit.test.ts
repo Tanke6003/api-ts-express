@@ -69,17 +69,18 @@ describe("Server", () => {
       },
     });
 
-    // Los módulos nuevos sólo necesitan responder algo: aquí se prueba el
-    // cableado del servidor, no su lógica.
+    // Los módulos sólo necesitan responder algo: aquí se prueba el cableado del
+    // servidor, no su lógica. Los nombres son los del CRUD porque es de donde
+    // salen ahora los cinco verbos de todos.
     const controllerStub = () => ({
-      getAll: jest.fn((_req: any, res: any, _next: any) => res.json({ data: [] })),
-      getById: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1 })),
-      create: jest.fn((_req: any, res: any, _next: any) => res.status(201).json({ id: 1 })),
-      update: jest.fn((_req: any, res: any, _next: any) => res.json({ id: 1 })),
-      softDelete: jest.fn((_req: any, res: any, _next: any) => res.status(204).send()),
-      hardDelete: jest.fn((_req: any, res: any, _next: any) => res.status(204).send()),
-      restore: jest.fn((_req: any, res: any, _next: any) => res.json({ status: "ok" })),
-      getStats: jest.fn((_req: any, res: any, _next: any) => res.json({ data: [] })),
+      list: jest.fn((_req: any, res: any) => res.json({ data: [] })),
+      getOne: jest.fn((_req: any, res: any) => res.json({ id: 1 })),
+      create: jest.fn((_req: any, res: any) => res.status(201).json({ id: 1 })),
+      update: jest.fn((_req: any, res: any) => res.json({ id: 1 })),
+      softDelete: jest.fn((_req: any, res: any) => res.status(204).send()),
+      hardDelete: jest.fn((_req: any, res: any) => res.status(204).send()),
+      restore: jest.fn((_req: any, res: any) => res.json({ status: "ok" })),
+      getStats: jest.fn((_req: any, res: any) => res.json({ data: [] })),
     });
 
     container.register("IBranchesController", { useValue: controllerStub() });

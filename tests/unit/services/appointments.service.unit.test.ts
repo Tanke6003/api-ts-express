@@ -101,7 +101,7 @@ describe("AppointmentsService", () => {
     });
 
     it("sin filtros no manda where", async () => {
-      await service.getAll({ page: 1, limit: 10 });
+      await service.list(1, 10, { query: { page: 1, limit: 10 } });
 
       expect(repository.getPaged).toHaveBeenCalledWith(1, 10, {
         where: undefined,
@@ -111,16 +111,18 @@ describe("AppointmentsService", () => {
     });
 
     it("combina todos los filtros con AND", async () => {
-      await service.getAll({
-        page: 1,
-        limit: 10,
-        branchId: 2,
-        clientId: 3,
-        status: "PENDING",
-        from: "2026-01-01T00:00:00Z",
-        to: "2026-12-31T23:59:59Z",
-        onlyGuests: true,
-        search: "revisión",
+      await service.list(1, 10, {
+        query: {
+          page: 1,
+          limit: 10,
+          branchId: 2,
+          clientId: 3,
+          status: "PENDING",
+          from: "2026-01-01T00:00:00Z",
+          to: "2026-12-31T23:59:59Z",
+          onlyGuests: true,
+          search: "revisión",
+        },
       });
 
       const { where } = repository.getPaged.mock.calls[0][2];
@@ -153,7 +155,7 @@ describe("AppointmentsService", () => {
         pages: 1,
       });
 
-      const result = await service.getAll({ page: 1, limit: 10 });
+      const result = await service.list(1, 10, { query: { page: 1, limit: 10 } });
 
       // Una sola consulta de sucursales para las tres citas...
       expect(branchesRepository.find).toHaveBeenCalledTimes(1);
@@ -182,7 +184,7 @@ describe("AppointmentsService", () => {
     it("no consulta relaciones si no hay citas", async () => {
       repository.getPaged.mockResolvedValue({ items: [], total: 0, page: 1, limit: 10, pages: 0 });
 
-      await service.getAll({ page: 1, limit: 10 });
+      await service.list(1, 10, { query: { page: 1, limit: 10 } });
 
       expect(branchesRepository.find).not.toHaveBeenCalled();
       expect(usersRepository.find).not.toHaveBeenCalled();
@@ -193,14 +195,14 @@ describe("AppointmentsService", () => {
       usersRepository.find.mockResolvedValue([]);
       repository.getById.mockResolvedValue(appointment({ fkClient: 3, guestName: null }));
 
-      const dto = await service.getById(1);
+      const dto = await service.get(1);
 
       expect(dto).toMatchObject({ branchName: null, clientName: null, displayName: "Sin nombre" });
     });
 
-    it("getById devuelve null si no existe", async () => {
+    it("get devuelve null si no existe", async () => {
       repository.getById.mockResolvedValue(null);
-      expect(await service.getById(99)).toBeNull();
+      expect(await service.get(99)).toBeNull();
     });
   });
 

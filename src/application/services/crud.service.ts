@@ -26,8 +26,8 @@ export interface ICrudService<TDto> {
 
 export interface ListOptions {
   withDeleted?: boolean;
-  /** Filtro ya compuesto por quien llama; el CRUD genérico no lo interpreta. */
-  where?: unknown;
+  /** La query ya validada de la ruta; la interpreta `buildWhere`. */
+  query?: unknown;
 }
 
 /**
@@ -51,9 +51,19 @@ export abstract class CrudService<T extends object, TDto> implements ICrudServic
     protected readonly defaultOrderBy?: OrderByClause<T>
   ) {}
 
+  /**
+   * Filtro del listado a partir de la query de la ruta.
+   *
+   * Por defecto no filtra: un CRUD plano se pagina y ya. Un módulo que ofrezca
+   * búsqueda sobrescribe **sólo esto** y conserva el resto del listado.
+   */
+  protected buildWhere(_query: unknown): QueryOptions<T>["where"] {
+    return undefined;
+  }
+
   async list(page: number, limit: number, options: ListOptions = {}): Promise<PaginatedDTO<TDto>> {
     const query: Omit<QueryOptions<T>, "skip" | "take"> = {
-      where: options.where as QueryOptions<T>["where"],
+      where: this.buildWhere(options.query),
       withDeleted: options.withDeleted,
       orderBy: this.defaultOrderBy,
     };

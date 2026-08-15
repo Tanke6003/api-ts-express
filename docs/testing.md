@@ -72,6 +72,19 @@ nothing running.
 
 ---
 
+## What counts as coverage
+
+`collectCoverageFrom` excludes only what has **no code to execute**: `.d.ts` and
+`.interface.ts`, which compile away.
+
+Everything else counts even without a test, and shows up at 0 %. It used to skip
+`config/`, the barrels, the DI container and `main.ts`, and that did not raise
+quality — it hid the startup, the shutdown and the security policy, which is
+exactly the code whose failures nobody sees until production. Widening it moved
+the reported number from 94.6 % to 93.0 % and surfaced one real gap:
+`sequelize-db.plugin.ts`, the connector behind three of the six engines, sits
+under 10 %.
+
 ## Coverage thresholds
 
 Enforced per layer in `jest.config.js`. A module without tests fails the build, not just the report:

@@ -9,6 +9,7 @@ import type { IBranchesRepository } from "../../domain/interfaces/infrastructure
 import type { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
 import type { WhereFilter } from "../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { IUnitOfWork } from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
+import type { ListOptions } from "./crud.service";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { ENTITY_NAMES } from "../../domain/models/entity-names";
 import type { IAppointment } from "../../domain/models/appointments.model";
@@ -56,10 +57,17 @@ export class AppointmentsService extends TransactionalService implements IAppoin
 
   // --------------------------------------------------------------- lectura --
 
-  async getAll(query: AppointmentQueryDTO): Promise<PaginatedDTO<AppointmentDTO>> {
-    const paged = await this.repository.getPaged(query.page, query.limit, {
+  /**
+   * Firma del CRUD genérico para que el controlador pueda heredar de
+   * `CrudController`, aunque el cuerpo sea propio: el filtro son diez criterios
+   * y la proyección resuelve relaciones, así que no sale de un mapeador.
+   */
+  async list(page: number, limit: number, options: ListOptions = {}): Promise<PaginatedDTO<AppointmentDTO>> {
+    const query = (options.query ?? {}) as AppointmentQueryDTO;
+
+    const paged = await this.repository.getPaged(page, limit, {
       where: this.buildFilter(query),
-      withDeleted: query.withDeleted,
+      withDeleted: options.withDeleted,
       orderBy: { field: "scheduledAt", direction: "asc" },
     });
 
@@ -72,7 +80,7 @@ export class AppointmentsService extends TransactionalService implements IAppoin
     };
   }
 
-  async getById(id: number): Promise<AppointmentDTO | null> {
+  async get(id: number): Promise<AppointmentDTO | null> {
     const appointment = await this.repository.getById(id);
     if (!appointment) return null;
 

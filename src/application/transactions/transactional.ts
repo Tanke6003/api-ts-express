@@ -19,6 +19,34 @@ interface TransactionalHost {
 }
 
 /**
+ * Bloquea una fila de la transacción en curso.
+ *
+ * Va suelta y no sólo como método de la base porque TypeScript no permite
+ * heredar de dos clases: un servicio que ya extiende `CrudService` no puede
+ * extender además `TransactionalService`, y aun así necesita bloquear.
+ *
+ * **Debe ser la primera sentencia del método.** MySQL fija la instantánea en la
+ * primera lectura consistente; si antes hubo un SELECT normal, lo que se lea
+ * después seguirá viendo el estado viejo aunque el bloqueo se conceda.
+ */
+export function lockRow(
+  transactions: ITransactionContext,
+  entity: string,
+  id: unknown
+): Promise<boolean> {
+  const scope = transactions.current();
+
+  if (!scope) {
+    throw new Error(
+      `[Transactional] lockRow("${entity}") se llamó fuera de una transacción. ` +
+        "Al método le falta @Transactional(), o alguien se lo quitó."
+    );
+  }
+
+  return scope.lockRow(entity, id);
+}
+
+/**
  * Base de los servicios que abren transacciones.
  *
  * Aporta las dos dependencias que el decorador busca y, sobre todo, `lockRow`:
@@ -31,25 +59,9 @@ export abstract class TransactionalService {
     readonly transactions: ITransactionContext
   ) {}
 
-  /**
-   * Bloquea una fila hasta el commit. Sólo tiene sentido dentro de una
-   * transacción, así que fuera de una falla en el acto y diciendo qué falta.
-   *
-   * **Debe ser la primera sentencia del método.** MySQL fija la instantánea en
-   * la primera lectura consistente; si antes hubo un SELECT normal, lo que se
-   * lea después seguirá viendo el estado viejo aunque el bloqueo se conceda.
-   */
-  protected async lockRow(entity: string, id: unknown): Promise<boolean> {
-    const scope = this.transactions.current();
-
-    if (!scope) {
-      throw new Error(
-        `[Transactional] lockRow("${entity}") se llamó fuera de una transacción. ` +
-          "Al método le falta @Transactional(), o alguien se lo quitó."
-      );
-    }
-
-    return scope.lockRow(entity, id);
+  /** Ver la función `lockRow`; esto es sólo el atajo para quien extiende. */
+  protected lockRow(entity: string, id: unknown): Promise<boolean> {
+    return lockRow(this.transactions, entity, id);
   }
 }
 

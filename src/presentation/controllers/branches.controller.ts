@@ -1,121 +1,43 @@
 // src/presentation/controllers/branches.controller.ts
-import { Request, Response, NextFunction } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { inject, injectable } from "tsyringe";
 import type { IBranchesService } from "../../domain/interfaces/application/services/branches.service.interface";
-import { IBranchesController } from "../../domain/interfaces/presentation/controllers/branches.controller.interface";
-import type { BranchQueryInput } from "../../application/validators/branches.validators";
-import { AppError } from "../../core/errors/app-error";
-import { parseId } from "../utils/parse-id";
-import { BaseController } from "./base.controller";
+import type { IBranchesController } from "../../domain/interfaces/presentation/controllers/branches.controller.interface";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
-import { TOKENS } from "../../core/di/tokens";
 import {
   branchQuerySchema,
   createBranchSchema,
   updateBranchSchema,
 } from "../../application/validators/branches.validators";
-import { ApiController, Delete, Get, Post, Put } from "../routing/route.decorators";
+import { AppError } from "../../core/errors/app-error";
+import { parseId } from "../utils/parse-id";
+import { CrudController } from "./crud.controller";
+import { ApiController, Delete, Post } from "../routing/route.decorators";
+import { Crud } from "../routing/crud.decorator";
+import { TOKENS } from "../../core/di/tokens";
 
 const ID_PARAM = { id: "integer" } as const;
 
+/**
+ * Sucursales: el CRUD estándar más dos verbos propios.
+ *
+ * Los cinco de siempre vienen de `CrudController` y `@Crud`; aquí sólo se
+ * escriben la baja física y la restauración, que ningún CRUD genérico tiene.
+ */
 @injectable()
 @ApiController("/branches", { tag: "Branches", token: TOKENS.IBranchesController })
-export class BranchesController extends BaseController implements IBranchesController {
+@Crud({
+  resource: "la sucursal",
+  dto: "Branch",
+  schemas: { create: createBranchSchema, update: updateBranchSchema, query: branchQuerySchema },
+})
+export class BranchesController extends CrudController implements IBranchesController {
   constructor(
-    @inject(TOKENS.IBranchesService) private readonly branchesService: IBranchesService,
+    @inject(TOKENS.IBranchesService) private readonly branches: IBranchesService,
     @inject(TOKENS.IRequestContext) context: IRequestContext
   ) {
-    super(context);
+    super(branches, context, "la sucursal");
   }
-
-  @Get("/", {
-    summary: "Listado paginado de sucursales",
-    query: branchQuerySchema,
-    responses: { 200: { description: "Sucursales encontradas", ref: "PaginatedBranches" } },
-  })
-  public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const query = (req.validatedQuery as BranchQueryInput | undefined) ?? {
-        page: 1,
-        limit: 10,
-        withDeleted: false,
-      };
-      res.json(await this.branchesService.getAll(query));
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  @Get("/:id", {
-    summary: "Obtiene una sucursal por id",
-    params: ID_PARAM,
-    responses: {
-      200: { description: "Sucursal encontrada", ref: "Branch" },
-      404: "Sucursal no encontrada",
-    },
-  })
-  public getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const branch = await this.branchesService.getById(parseId(req.params.id, "branch"));
-      if (!branch) throw new AppError("Branch not found", 404);
-      res.json(branch);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  @Post("/", {
-    summary: "Crea una sucursal",
-    body: createBranchSchema,
-    responses: {
-      201: { description: "Sucursal creada", ref: "Branch" },
-      400: "Error de validación",
-    },
-  })
-  public create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const created = await this.branchesService.create(req.body);
-      res.status(201).json(created);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  @Put("/:id", {
-    summary: "Actualiza una sucursal",
-    params: ID_PARAM,
-    body: updateBranchSchema,
-    responses: {
-      200: { description: "Sucursal actualizada", ref: "Branch" },
-      404: "Sucursal no encontrada",
-    },
-  })
-  public update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const updated = await this.branchesService.update(parseId(req.params.id, "branch"), req.body);
-      if (!updated) throw new AppError("Branch not found", 404);
-      res.json(updated);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  @Delete("/:id", {
-    summary: "Baja lógica de una sucursal",
-    description:
-      "Marca la sucursal como no disponible y cancela, en la misma transacción, sus citas futuras que siguieran vigentes.",
-    params: ID_PARAM,
-    responses: { 204: "Sucursal dada de baja", 404: "Sucursal no encontrada" },
-  })
-  public softDelete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const deleted = await this.branchesService.softDelete(parseId(req.params.id, "branch"));
-      if (!deleted) throw new AppError("Branch not found", 404);
-      res.status(204).send();
-    } catch (err) {
-      next(err);
-    }
-  };
 
   @Delete("/:id/hard", {
     summary: "Baja física de una sucursal",
@@ -126,10 +48,10 @@ export class BranchesController extends BaseController implements IBranchesContr
   })
   public hardDelete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await this.branchesService.hardDelete(parseId(req.params.id, "branch"));
+      await this.branches.hardDelete(parseId(req.params.id, "la sucursal"));
       res.status(204).send();
-    } catch (err) {
-      next(err);
+    } catch (error) {
+      next(error);
     }
   };
 
@@ -140,11 +62,12 @@ export class BranchesController extends BaseController implements IBranchesContr
   })
   public restore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const restored = await this.branchesService.restore(parseId(req.params.id, "branch"));
+      const restored = await this.branches.restore(parseId(req.params.id, "la sucursal"));
       if (!restored) throw new AppError("Branch not found or already active", 404);
+
       res.json({ status: "ok", message: "Branch restored" });
-    } catch (err) {
-      next(err);
+    } catch (error) {
+      next(error);
     }
   };
 }

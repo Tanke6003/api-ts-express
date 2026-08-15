@@ -77,7 +77,10 @@ describe("CrudController", () => {
     const res = await request(app).get("/items?page=2&limit=5");
 
     expect(res.status).toBe(200);
-    expect(service.list).toHaveBeenCalledWith(2, 5, { withDeleted: undefined });
+    expect(service.list).toHaveBeenCalledWith(2, 5, {
+      withDeleted: undefined,
+      query: { page: 2, limit: 5 },
+    });
   });
 
   it("cae a la primera página si no se pide nada", async () => {
@@ -85,7 +88,7 @@ describe("CrudController", () => {
 
     await request(app).get("/items");
 
-    expect(service.list).toHaveBeenCalledWith(1, 10, { withDeleted: undefined });
+    expect(service.list).toHaveBeenCalledWith(1, 10, { withDeleted: undefined, query: {} });
   });
 
   it("devuelve 404 con un código estable cuando no hay fila", async () => {
