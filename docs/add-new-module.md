@@ -219,7 +219,7 @@ export class ProductsService implements IProductsService {
 
   async getAll(query: ProductQueryDTO): Promise<PaginatedDTO<ProductDTO>> {
     const where: WhereFilter<IProduct> | undefined = query.search
-      ? { name: { ilike: `%${query.search}%` } }
+      ? { name: { contains: query.search } }
       : undefined;
 
     const paged = await this.repository.getPaged(query.page, query.limit, {
@@ -258,22 +258,55 @@ const categories = await loadRelated<IProduct, ICategory>(products, {
 });
 ```
 
-**Transactions** — only when the use case writes to more than one table. Inject `IUnitOfWork` and open the block here:
+### Transactions
+
+Open one when the use case **writes in more than one place**, or when it
+**decides based on what it just read** — checking something is free and taking
+it are two statements, and another request fits between them.
+
+Extend `TransactionalService` and mark the method:
 
 ```typescript
-async hardDelete(id: number): Promise<boolean> {
-  return this.unitOfWork.execute(async (scope) => {
-    const products = scope.repository<IProduct>(ENTITY_NAMES.PRODUCTS);
-    const lines = scope.repository<IOrderLine>(ENTITY_NAMES.ORDER_LINES);
+@injectable()
+export class ProductsService extends TransactionalService implements IProductsService {
+  constructor(
+    @inject(TOKENS.IProductsRepository) private readonly repository: IProductsRepository,
+    @inject(TOKENS.IOrderLinesRepository) private readonly lines: IOrderLinesRepository,
+    @inject(TOKENS.IUnitOfWork) unitOfWork: IUnitOfWork,
+    @inject(TOKENS.ITransactionContext) transactions: ITransactionContext,
+    @inject(TOKENS.ILogger) private readonly logger: ILogger
+  ) {
+    super(unitOfWork, transactions);
+  }
 
-    await lines.hardDeleteWhere({ fkProduct: id });      // primero la FK
-    if (!(await products.hardDelete(id))) {
+  @Transactional()
+  async hardDelete(id: number): Promise<boolean> {
+    await this.lockRow(ENTITY_NAMES.PRODUCTS, id);        // primera sentencia
+
+    await this.lines.hardDeleteWhere({ fkProduct: id });  // primero la FK
+    if (!(await this.repository.hardDelete(id))) {
       throw new AppError("Product not found", 404);       // provoca el rollback
     }
     return true;
-  });
+  }
 }
 ```
+
+The injected repositories bind themselves to the open transaction, so nothing is
+passed around and a private helper that only needed an id keeps taking an id.
+`lockRow` comes from the base class and fails outside a transaction, naming the
+missing decorator.
+
+**When the decorator does not fit.** It wraps the *whole* method, so anything
+that must happen outside the transaction cannot stay in it:
+
+- a read needed **before** opening, to decide what to lock — done inside, that
+  plain SELECT pins MySQL's snapshot ahead of the lock;
+- a projection **after** committing — inside, it only holds the lock longer.
+
+Split them: a public method that orchestrates, and a decorated private one with
+the transactional core. `AppointmentsService.create` and `update` are both built
+that way. Full reference in [data-access.md](data-access.md).
 
 ---
 

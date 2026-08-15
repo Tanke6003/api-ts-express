@@ -24,6 +24,14 @@ document is generated — including the DTO components, declared once with
 `defineDto` — and swagger-jsdoc is gone, which also fixes docs being empty in
 production. Now OpenAPI 3.1.
 
+**Transactions declared, not threaded.** The open transaction is published in an
+AsyncLocalStorage, so the repositories a service already injects bind themselves
+to it: three private helpers went back to taking just an id. `@Transactional()`
+replaces the `unitOfWork.execute(...)` wrapper, and `lockRow` moved to the
+service base so the lock stays explicit without the scope being passed around —
+outside a transaction it fails naming the missing decorator. A decorated method
+calling another joins instead of nesting.
+
 **API prefix configurable** through `API_PREFIX` (`/api/v1` by default), with the
 unversioned `/api` kept as an alias and the prefix published on `/health/ready`.
 

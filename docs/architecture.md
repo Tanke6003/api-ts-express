@@ -73,6 +73,7 @@ src/
 │
 ├── application/                     # Business logic — knows Domain only
 │   ├── dtos/                        # Zod schemas: TS type + OpenAPI component
+│   ├── transactions/                # @Transactional + the base that carries lockRow
 │   ├── queries/
 │   │   └── include.query.ts         # loadRelated — EF-style Include, batched
 │   ├── services/                    # Business rules & compound queries
@@ -137,8 +138,9 @@ Controller  (users.controller.ts)
     │  declares its own routes; handles req/res and calls the service
     ▼
 Service  (appointments.service.ts)
-    │  business rules, compound queries, Include of related aggregates,
-    │  opens a transaction when the use case writes to more than one table
+    │  business rules, compound queries, Include of related aggregates.
+    │  Opens a transaction (@Transactional) when the use case writes in more
+    │  than one place, or decides based on what it just read
     ▼
 Repository  (appointments.repository.ts)
     │  logs, wraps errors, delegates to the generic repository
@@ -426,6 +428,7 @@ See **[add-new-module.md](add-new-module.md)** for a complete step-by-step guide
 | `IFileStorage` | `IFileStorage` | File upload |
 | `IRequestContext` | `IRequestContext` | Identity and request id, per request |
 | `IAuditTrail` | `IAuditTrail` | Change log line, bound to the active transaction |
+| `ITransactionContext` | `AsyncTransactionContextPlugin` | The open transaction, so a repository joins it without being handed it |
 | `IUnitOfWork` | `IUnitOfWork` | Transaction spanning more than one table |
 | `UsersStore` | `IGenericRepository<IUser>` | CRUD on the active engine |
 | `IUsersRepository` | `IUsersRepository` | Data access abstraction |

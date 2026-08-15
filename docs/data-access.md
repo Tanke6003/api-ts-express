@@ -264,27 +264,25 @@ repository:
    not about atomicity but about isolation, and it comes with `lockRow`.
 
 ```typescript
+@Transactional()
 async hardDelete(id: number): Promise<boolean> {
-  return this.unitOfWork.execute(async (scope) => {
-    const branches = scope.repository<IBranch>(ENTITY_NAMES.BRANCHES);
-    const appointments = scope.repository<IAppointment>(ENTITY_NAMES.APPOINTMENTS);
+  await this.lockRow(ENTITY_NAMES.BRANCHES, id);
 
-    // Appointments reference the branch by FK, so they go first.
-    const removedAppointments = await appointments.hardDeleteWhere({ fkBranch: id });
-    const deleted = await branches.hardDelete(id);
+  // Appointments reference the branch by FK, so they go first.
+  const removed = await this.appointmentsRepository.hardDeleteWhere({ fkBranch: id });
+  const deleted = await this.repository.hardDelete(id);
 
-    if (!deleted) {
-      throw new AppError("Branch not found", 404);   // triggers the rollback
-    }
-    return true;
-  });
+  if (!deleted) {
+    throw new AppError("Branch not found", 404);   // triggers the rollback
+  }
+  return true;
 }
 ```
 
-Inside the block the service keeps using its **injected** repositories: each one
-looks up the open transaction in `ITransactionContext` and binds itself to it.
-Nothing is threaded through parameters, so a private helper that only ever
-needed an id keeps taking just an id.
+The service keeps using its **injected** repositories: each one looks up the
+open transaction in `ITransactionContext` and binds itself to it. Nothing is
+threaded through parameters, so a private helper that only ever needed an id
+keeps taking just an id.
 
 That context is the same `AsyncLocalStorage` technique `IRequestContext` uses for
 the request identity, and it carries the same trade-off: reading
@@ -292,9 +290,10 @@ the request identity, and it carries the same trade-off: reading
 you can see is the boundary — the `unitOfWork.execute(...)` in the service. If
 you need to escape it deliberately, construct the repository without the context.
 
-`scope.repository(...)` is still there for a service that would rather be
-explicit, and it returns the same generic repository bound to the transaction,
-memoised per entity. Commit on success, rollback on throw, the original error propagated untouched. The change log follows the same scope: a rolled-back operation takes its `AUDIT_LOG` line with it.
+The explicit form is still available for a service that would rather spell it
+out — `unitOfWork.execute(async (scope) => ...)`, with `scope.repository(...)`
+returning the same generic repository bound to the transaction, memoised per
+entity. It is what the two cases below need. Commit on success, rollback on throw, the original error propagated untouched. The change log follows the same scope: a rolled-back operation takes its `AUDIT_LOG` line with it.
 
 How each engine implements it:
 

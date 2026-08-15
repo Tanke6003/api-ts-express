@@ -18,6 +18,7 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Error handling | Single global handler: stable codes, request id, driver-error mapping |
 | Database | Oracle, SQL Server, PostgreSQL, MySQL/MariaDB, MongoDB or in-memory — selected via `DATA_SOURCE`, all on the same generic repository |
 | Data access | Generic repository with EF/LINQ-style CRUD, chainable queries, soft & hard delete, and a Unit of Work |
+| Transactions | `@Transactional()` on the service; the injected repositories join the open one on their own |
 | Logging | Pino (structured JSON, pino-pretty in dev) or Winston — selected via `LOG_DRIVER` |
 | API Docs | Swagger UI + Scalar, generated from the route decorators and the Zod schemas — no hand-written annotations |
 | File Storage | Local filesystem or AWS S3 / MinIO |
@@ -297,6 +298,7 @@ How the decorators work, and how to declare a DTO once: **[docs/decorated-routes
 | Repository | `infrastructure/repositories/` |
 | Generic Repository | `infrastructure/repositories/base/` — one CRUD for every entity |
 | Unit of Work | `infrastructure/repositories/base/*.unit-of-work.ts` |
+| Declarative transaction | `application/transactions/` — `@Transactional()` + `lockRow` on the service |
 | Query Object | `base/query-builder.ts` — LINQ-style `IQueryable<T>` |
 | Data Mapper | `repositories/entities.ts` — entity ↔ table mapping |
 | Dependency Injection | `core/di/` (tsyringe) — composition root, tokens, one file per module |
@@ -305,7 +307,7 @@ How the decorators work, and how to declare a DTO once: **[docs/decorated-routes
 | Strategy | Pluggable engine drivers (memory ↔ SQL ↔ MongoDB), one contract |
 | Singleton | Logger instances |
 | Global error handler | `presentation/middlewares/errorHandler.middleware.ts` |
-| Ambient context (IHttpContextAccessor) | `infrastructure/plugins/asyncRequestContext.plugin.ts` |
+| Ambient context (IHttpContextAccessor) | `asyncRequestContext.plugin.ts` (identity) and `asyncTransactionContext.plugin.ts` (open transaction) |
 | Declarative routing | `presentation/routing/` — `@ApiController` / `@Get`… drive routing, validation and docs |
 
 ---

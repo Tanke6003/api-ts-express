@@ -165,7 +165,12 @@ DTO que no esté en el barril no aparece en la documentación.
 ## Lo que esto **no** resuelve
 
 El controlador sigue teniendo su `try/catch` y su `Number(req.params.id)` en
-cada manejador, y el servicio sigue siendo un pase a través del repositorio. Eso
-es otra capa de repetición, y se ataca con un CRUD genérico por encima del
-repositorio genérico —igual que `SqlGenericRepository` resolvió el CRUD de la
-base—, no con más decoradores.
+cada manejador, y en un módulo sin reglas el servicio sigue siendo un pase a
+través del repositorio. Eso es otra capa de repetición, y se ataca con un CRUD
+genérico por encima del repositorio genérico —igual que `SqlGenericRepository`
+resolvió el CRUD de la base—, no con más decoradores.
+
+Lo que sí se quitó por esa vía son las transacciones: `@Transactional()` sobre
+el método del servicio, con los repositorios inyectados uniéndose solos a la
+transacción abierta. Está en [data-access.md](data-access.md), y el decorador
+vive en `application/transactions/` porque no tiene nada que ver con HTTP.
