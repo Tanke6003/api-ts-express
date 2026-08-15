@@ -17,8 +17,13 @@ import { TOKENS } from "../tokens";
  * conexión, que no se registra en el contenedor: no es una dependencia que
  * nadie inyecte, es un recurso del proceso.
  */
-export function registerPersistence({ envs, logger, requestContext }: Plugins): PersistenceLayer {
-  const persistence = createPersistenceLayer(envs, logger, requestContext);
+export function registerPersistence({
+  envs,
+  logger,
+  requestContext,
+  transactions,
+}: Plugins): PersistenceLayer {
+  const persistence = createPersistenceLayer(envs, logger, requestContext, transactions);
 
   container.register(TOKENS.UsersStore, { useValue: persistence.stores.users });
   container.register(TOKENS.BranchesStore, { useValue: persistence.stores.branches });

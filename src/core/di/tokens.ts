@@ -17,6 +17,8 @@ export const TOKENS = {
   ITokenPlugin: "ITokenPlugin",
   IFileStorage: "IFileStorage",
   IRequestContext: "IRequestContext",
+  /** Transacción en curso; la publica la unidad de trabajo. */
+  ITransactionContext: "ITransactionContext",
   IHealthProbe: "IHealthProbe",
 
   // ------------------------------------------------------------ persistencia --

@@ -1,5 +1,4 @@
 import { BranchesService } from "../../../src/application/services/branches.service";
-import { ENTITY_NAMES } from "../../../src/domain/models/entity-names";
 import { IBranch } from "../../../src/domain/models/branches.model";
 
 const branch = (over: Partial<IBranch> = {}): IBranch => ({
@@ -15,8 +14,8 @@ const branch = (over: Partial<IBranch> = {}): IBranch => ({
 
 describe("BranchesService", () => {
   let repository: any;
-  let scopedBranches: any;
-  let scopedAppointments: any;
+  let appointmentsRepository: any;
+  let lockRow: jest.Mock;
   let unitOfWork: any;
   let logger: any;
   let service: BranchesService;
@@ -28,25 +27,24 @@ describe("BranchesService", () => {
       insert: jest.fn(),
       update: jest.fn(),
       restore: jest.fn(),
+      softDelete: jest.fn(),
+      hardDelete: jest.fn(),
     };
 
-    scopedBranches = { softDelete: jest.fn(), hardDelete: jest.fn() };
-    scopedAppointments = { updateWhere: jest.fn().mockResolvedValue(0), hardDeleteWhere: jest.fn().mockResolvedValue(0) };
-
-    // La unidad de trabajo real abre una transacción; aquí sólo se comprueba que
-    // el servicio pide los repositorios correctos y los usa dentro del bloque.
-    unitOfWork = {
-      execute: jest.fn((work: any) =>
-        work({
-          repository: (entity: string) =>
-            entity === ENTITY_NAMES.BRANCHES ? scopedBranches : scopedAppointments,
-          lockRow: jest.fn().mockResolvedValue(true),
-        })
-      ),
+    appointmentsRepository = {
+      updateWhere: jest.fn().mockResolvedValue(0),
+      hardDeleteWhere: jest.fn().mockResolvedValue(0),
     };
+
+    // Los repositorios inyectados son los mismos dentro y fuera de la
+    // transacción: dentro se apuntan solos a ella por el contexto, que es cosa
+    // de `BaseModuleRepository` y se prueba en su propio test. Aquí sólo importa
+    // que el servicio abra la transacción y bloquee antes de escribir.
+    lockRow = jest.fn().mockResolvedValue(true);
+    unitOfWork = { execute: jest.fn((work: any) => work({ repository: jest.fn(), lockRow })) };
 
     logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
-    service = new BranchesService(repository, unitOfWork, logger);
+    service = new BranchesService(repository, appointmentsRepository, unitOfWork, logger);
   });
 
   describe("getAll", () => {
@@ -163,13 +161,13 @@ describe("BranchesService", () => {
 
   describe("softDelete", () => {
     it("da de baja la sucursal y cancela sus citas futuras en la misma transacción", async () => {
-      scopedBranches.softDelete.mockResolvedValue(true);
-      scopedAppointments.updateWhere.mockResolvedValue(2);
+      repository.softDelete.mockResolvedValue(true);
+      appointmentsRepository.updateWhere.mockResolvedValue(2);
 
       expect(await service.softDelete(1)).toBe(true);
       expect(unitOfWork.execute).toHaveBeenCalledTimes(1);
 
-      const [where, changes] = scopedAppointments.updateWhere.mock.calls[0];
+      const [where, changes] = appointmentsRepository.updateWhere.mock.calls[0];
       expect(changes).toEqual({ status: "CANCELLED" });
       expect(where.$and[0]).toEqual({ fkBranch: 1 });
       expect(where.$and[1].scheduledAt.gte).toBeInstanceOf(Date);
@@ -178,29 +176,29 @@ describe("BranchesService", () => {
     });
 
     it("si la sucursal no existía no toca las citas", async () => {
-      scopedBranches.softDelete.mockResolvedValue(false);
+      repository.softDelete.mockResolvedValue(false);
 
       expect(await service.softDelete(1)).toBe(false);
-      expect(scopedAppointments.updateWhere).not.toHaveBeenCalled();
+      expect(appointmentsRepository.updateWhere).not.toHaveBeenCalled();
     });
   });
 
   describe("hardDelete", () => {
     it("borra primero las citas y luego la sucursal", async () => {
-      scopedBranches.hardDelete.mockResolvedValue(true);
-      scopedAppointments.hardDeleteWhere.mockResolvedValue(3);
+      repository.hardDelete.mockResolvedValue(true);
+      appointmentsRepository.hardDeleteWhere.mockResolvedValue(3);
 
       expect(await service.hardDelete(1)).toBe(true);
 
-      expect(scopedAppointments.hardDeleteWhere).toHaveBeenCalledWith({ fkBranch: 1 });
+      expect(appointmentsRepository.hardDeleteWhere).toHaveBeenCalledWith({ fkBranch: 1 });
       // El orden importa: la FK impide borrar la sucursal antes que sus citas.
-      const appointmentsCall = scopedAppointments.hardDeleteWhere.mock.invocationCallOrder[0];
-      const branchCall = scopedBranches.hardDelete.mock.invocationCallOrder[0];
+      const appointmentsCall = appointmentsRepository.hardDeleteWhere.mock.invocationCallOrder[0];
+      const branchCall = repository.hardDelete.mock.invocationCallOrder[0];
       expect(appointmentsCall).toBeLessThan(branchCall);
     });
 
     it("lanza 404 —y con ello revierte— si la sucursal no existía", async () => {
-      scopedBranches.hardDelete.mockResolvedValue(false);
+      repository.hardDelete.mockResolvedValue(false);
 
       await expect(service.hardDelete(99)).rejects.toMatchObject({ statusCode: 404 });
     });

@@ -281,7 +281,20 @@ async hardDelete(id: number): Promise<boolean> {
 }
 ```
 
-Inside the block, `scope.repository(...)` returns the same generic repository bound to the transaction, memoised per entity, so the service code is identical to the non-transactional path. Commit on success, rollback on throw, the original error propagated untouched. The change log follows the same scope: a rolled-back operation takes its `AUDIT_LOG` line with it.
+Inside the block the service keeps using its **injected** repositories: each one
+looks up the open transaction in `ITransactionContext` and binds itself to it.
+Nothing is threaded through parameters, so a private helper that only ever
+needed an id keeps taking just an id.
+
+That context is the same `AsyncLocalStorage` technique `IRequestContext` uses for
+the request identity, and it carries the same trade-off: reading
+`repository.insert(...)` you cannot tell whether it runs in a transaction. What
+you can see is the boundary — the `unitOfWork.execute(...)` in the service. If
+you need to escape it deliberately, construct the repository without the context.
+
+`scope.repository(...)` is still there for a service that would rather be
+explicit, and it returns the same generic repository bound to the transaction,
+memoised per entity. Commit on success, rollback on throw, the original error propagated untouched. The change log follows the same scope: a rolled-back operation takes its `AUDIT_LOG` line with it.
 
 How each engine implements it:
 

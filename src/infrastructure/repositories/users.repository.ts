@@ -6,6 +6,8 @@ import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/log
 import type { IUser } from "../../domain/models/users.model";
 import { BaseModuleRepository } from "./base/module.repository";
 import { TOKENS } from "../../core/di/tokens";
+import { ENTITY_NAMES } from "../../domain/models/entity-names";
+import type { ITransactionContext } from "../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 
 /**
  * Todo el acceso a datos de usuarios viene del repositorio genérico: esta clase
@@ -18,8 +20,9 @@ import { TOKENS } from "../../core/di/tokens";
 export class UsersRepository extends BaseModuleRepository<IUser> implements IUsersRepository {
   constructor(
     @inject(TOKENS.UsersStore) store: IGenericRepository<IUser>,
-    @inject(TOKENS.ILogger) logger: ILogger
+    @inject(TOKENS.ILogger) logger: ILogger,
+    @inject(TOKENS.ITransactionContext) transactions?: ITransactionContext
   ) {
-    super(store, logger, "UsersRepository");
+    super(store, logger, "UsersRepository", ENTITY_NAMES.USERS, transactions);
   }
 }

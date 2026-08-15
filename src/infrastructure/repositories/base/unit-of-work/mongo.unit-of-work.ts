@@ -5,6 +5,7 @@ import type {
   IUnitOfWork,
 } from "../../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import type { IGenericRepository } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import type { ITransactionContext } from "../../../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 import { MongoGenericRepository } from "../drivers/mongo.generic.repository";
 
 /**
@@ -33,7 +34,9 @@ export type MongoRepositoryRegistry = Map<string, MongoGenericRepository<never, 
 export class MongoUnitOfWork implements IUnitOfWork {
   constructor(
     private readonly db: IMongoTransactionRunner,
-    private readonly repositories: MongoRepositoryRegistry
+    private readonly repositories: MongoRepositoryRegistry,
+    /** Ver `SqlUnitOfWork`: publica la transacción para los repositorios. */
+    private readonly context?: ITransactionContext
   ) {}
 
   execute<R>(work: (scope: ITransactionScope) => Promise<R>): Promise<R> {
@@ -83,7 +86,7 @@ export class MongoUnitOfWork implements IUnitOfWork {
           (await boundRepositoryOf(entity).getById(id as never, { withDeleted: true })) !== null,
       };
 
-      return work(scope);
+      return this.context ? this.context.run(scope, () => work(scope)) : work(scope);
     });
   }
 }

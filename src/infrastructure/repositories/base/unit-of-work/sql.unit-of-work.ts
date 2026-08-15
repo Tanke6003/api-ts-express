@@ -5,6 +5,7 @@ import type {
 } from "../../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import type { IGenericRepository } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { ISqlExecutor } from "../../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
+import type { ITransactionContext } from "../../../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 import { SqlGenericRepository } from "../drivers/sql.generic.repository";
 
 /**
@@ -34,7 +35,12 @@ export type SqlRepositoryRegistry = Map<string, SqlGenericRepository<never, neve
 export class SqlUnitOfWork implements IUnitOfWork {
   constructor(
     private readonly db: ISqlTransactionRunner,
-    private readonly repositories: SqlRepositoryRegistry
+    private readonly repositories: SqlRepositoryRegistry,
+    /**
+     * Publica la transacción para que los repositorios de módulo se apunten a
+     * ella sin recibirla por parámetro.
+     */
+    private readonly context?: ITransactionContext
   ) {}
 
   execute<R>(work: (scope: ITransactionScope) => Promise<R>): Promise<R> {
@@ -74,7 +80,9 @@ export class SqlUnitOfWork implements IUnitOfWork {
           boundRepositoryOf(entity).lockById(id as never),
       };
 
-      return work(scope);
+      // Dentro de este `run`, cualquier repositorio de módulo que consulte el
+      // contexto usará la conexión de la transacción en lugar del pool.
+      return this.context ? this.context.run(scope, () => work(scope)) : work(scope);
     });
   }
 }

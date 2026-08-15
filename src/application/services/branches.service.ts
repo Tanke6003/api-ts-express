@@ -7,7 +7,7 @@ import type { WhereFilter } from "../../domain/interfaces/infrastructure/reposit
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { ENTITY_NAMES } from "../../domain/models/entity-names";
 import { IBranch } from "../../domain/models/branches.model";
-import { IAppointment } from "../../domain/models/appointments.model";
+import type { IAppointmentsRepository } from "../../domain/interfaces/infrastructure/repositories/appointments.repository.interface";
 import {
   BranchDTO,
   BranchQueryDTO,
@@ -23,6 +23,10 @@ import { TOKENS } from "../../core/di/tokens";
 export class BranchesService implements IBranchesService {
   constructor(
     @inject(TOKENS.IBranchesRepository) private readonly repository: IBranchesRepository,
+    // Inyectado y no sacado del ámbito de la transacción: dentro de ella se
+    // apunta solo, y así la dependencia se ve en la firma.
+    @inject(TOKENS.IAppointmentsRepository)
+    private readonly appointmentsRepository: IAppointmentsRepository,
     @inject(TOKENS.IUnitOfWork) private readonly unitOfWork: IUnitOfWork,
     @inject(TOKENS.ILogger) private readonly logger: ILogger
   ) {}
@@ -85,19 +89,16 @@ export class BranchesService implements IBranchesService {
    * una sucursal cerrada, así que van en la misma transacción.
    */
   async softDelete(id: number): Promise<boolean> {
-    return this.unitOfWork.execute(async (scope) => {
+    return this.unitOfWork.execute(async (transaction) => {
       // El mismo bloqueo que toma el alta de citas: sin él, una cita podría
       // colarse en la sucursal entre la baja y la cancelación de su agenda, y
       // quedaría viva en una sucursal cerrada. Primera sentencia, como allí.
-      await scope.lockRow(ENTITY_NAMES.BRANCHES, id);
+      await transaction.lockRow(ENTITY_NAMES.BRANCHES, id);
 
-      const branches = scope.repository<IBranch>(ENTITY_NAMES.BRANCHES);
-      const appointments = scope.repository<IAppointment>(ENTITY_NAMES.APPOINTMENTS);
-
-      const deleted = await branches.softDelete(id);
+      const deleted = await this.repository.softDelete(id);
       if (!deleted) return false;
 
-      const cancelled = await appointments.updateWhere(
+      const cancelled = await this.appointmentsRepository.updateWhere(
         {
           $and: [
             { fkBranch: id },
@@ -126,16 +127,15 @@ export class BranchesService implements IBranchesService {
    * misma transacción para no quedarse a medio camino.
    */
   async hardDelete(id: number): Promise<boolean> {
-    return this.unitOfWork.execute(async (scope) => {
+    return this.unitOfWork.execute(async (transaction) => {
       // Mismo bloqueo que el alta de citas, por el mismo motivo: que no entre
       // una cita nueva entre el borrado de la agenda y el de la sucursal.
-      await scope.lockRow(ENTITY_NAMES.BRANCHES, id);
+      await transaction.lockRow(ENTITY_NAMES.BRANCHES, id);
 
-      const branches = scope.repository<IBranch>(ENTITY_NAMES.BRANCHES);
-      const appointments = scope.repository<IAppointment>(ENTITY_NAMES.APPOINTMENTS);
-
-      const removedAppointments = await appointments.hardDeleteWhere({ fkBranch: id });
-      const deleted = await branches.hardDelete(id);
+      const removedAppointments = await this.appointmentsRepository.hardDeleteWhere({
+        fkBranch: id,
+      });
+      const deleted = await this.repository.hardDelete(id);
 
       if (!deleted) {
         // Provoca el rollback: si la sucursal no existía, tampoco deberían

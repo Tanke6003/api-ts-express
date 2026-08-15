@@ -4,6 +4,7 @@ import type {
   IUnitOfWork,
 } from "../../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import type { IGenericRepository } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import type { ITransactionContext } from "../../../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 import { MemoryGenericRepository, MemorySnapshot } from "../drivers/memory.generic.repository";
 
 export type MemoryRepositoryRegistry = Map<string, MemoryGenericRepository<never, never>>;
@@ -35,7 +36,11 @@ export class MemoryUnitOfWork implements IUnitOfWork {
   /** Cola de transacciones. Nunca rechaza: el fallo se lo queda quien llamó. */
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly repositories: MemoryRepositoryRegistry) {}
+  constructor(
+    private readonly repositories: MemoryRepositoryRegistry,
+    /** Ver `SqlUnitOfWork`: publica la transacción para los repositorios. */
+    private readonly context?: ITransactionContext
+  ) {}
 
   private repositoryOf(entity: string): MemoryGenericRepository<never, never> {
     const repository = this.repositories.get(entity);
@@ -83,7 +88,7 @@ export class MemoryUnitOfWork implements IUnitOfWork {
     };
 
     try {
-      return await work(scope);
+      return await (this.context ? this.context.run(scope, () => work(scope)) : work(scope));
     } catch (error) {
       for (const [entity, snapshot] of snapshots) {
         this.repositories.get(entity)?.restoreSnapshot(snapshot);

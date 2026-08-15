@@ -7,14 +7,8 @@ import type {
 } from "../../domain/interfaces/infrastructure/repositories/appointments.repository.interface";
 import type { IBranchesRepository } from "../../domain/interfaces/infrastructure/repositories/branches.repository.interface";
 import type { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
-import type {
-  IGenericRepository,
-  WhereFilter,
-} from "../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
-import type {
-  ITransactionScope,
-  IUnitOfWork,
-} from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
+import type { WhereFilter } from "../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import type { IUnitOfWork } from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import { ENTITY_NAMES } from "../../domain/models/entity-names";
 import { IAppointment } from "../../domain/models/appointments.model";
@@ -54,19 +48,6 @@ export class AppointmentsService implements IAppointmentsService {
     @inject(TOKENS.IUnitOfWork) private readonly unitOfWork: IUnitOfWork,
     @inject(TOKENS.ILogger) private readonly logger: ILogger
   ) {}
-
-  /**
-   * Repositorios de la transacción, con los nombres que usa el resto del
-   * servicio. Todo lo que se lea o escriba con ellos entra en el mismo commit y
-   * ve lo que la propia transacción ya hizo.
-   */
-  private scopedRepositories(scope: ITransactionScope) {
-    return {
-      appointments: scope.repository<IAppointment>(ENTITY_NAMES.APPOINTMENTS),
-      branches: scope.repository<IBranch>(ENTITY_NAMES.BRANCHES),
-      users: scope.repository<IUser>(ENTITY_NAMES.USERS),
-    };
-  }
 
   // --------------------------------------------------------------- lectura --
 
@@ -146,20 +127,20 @@ export class AppointmentsService implements IAppointmentsService {
     const durationMin = appointment.durationMin ?? DEFAULT_DURATION_MIN;
 
     const created = await this.runGuardingSlot(appointment.branchId, () =>
-      this.unitOfWork.execute(async (scope) => {
-        const repositories = this.scopedRepositories(scope);
-
+      this.unitOfWork.execute(async (transaction) => {
         // Primera sentencia de la transacción, y tiene que serlo: ver la nota
         // sobre instantáneas en `ITransactionScope.lockRow`. No se mira lo que
         // devuelve porque el error de "no existe" lo da `requireBranch`, que
         // además distingue la sucursal dada de baja.
-        await scope.lockRow(ENTITY_NAMES.BRANCHES, appointment.branchId);
+        await transaction.lockRow(ENTITY_NAMES.BRANCHES, appointment.branchId);
 
-        await this.requireBranch(repositories.branches, appointment.branchId);
+        // De aquí en adelante los repositorios inyectados ya operan dentro de
+        // la transacción: la encuentran en el contexto (`ITransactionContext`).
+        await this.requireBranch(appointment.branchId);
 
         const guestName = (appointment.guestName ?? "").trim();
         if (appointment.clientId != null) {
-          await this.requireClient(repositories.users, appointment.clientId);
+          await this.requireClient(appointment.clientId);
         } else if (guestName.length === 0) {
           throw new AppError(
             "Indica un cliente registrado o el nombre con el que se agenda la cita",
@@ -167,14 +148,9 @@ export class AppointmentsService implements IAppointmentsService {
           );
         }
 
-        await this.assertSlotIsFree(
-          repositories.appointments,
-          appointment.branchId,
-          scheduledAt,
-          durationMin
-        );
+        await this.assertSlotIsFree(appointment.branchId, scheduledAt, durationMin);
 
-        return repositories.appointments.insert({
+        return this.repository.insert({
           fkBranch: appointment.branchId,
           fkClient: appointment.clientId ?? null,
           // Con cliente registrado el nombre sale del Include, no se duplica aquí.
@@ -208,12 +184,10 @@ export class AppointmentsService implements IAppointmentsService {
     const targetBranch = changes.branchId ?? existing.fkBranch;
 
     const updated = await this.runGuardingSlot(targetBranch, () =>
-      this.unitOfWork.execute(async (scope) => {
-        const repositories = this.scopedRepositories(scope);
+      this.unitOfWork.execute(async (transaction) => {
+        await transaction.lockRow(ENTITY_NAMES.BRANCHES, targetBranch);
 
-        await scope.lockRow(ENTITY_NAMES.BRANCHES, targetBranch);
-
-        const current = await repositories.appointments.getById(id);
+        const current = await this.repository.getById(id);
         if (!current) return null;
 
         // Se valida sobre el resultado combinado, no sobre el parche: un PATCH
@@ -253,12 +227,8 @@ export class AppointmentsService implements IAppointmentsService {
           );
         }
 
-        if (changes.branchId !== undefined) {
-          await this.requireBranch(repositories.branches, merged.fkBranch);
-        }
-        if (changes.clientId != null) {
-          await this.requireClient(repositories.users, changes.clientId);
-        }
+        if (changes.branchId !== undefined) await this.requireBranch(merged.fkBranch);
+        if (changes.clientId != null) await this.requireClient(changes.clientId);
 
         if (merged.fkClient != null) merged.guestName = null;
 
@@ -270,16 +240,10 @@ export class AppointmentsService implements IAppointmentsService {
           changes.branchId !== undefined;
 
         if (rescheduled && merged.status !== "CANCELLED") {
-          await this.assertSlotIsFree(
-            repositories.appointments,
-            merged.fkBranch,
-            merged.scheduledAt,
-            merged.durationMin,
-            id
-          );
+          await this.assertSlotIsFree(merged.fkBranch, merged.scheduledAt, merged.durationMin, id);
         }
 
-        return repositories.appointments.update(id, merged);
+        return this.repository.update(id, merged);
       })
     );
 
@@ -330,19 +294,16 @@ export class AppointmentsService implements IAppointmentsService {
     }
   }
 
-  private async requireBranch(
-    branches: IGenericRepository<IBranch>,
-    id: number
-  ): Promise<IBranch> {
-    const branch = await branches.getById(id);
+  private async requireBranch(id: number): Promise<IBranch> {
+    const branch = await this.branchesRepository.getById(id);
     if (!branch) {
       throw new AppError(`La sucursal ${id} no existe o está dada de baja`, 400);
     }
     return branch;
   }
 
-  private async requireClient(users: IGenericRepository<IUser>, id: number): Promise<IUser> {
-    const client = await users.getById(id);
+  private async requireClient(id: number): Promise<IUser> {
+    const client = await this.usersRepository.getById(id);
     if (!client) {
       throw new AppError(`El cliente ${id} no existe o está dado de baja`, 400);
     }
@@ -361,7 +322,6 @@ export class AppointmentsService implements IAppointmentsService {
    * comprueba el cruce en memoria sobre esas pocas candidatas.
    */
   private async assertSlotIsFree(
-    appointments: IGenericRepository<IAppointment>,
     fkBranch: number,
     start: Date,
     durationMin: number,
@@ -378,7 +338,7 @@ export class AppointmentsService implements IAppointmentsService {
     ];
     if (excludeId !== undefined) conditions.push({ pkAppointment: { ne: excludeId } });
 
-    const candidates = await appointments.find({ where: { $and: conditions } });
+    const candidates = await this.repository.find({ where: { $and: conditions } });
 
     const conflict = candidates.find((candidate) => {
       const otherStart = new Date(candidate.scheduledAt).getTime();
