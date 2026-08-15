@@ -1,6 +1,24 @@
 // public/js/api.js
 // Cliente HTTP de la interfaz. Todas las rutas de negocio piden JWT, así que
-// aquí se obtiene uno de /api/generate-token y se reintenta una vez si caduca.
+// aquí se obtiene uno de /api/v1/generate-token y se reintenta una vez si caduca.
+
+/**
+ * Prefijo donde vive la API.
+ *
+ * No está escrito a mano porque el servidor lo puede mover con `API_PREFIX`: se
+ * pregunta una vez a `/health/ready`, que lo publica, y se cachea. El valor por
+ * defecto cubre el arranque y el caso de que la salud no responda.
+ */
+const DEFAULT_BASE = "/api/v1";
+let basePromise;
+
+function base() {
+  basePromise ??= fetch("/health/ready")
+    .then((r) => r.json())
+    .then((health) => health.apiPrefix || DEFAULT_BASE)
+    .catch(() => DEFAULT_BASE);
+  return basePromise;
+}
 
 const TOKEN_KEY = "agenda-demo-token";
 let token = sessionStorage.getItem(TOKEN_KEY);
@@ -17,7 +35,7 @@ export class ApiError extends Error {
 async function getToken() {
   if (token) return token;
 
-  const response = await fetch("/api/generate-token");
+  const response = await fetch(`${await base()}/generate-token`);
   if (!response.ok) throw new ApiError("No se pudo obtener el token", response.status);
 
   ({ token } = await response.json());
@@ -46,8 +64,9 @@ async function send(url, method, body) {
   });
 }
 
+/** `path` es relativo a la API: `/users`, no `/api/v1/users`. */
 export async function request(path, { method = "GET", body, query } = {}) {
-  const url = buildUrl(path, query);
+  const url = buildUrl(`${await base()}${path}`, query);
   let response = await send(url, method, body);
 
   // El token dura una hora; si expiró se descarta y se pide otro, una sola vez.
@@ -71,31 +90,33 @@ export async function request(path, { method = "GET", body, query } = {}) {
 }
 
 export const api = {
-  health: () => fetch("/health").then((r) => r.json()),
+  // Salud no cuelga de la versión: el balanceador la sondea igual sea cual sea
+  // la versión del contrato que sirva la instancia.
+  health: () => fetch("/health/ready").then((r) => r.json()),
 
   appointments: {
-    list: (query) => request("/api/appointments", { query }),
-    stats: (branchId) => request("/api/appointments/stats", { query: { branchId } }),
-    create: (body) => request("/api/appointments", { method: "POST", body }),
-    update: (id, body) => request(`/api/appointments/${id}`, { method: "PUT", body }),
-    softDelete: (id) => request(`/api/appointments/${id}`, { method: "DELETE" }),
-    hardDelete: (id) => request(`/api/appointments/${id}/hard`, { method: "DELETE" }),
-    restore: (id) => request(`/api/appointments/${id}/restore`, { method: "POST" }),
+    list: (query) => request("/appointments", { query }),
+    stats: (branchId) => request("/appointments/stats", { query: { branchId } }),
+    create: (body) => request("/appointments", { method: "POST", body }),
+    update: (id, body) => request(`/appointments/${id}`, { method: "PUT", body }),
+    softDelete: (id) => request(`/appointments/${id}`, { method: "DELETE" }),
+    hardDelete: (id) => request(`/appointments/${id}/hard`, { method: "DELETE" }),
+    restore: (id) => request(`/appointments/${id}/restore`, { method: "POST" }),
   },
 
   branches: {
-    list: (query) => request("/api/branches", { query }),
-    create: (body) => request("/api/branches", { method: "POST", body }),
-    update: (id, body) => request(`/api/branches/${id}`, { method: "PUT", body }),
-    softDelete: (id) => request(`/api/branches/${id}`, { method: "DELETE" }),
-    hardDelete: (id) => request(`/api/branches/${id}/hard`, { method: "DELETE" }),
-    restore: (id) => request(`/api/branches/${id}/restore`, { method: "POST" }),
+    list: (query) => request("/branches", { query }),
+    create: (body) => request("/branches", { method: "POST", body }),
+    update: (id, body) => request(`/branches/${id}`, { method: "PUT", body }),
+    softDelete: (id) => request(`/branches/${id}`, { method: "DELETE" }),
+    hardDelete: (id) => request(`/branches/${id}/hard`, { method: "DELETE" }),
+    restore: (id) => request(`/branches/${id}/restore`, { method: "POST" }),
   },
 
   users: {
-    list: (query) => request("/api/users", { query }),
-    create: (body) => request("/api/users", { method: "POST", body }),
-    update: (id, body) => request(`/api/users/${id}`, { method: "PUT", body }),
-    softDelete: (id) => request(`/api/users/${id}`, { method: "DELETE" }),
+    list: (query) => request("/users", { query }),
+    create: (body) => request("/users", { method: "POST", body }),
+    update: (id, body) => request(`/users/${id}`, { method: "PUT", body }),
+    softDelete: (id) => request(`/users/${id}`, { method: "DELETE" }),
   },
 };

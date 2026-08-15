@@ -8,6 +8,8 @@ import { IAuditController } from "../../domain/interfaces/presentation/controlle
 import type { AuditQueryInput } from "../../application/validators/audit.validators";
 import { BaseController } from "./base.controller";
 import { TOKENS } from "../../core/di/tokens";
+import { auditQuerySchema } from "../../application/validators/audit.validators";
+import { ApiController, Get } from "../routing/route.decorators";
 
 /**
  * Consulta de la bitácora. Sólo lectura: las líneas las escribe el repositorio
@@ -18,6 +20,7 @@ import { TOKENS } from "../../core/di/tokens";
  * sin contenido.
  */
 @injectable()
+@ApiController("/audit", { tag: "Audit", token: TOKENS.IAuditController })
 export class AuditController extends BaseController implements IAuditController {
   constructor(
     @inject(TOKENS.AuditLogStore) private readonly store: IGenericRepository<IAuditLog>,
@@ -26,6 +29,15 @@ export class AuditController extends BaseController implements IAuditController 
     super(context);
   }
 
+  @Get("/", {
+    summary: "Bitácora de cambios",
+    description:
+      "Historial de escrituras que el repositorio genérico registra solo. Es de sólo lectura: no hay forma de escribir aquí desde la API. Filtrar por `requestId` reconstruye todo lo que hizo una misma petición.",
+    query: auditQuerySchema,
+    responses: {
+      200: { description: "Líneas de bitácora, de la más reciente a la más antigua", ref: "PaginatedAuditLog" },
+    },
+  })
   public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const query = (req.validatedQuery as AuditQueryInput | undefined) ?? { page: 1, limit: 20 };
@@ -34,7 +46,7 @@ export class AuditController extends BaseController implements IAuditController 
       if (query.entity) conditions.push({ entity: query.entity.toUpperCase() });
       if (query.entityId) conditions.push({ entityId: query.entityId });
       if (query.action) conditions.push({ action: query.action });
-      if (query.changedBy) conditions.push({ changedBy: { ilike: `%${query.changedBy}%` } });
+      if (query.changedBy) conditions.push({ changedBy: { contains: query.changedBy } });
       if (query.requestId) conditions.push({ requestId: query.requestId });
 
       const paged = await this.store.getPaged(query.page, query.limit, {

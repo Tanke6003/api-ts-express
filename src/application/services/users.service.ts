@@ -1,54 +1,27 @@
 // src/application/services/users.service.ts
-import { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
-import type { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
-import { PaginatedDTO, PaginationDTO, UserDTO } from "../dtos/users.dtos";
 import { inject, injectable } from "tsyringe";
-import { AppError } from "../../core/errors/app-error";
+import type { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
+import type { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
+import type { IUser } from "../../domain/models/users.model";
+import type { UserDTO } from "../dtos/users.dtos";
 import { userMapper } from "../mapping/profiles";
+import { CrudService } from "./crud.service";
 import { TOKENS } from "../../core/di/tokens";
 
+/**
+ * Usuarios: un CRUD sin reglas propias, así que no escribe ninguna.
+ *
+ * Todo lo que hacía —paginar, mapear a DTO, insertar, actualizar por partes,
+ * borrar lógicamente— es idéntico en cualquier módulo plano y vive en
+ * `CrudService`. Lo único que aporta aquí es con qué repositorio y con qué
+ * mapeador trabaja, y en qué orden lista.
+ *
+ * El día que tenga una regla —un email único, un saldo que no puede bajar de
+ * cero— se sobrescribe ese verbo y los demás siguen viniendo de la base.
+ */
 @injectable()
-export class UsersService implements IUsersService {
-  constructor(
-    @inject(TOKENS.IUsersRepository) private readonly repository: IUsersRepository
-  ) {}
-
-  async getAllUsers(pagination: PaginationDTO): Promise<PaginatedDTO<UserDTO>> {
-    const { page, limit } = pagination;
-    const paged = await this.repository.getPaged(page, limit, {
-      orderBy: { field: "pkUser", direction: "asc" },
-    });
-
-    return {
-      data: userMapper.toDTOList(paged.items),
-      total: paged.total,
-      page: paged.page,
-      limit: paged.limit,
-      pages: paged.pages,
-    };
-  }
-
-  async getUserById(id: number): Promise<UserDTO | null> {
-    const user = await this.repository.getById(id);
-    return user ? userMapper.toDTO(user) : null;
-  }
-
-  async createUser(user: UserDTO): Promise<boolean> {
-    // La PK la genera la base: el mapeador la trata como sólo lectura, así que
-    // no llega desde el cuerpo de la petición.
-    const created = await this.repository.insert(userMapper.toEntity(user));
-    if (!created) throw new AppError("Failed to create user", 500);
-    return true;
-  }
-
-  async updateUser(id: number, user: Partial<UserDTO>): Promise<boolean> {
-    // El id de la ruta identifica al usuario; el payload sólo aporta los campos
-    // a actualizar, y el mapeador salta los que no vinieron.
-    return (await this.repository.update(id, userMapper.toPartialEntity(user))) !== null;
-  }
-
-  /** Borrado lógico, para conservar el histórico de citas del cliente. */
-  async deleteUser(id: number): Promise<boolean> {
-    return this.repository.softDelete(id);
+export class UsersService extends CrudService<IUser, UserDTO> implements IUsersService {
+  constructor(@inject(TOKENS.IUsersRepository) repository: IUsersRepository) {
+    super(repository, userMapper, { field: "pkUser", direction: "asc" });
   }
 }

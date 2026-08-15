@@ -2,6 +2,7 @@
 import type { IEnvs } from "../../domain/interfaces/infrastructure/plugins/envs.plugin.interface";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import type { ITransactionContext } from "../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 import type { IGenericRepository } from "../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { IUnitOfWork } from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import { ENTITY_NAMES } from "../../domain/models/entity-names";
@@ -223,7 +224,8 @@ function buildSqlPersistence(
   driver: PersistenceDriver,
   runner: ISqlTransactionRunner,
   connection: IManagedConnection,
-  create: SqlRepositoryFactory
+  create: SqlRepositoryFactory,
+  transactions?: ITransactionContext
 ): PersistenceLayer {
   // La bitácora se construye primero y sin bitácora propia: registrarse a sí
   // misma sería recursivo.
@@ -250,7 +252,7 @@ function buildSqlPersistence(
   return {
     driver,
     stores: { users, branches, appointments, auditLog },
-    unitOfWork: new SqlUnitOfWork(runner, registry),
+    unitOfWork: new SqlUnitOfWork(runner, registry, transactions),
     auditTrail,
     connection,
   };
@@ -271,7 +273,9 @@ export function createPersistenceLayer(
   envs: IEnvs,
   logger: ILogger,
   /** Provee el usuario de las columnas de auditoría. */
-  context?: IRequestContext
+  context?: IRequestContext,
+  /** Publica la transacción abierta para que los repositorios se unan a ella. */
+  transactions?: ITransactionContext
 ): PersistenceLayer {
   const driver = resolveDriver(envs.getEnv("DATA_SOURCE"));
 
@@ -282,7 +286,8 @@ export function createPersistenceLayer(
       oracle,
       oracle,
       <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
-        new SqlGenericRepository<T>(oracle, metadata, logger, oracleDialect, context, auditTrail)
+        new SqlGenericRepository<T>(oracle, metadata, logger, oracleDialect, context, auditTrail),
+      transactions
     );
   }
 
@@ -297,7 +302,8 @@ export function createPersistenceLayer(
       plugin,
       plugin,
       <T extends object>(metadata: EntityMetadata<T>, auditTrail?: IAuditTrail) =>
-        new SqlGenericRepository<T>(plugin, metadata, logger, dialect, context, auditTrail)
+        new SqlGenericRepository<T>(plugin, metadata, logger, dialect, context, auditTrail),
+      transactions
     );
   }
 
@@ -332,7 +338,7 @@ export function createPersistenceLayer(
     return {
       driver,
       stores: { users, branches, appointments, auditLog },
-      unitOfWork: new MongoUnitOfWork(mongo, registry),
+      unitOfWork: new MongoUnitOfWork(mongo, registry, transactions),
       auditTrail,
       connection: mongo,
     };
@@ -365,7 +371,7 @@ export function createPersistenceLayer(
   return {
     driver,
     stores: { users, branches, appointments, auditLog },
-    unitOfWork: new MemoryUnitOfWork(registry),
+    unitOfWork: new MemoryUnitOfWork(registry, transactions),
     auditTrail,
   };
 }

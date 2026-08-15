@@ -5,6 +5,7 @@ import { AppError } from "../../core/errors/app-error";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import { REQUEST_ID_HEADER } from "./requestContext.middleware";
+import { TOKENS } from "../../core/di/tokens";
 
 /**
  * El manejador debe seguir respondiendo aunque el contenedor no esté montado
@@ -55,8 +56,11 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): void => {
-  const logger = resolveOptional<ILogger>("ILogger");
-  const context = resolveOptional<IRequestContext>("IRequestContext");
+  // Por la tabla de tokens y no por una cadena suelta: con el literal, renombrar
+  // un token compila igual y este manejador se queda sin logger en silencio
+  // —justo cuando algo ha fallado y es cuando más falta hace el log—.
+  const logger = resolveOptional<ILogger>(TOKENS.ILogger);
+  const context = resolveOptional<IRequestContext>(TOKENS.IRequestContext);
 
   const normalized = normalizeError(err);
   const requestId = resolveRequestId(req, context);

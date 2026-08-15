@@ -194,6 +194,26 @@ db.APPOINTMENTS.createIndex({ FK_CLIENT: 1 }, { name: "IX_APPT_CLIENT" });
 db.APPOINTMENTS.createIndex({ SCHEDULED_AT: 1 }, { name: "IX_APPT_SCHEDULED" });
 db.APPOINTMENTS.createIndex({ AVAILABLE: 1 }, { name: "IX_APPT_AVAILABLE" });
 
+// Unica defensa contra la doble reserva en MongoDB.
+//
+// En los cuatro motores SQL la aplicacion serializa el alta bloqueando la fila
+// de la sucursal, pero MongoDB no tiene una lectura de bloqueo equivalente: no
+// hay forma de reservar un documento hasta el commit sin escribirlo. Aqui, por
+// tanto, la garantia no es un refuerzo del bloqueo, es la unica que hay, y la da
+// este indice: la segunda transaccion que intente el mismo hueco falla con un
+// 11000 que error-mapper ya traduce a 409.
+//
+// Cubre el mismo inicio exacto, no el solape parcial. Es parcial porque una cita
+// cancelada o dada de baja no ocupa el hueco.
+db.APPOINTMENTS.createIndex(
+  { FK_BRANCH: 1, SCHEDULED_AT: 1 },
+  {
+    name: "UX_APPT_SLOT",
+    unique: true,
+    partialFilterExpression: { AVAILABLE: 1, STATUS: { $ne: "CANCELLED" } },
+  }
+);
+
 // =============================================================================
 // AUDIT_LOG: bitacora de cambios. La escribe el repositorio generico despues de
 // cada escritura, dentro de la misma transaccion que la operacion auditada —de

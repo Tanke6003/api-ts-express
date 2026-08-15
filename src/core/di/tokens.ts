@@ -17,6 +17,9 @@ export const TOKENS = {
   ITokenPlugin: "ITokenPlugin",
   IFileStorage: "IFileStorage",
   IRequestContext: "IRequestContext",
+  /** Transacción en curso; la publica la unidad de trabajo. */
+  ITransactionContext: "ITransactionContext",
+  IHealthProbe: "IHealthProbe",
 
   // ------------------------------------------------------------ persistencia --
   // Un store es el repositorio genérico ya montado sobre el motor activo; el
@@ -43,6 +46,8 @@ export const TOKENS = {
   IAppointmentsController: "IAppointmentsController",
   IIdentityController: "IIdentityController",
   IAuditController: "IAuditController",
+  /** Utilidades de desarrollo: token de prueba y subida de ficheros. */
+  IDevController: "IDevController",
 } as const;
 
 /** Cualquiera de los identificadores de arriba. */

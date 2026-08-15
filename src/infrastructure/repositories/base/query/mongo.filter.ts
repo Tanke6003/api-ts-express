@@ -4,7 +4,7 @@ import type {
   WhereFilter,
 } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import { EntitySchema } from "../entity-metadata";
-import { isOperatorObject, likeToRegExp } from "./filter.helpers";
+import { escapeRegExp, isOperatorObject, likeToRegExp } from "./filter.helpers";
 
 /**
  * Traduce el mismo `WhereFilter<T>` que `SqlWhereCompiler` lleva a SQL y
@@ -81,6 +81,13 @@ function compileField<T>(
   if (operators.like !== undefined) put("$regex", likeToRegExp(operators.like));
   if (operators.ilike !== undefined) put("$regex", likeToRegExp(operators.ilike, true));
   if (operators.notLike !== undefined) put("$not", likeToRegExp(operators.notLike));
+
+  // Subcadena literal. El texto se escapa entero antes de llegar al `$regex`:
+  // sin eso, un `%%%%%` del formulario se traduciría a `.*.*.*.*.*` y sería una
+  // regex patológica ejecutándose dentro del servidor de MongoDB.
+  if (operators.contains !== undefined) {
+    put("$regex", new RegExp(escapeRegExp(operators.contains), "i"));
+  }
 
   // Una lista vacía en `in` no casa con nada, que es justo lo que hace `$in: []`
   // sin necesidad de una condición constante como la que exige el SQL.

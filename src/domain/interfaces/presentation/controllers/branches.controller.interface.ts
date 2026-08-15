@@ -1,14 +1,10 @@
-// src/domain/interfaces/presentation/controllers/branches.controller.interface.ts
-import { Request, Response, NextFunction } from "express";
+// src/domain/interfaces/controllers/branches.controller.interface.ts
 
-export interface IBranchesController {
-  getAll(req: Request, res: Response, next: NextFunction): Promise<void>;
-  getById(req: Request, res: Response, next: NextFunction): Promise<void>;
-  create(req: Request, res: Response, next: NextFunction): Promise<void>;
-  update(req: Request, res: Response, next: NextFunction): Promise<void>;
-  /** Borrado lógico. */
-  softDelete(req: Request, res: Response, next: NextFunction): Promise<void>;
-  /** Borrado físico. */
+import type { NextFunction, Request, Response } from "express";
+import type { ICrudController } from "../../../../presentation/controllers/crud.controller";
+
+/** El CRUD estándar más la baja física y la restauración. */
+export interface IBranchesController extends ICrudController {
   hardDelete(req: Request, res: Response, next: NextFunction): Promise<void>;
   restore(req: Request, res: Response, next: NextFunction): Promise<void>;
 }

@@ -8,11 +8,14 @@ import type {
 import type { IBranchesRepository } from "../../domain/interfaces/infrastructure/repositories/branches.repository.interface";
 import type { IUsersRepository } from "../../domain/interfaces/infrastructure/repositories/users.repository.interface";
 import type { WhereFilter } from "../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
+import type { IUnitOfWork } from "../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
+import type { ListOptions } from "./crud.service";
 import type { ILogger } from "../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
-import { IAppointment } from "../../domain/models/appointments.model";
+import { ENTITY_NAMES } from "../../domain/models/entity-names";
+import type { IAppointment } from "../../domain/models/appointments.model";
 import { IBranch } from "../../domain/models/branches.model";
 import { IUser } from "../../domain/models/users.model";
-import {
+import type {
   AppointmentDTO,
   AppointmentQueryDTO,
   CreateAppointmentDTO,
@@ -22,7 +25,10 @@ import { PaginatedDTO } from "../dtos/common.dtos";
 import { loadRelated } from "../queries/include.query";
 import { appointmentMapper } from "../mapping/profiles";
 import { AppError } from "../../core/errors/app-error";
+import { normalizeError } from "../../core/errors/error-mapper";
 import { TOKENS } from "../../core/di/tokens";
+import type { ITransactionContext } from "../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
+import { Transactional, TransactionalService } from "../transactions/transactional";
 
 const DEFAULT_DURATION_MIN = 30;
 /** Tope de `CK_APPT_DURATION`; acota la ventana de búsqueda de solapes. */
@@ -37,20 +43,31 @@ const MINUTE_MS = 60_000;
  * relaciones (el equivalente a los `Include` de EF, ver `loadRelated`).
  */
 @injectable()
-export class AppointmentsService implements IAppointmentsService {
+export class AppointmentsService extends TransactionalService implements IAppointmentsService {
   constructor(
     @inject(TOKENS.IAppointmentsRepository) private readonly repository: IAppointmentsRepository,
     @inject(TOKENS.IBranchesRepository) private readonly branchesRepository: IBranchesRepository,
     @inject(TOKENS.IUsersRepository) private readonly usersRepository: IUsersRepository,
+    @inject(TOKENS.IUnitOfWork) unitOfWork: IUnitOfWork,
+    @inject(TOKENS.ITransactionContext) transactions: ITransactionContext,
     @inject(TOKENS.ILogger) private readonly logger: ILogger
-  ) {}
+  ) {
+    super(unitOfWork, transactions);
+  }
 
   // --------------------------------------------------------------- lectura --
 
-  async getAll(query: AppointmentQueryDTO): Promise<PaginatedDTO<AppointmentDTO>> {
-    const paged = await this.repository.getPaged(query.page, query.limit, {
+  /**
+   * Firma del CRUD genérico para que el controlador pueda heredar de
+   * `CrudController`, aunque el cuerpo sea propio: el filtro son diez criterios
+   * y la proyección resuelve relaciones, así que no sale de un mapeador.
+   */
+  async list(page: number, limit: number, options: ListOptions = {}): Promise<PaginatedDTO<AppointmentDTO>> {
+    const query = (options.query ?? {}) as AppointmentQueryDTO;
+
+    const paged = await this.repository.getPaged(page, limit, {
       where: this.buildFilter(query),
-      withDeleted: query.withDeleted,
+      withDeleted: options.withDeleted,
       orderBy: { field: "scheduledAt", direction: "asc" },
     });
 
@@ -63,7 +80,7 @@ export class AppointmentsService implements IAppointmentsService {
     };
   }
 
-  async getById(id: number): Promise<AppointmentDTO | null> {
+  async get(id: number): Promise<AppointmentDTO | null> {
     const appointment = await this.repository.getById(id);
     if (!appointment) return null;
 
@@ -92,10 +109,7 @@ export class AppointmentsService implements IAppointmentsService {
 
     if (query.search) {
       conditions.push({
-        $or: [
-          { details: { ilike: `%${query.search}%` } },
-          { guestName: { ilike: `%${query.search}%` } },
-        ],
+        $or: [{ details: { contains: query.search } }, { guestName: { contains: query.search } }],
       });
     }
 
@@ -104,12 +118,48 @@ export class AppointmentsService implements IAppointmentsService {
 
   // -------------------------------------------------------------- escritura -
 
+  /**
+   * Alta de una cita.
+   *
+   * Va en una transacción aunque escriba en una sola tabla, que es la excepción
+   * al criterio de `IUnitOfWork`: no se abre por escribir en dos sitios sino
+   * porque **la decisión de escribir depende de lo que se acaba de leer**. Sin
+   * ella, dos peticiones simultáneas comprueban el mismo hueco libre, las dos
+   * concluyen que pueden agendar y las dos agendan.
+   *
+   * El bloqueo es sobre la sucursal, no sobre la cita: es la fila que comparten
+   * los que compiten por el mismo horario, y bloquearla deja pasar en paralelo
+   * las altas de otras sucursales.
+   */
   async create(appointment: CreateAppointmentDTO): Promise<AppointmentDTO> {
+    const created = await this.persistNew(appointment);
+
+    this.logger.info("Cita creada", { id: created.pkAppointment });
+    // La proyección se queda fuera de la transacción: son lecturas que no
+    // deciden nada, y dentro sólo alargarían el bloqueo de la sucursal. Por eso
+    // lo transaccional vive en un método aparte y no en éste.
+    const [dto] = await this.toDTOs([created]);
+    return dto;
+  }
+
+  /** El núcleo transaccional del alta: comprobar el hueco y ocuparlo. */
+  @Transactional()
+  private async persistNew(appointment: CreateAppointmentDTO): Promise<IAppointment> {
     const scheduledAt = new Date(appointment.scheduledAt);
     if (scheduledAt.getTime() <= Date.now()) {
       throw new AppError("La cita debe agendarse en el futuro", 400);
     }
 
+    const durationMin = appointment.durationMin ?? DEFAULT_DURATION_MIN;
+
+    // Primera sentencia de la transacción, y tiene que serlo: ver la nota sobre
+    // instantáneas en `ITransactionScope.lockRow`. No se mira lo que devuelve
+    // porque el error de "no existe" lo da `requireBranch`, que además
+    // distingue la sucursal dada de baja.
+    await this.lockRow(ENTITY_NAMES.BRANCHES, appointment.branchId);
+
+    // De aquí en adelante los repositorios inyectados ya operan dentro de la
+    // transacción: la encuentran en el contexto (`ITransactionContext`).
     await this.requireBranch(appointment.branchId);
 
     const guestName = (appointment.guestName ?? "").trim();
@@ -122,73 +172,111 @@ export class AppointmentsService implements IAppointmentsService {
       );
     }
 
-    const durationMin = appointment.durationMin ?? DEFAULT_DURATION_MIN;
     await this.assertSlotIsFree(appointment.branchId, scheduledAt, durationMin);
 
-    // Un solo INSERT: atómico por sí mismo, no necesita transacción explícita.
-    const created = await this.repository.insert({
-      fkBranch: appointment.branchId,
-      fkClient: appointment.clientId ?? null,
-      // Con cliente registrado el nombre sale del Include, no se duplica aquí.
-      guestName: appointment.clientId != null ? null : guestName,
-      scheduledAt,
-      durationMin,
-      status: appointment.status ?? "PENDING",
-      details: appointment.details ?? null,
-    });
-
-    this.logger.info("Cita creada", { id: created.pkAppointment });
-    const [dto] = await this.toDTOs([created]);
-    return dto;
+    return this.runGuardingSlot(appointment.branchId, () =>
+      this.repository.insert({
+        fkBranch: appointment.branchId,
+        fkClient: appointment.clientId ?? null,
+        // Con cliente registrado el nombre sale del Include, no se duplica aquí.
+        guestName: appointment.clientId != null ? null : guestName,
+        scheduledAt,
+        durationMin,
+        status: appointment.status ?? "PENDING",
+        details: appointment.details ?? null,
+      })
+    );
   }
 
+  /**
+   * Edición de una cita. Mismo razonamiento que `create`: reagendar decide en
+   * función de lo que lee, así que va bloqueando la sucursal de destino.
+   */
   async update(id: number, changes: UpdateAppointmentDTO): Promise<AppointmentDTO | null> {
-    const current = await this.repository.getById(id);
-    if (!current) return null;
+    // Lectura previa con un único fin: saber qué sucursal hay que bloquear.
+    // Tiene que ir **antes** de abrir la transacción, y por eso este método no
+    // lleva `@Transactional()`: dentro, un SELECT normal previo al bloqueo
+    // fijaría la instantánea de MySQL y las comprobaciones posteriores verían
+    // un estado viejo. La decisión no se toma con esta lectura —puede quedarse
+    // atrás— sino con la relectura que se hace ya dentro.
+    const existing = await this.repository.getById(id);
+    if (!existing) return null;
 
-    // Se valida sobre el resultado combinado, no sobre el parche: un PATCH que
-    // sólo trae la hora sigue teniendo que cumplir todas las reglas.
-    const merged = {
-      fkBranch: changes.branchId ?? current.fkBranch,
-      fkClient: changes.clientId !== undefined ? changes.clientId ?? null : current.fkClient ?? null,
-      guestName:
-        changes.guestName !== undefined
-          ? (changes.guestName ?? "").trim() || null
-          : current.guestName ?? null,
-      scheduledAt: changes.scheduledAt ? new Date(changes.scheduledAt) : current.scheduledAt,
-      durationMin: changes.durationMin ?? current.durationMin,
-      status: changes.status ?? current.status,
-      details: changes.details !== undefined ? changes.details : current.details ?? null,
-    };
-
-    if (merged.fkClient == null && !merged.guestName) {
-      throw new AppError(
-        "Indica un cliente registrado o el nombre con el que se agenda la cita",
-        400
-      );
-    }
-
-    if (changes.branchId !== undefined) await this.requireBranch(merged.fkBranch);
-    if (changes.clientId != null) await this.requireClient(changes.clientId);
-
-    if (merged.fkClient != null) merged.guestName = null;
-
-    // El solape sólo se recomprueba si la cita se mueve en el tiempo o de
-    // sucursal; cambiar el detalle no puede provocarlo.
-    const rescheduled =
-      changes.scheduledAt !== undefined ||
-      changes.durationMin !== undefined ||
-      changes.branchId !== undefined;
-
-    if (rescheduled && merged.status !== "CANCELLED") {
-      await this.assertSlotIsFree(merged.fkBranch, merged.scheduledAt, merged.durationMin, id);
-    }
-
-    const updated = await this.repository.update(id, merged);
+    const updated = await this.applyUpdate(id, changes, changes.branchId ?? existing.fkBranch);
     if (!updated) return null;
 
     const [dto] = await this.toDTOs([updated]);
     return dto;
+  }
+
+  /** El núcleo transaccional de la edición, con la sucursal ya decidida. */
+  @Transactional()
+  private async applyUpdate(
+    id: number,
+    changes: UpdateAppointmentDTO,
+    targetBranch: number
+  ): Promise<IAppointment | null> {
+    return this.runGuardingSlot(targetBranch, async () => {
+      await this.lockRow(ENTITY_NAMES.BRANCHES, targetBranch);
+
+      const current = await this.repository.getById(id);
+      if (!current) return null;
+
+        // Se valida sobre el resultado combinado, no sobre el parche: un PATCH
+        // que sólo trae la hora sigue teniendo que cumplir todas las reglas.
+        const merged = {
+          fkBranch: changes.branchId ?? current.fkBranch,
+          fkClient:
+            changes.clientId !== undefined ? changes.clientId ?? null : current.fkClient ?? null,
+          guestName:
+            changes.guestName !== undefined
+              ? (changes.guestName ?? "").trim() || null
+              : current.guestName ?? null,
+          scheduledAt: changes.scheduledAt ? new Date(changes.scheduledAt) : current.scheduledAt,
+          durationMin: changes.durationMin ?? current.durationMin,
+          status: changes.status ?? current.status,
+          details: changes.details !== undefined ? changes.details : current.details ?? null,
+        };
+
+        // La cita se movió de sucursal entre la lectura previa y el bloqueo, así
+        // que lo que está bloqueado no es lo que hay que comprobar. Tomar
+        // también el otro bloqueo abriría la puerta a un interbloqueo con quien
+        // los pida al revés; se pide reintentar, que es lo honesto y lo que hace
+        // cualquier control optimista.
+        if (merged.fkBranch !== targetBranch) {
+          throw new AppError(
+            "La cita cambió de sucursal mientras se actualizaba. Vuelve a intentarlo.",
+            409,
+            true,
+            { code: "APPOINTMENT_MOVED" }
+          );
+        }
+
+        if (merged.fkClient == null && !merged.guestName) {
+          throw new AppError(
+            "Indica un cliente registrado o el nombre con el que se agenda la cita",
+            400
+          );
+        }
+
+        if (changes.branchId !== undefined) await this.requireBranch(merged.fkBranch);
+        if (changes.clientId != null) await this.requireClient(changes.clientId);
+
+        if (merged.fkClient != null) merged.guestName = null;
+
+        // El solape sólo se recomprueba si la cita se mueve en el tiempo o de
+        // sucursal; cambiar el detalle no puede provocarlo.
+        const rescheduled =
+          changes.scheduledAt !== undefined ||
+          changes.durationMin !== undefined ||
+          changes.branchId !== undefined;
+
+        if (rescheduled && merged.status !== "CANCELLED") {
+          await this.assertSlotIsFree(merged.fkBranch, merged.scheduledAt, merged.durationMin, id);
+        }
+
+      return this.repository.update(id, merged);
+    });
   }
 
   /** Borrado lógico: la cita desaparece de la agenda pero queda el histórico. */
@@ -209,6 +297,28 @@ export class AppointmentsService implements IAppointmentsService {
   }
 
   // -------------------------------------------------------- reglas de negocio
+
+  /**
+   * Última red: la restricción de la base.
+   *
+   * El bloqueo serializa a las peticiones de este proceso, pero con varias
+   * instancias corriendo la garantía la da el índice único de `APPOINTMENTS`. Su
+   * violación llega aquí como el 409 genérico de duplicado, y este envoltorio la
+   * traduce al mismo mensaje que habría dado la comprobación, para que el
+   * cliente vea lo mismo gane o pierda la carrera.
+   */
+  private async runGuardingSlot<R>(fkBranch: number, work: () => Promise<R>): Promise<R> {
+    try {
+      return await work();
+    } catch (error) {
+      if (normalizeError(error).code !== "DB_UNIQUE_VIOLATION") throw error;
+
+      throw new AppError(`La sucursal ${fkBranch} ya tiene una cita en ese horario`, 409, true, {
+        code: "APPOINTMENT_OVERLAP",
+        cause: error,
+      });
+    }
+  }
 
   private async requireBranch(id: number): Promise<IBranch> {
     const branch = await this.branchesRepository.getById(id);

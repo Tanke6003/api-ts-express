@@ -11,16 +11,19 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | Framework | Express 5 |
 | Language | TypeScript 5 (strict mode) |
 | Architecture | Clean Architecture (Presentation → Application → Domain → Infrastructure) |
+| Routing | Declared on the controller: one decorator gives the route, the validation and the OpenAPI operation |
 | Dependency Injection | tsyringe |
 | Authentication | JWT (Bearer token), with the identity exposed per request via AsyncLocalStorage |
+| HTTP hardening | Helmet, per-IP rate limiting, CORS allowlist, 1 MB body cap, docs off in production |
 | Error handling | Single global handler: stable codes, request id, driver-error mapping |
 | Database | Oracle, SQL Server, PostgreSQL, MySQL/MariaDB, MongoDB or in-memory — selected via `DATA_SOURCE`, all on the same generic repository |
 | Data access | Generic repository with EF/LINQ-style CRUD, chainable queries, soft & hard delete, and a Unit of Work |
+| Transactions | `@Transactional()` on the service; the injected repositories join the open one on their own |
 | Logging | Pino (structured JSON, pino-pretty in dev) or Winston — selected via `LOG_DRIVER` |
-| API Docs | Swagger UI + Scalar |
+| API Docs | Swagger UI + Scalar, generated from the route decorators and the Zod schemas — no hand-written annotations |
 | File Storage | Local filesystem or AWS S3 / MinIO |
 | Web UI | Static HTML + vanilla JS + Tailwind, served from `public/` |
-| Testing | Jest — unit, integration |
+| Testing | Jest — unit for the shared machinery and each module's rules, e2e for the flow of each entity |
 | Linting | ESLint 9 (flat config) |
 | CI | GitHub Actions |
 
@@ -43,15 +46,17 @@ The server starts on port **3001** by default.
 | URL | Description |
 |-----|-------------|
 | `/` | Web UI — appointments, branches and users |
-| `GET /health` | Health check (reports the active `dataSource`) |
-| `GET /api/users` | List users |
-| `GET /api/branches` | List branches |
-| `GET /api/appointments` | List appointments |
+| `GET /health/live` | Liveness — the process answers. Never touches the database |
+| `GET /health/ready` | Readiness — 503 if the database is down or the app is draining |
+| `GET /health` | Alias of `/health/ready` |
+| `GET /api/v1/users` | List users (`/api/...` still works as an alias) |
+| `GET /api/v1/branches` | List branches |
+| `GET /api/v1/appointments` | List appointments |
 | `GET /api/swagger` | Swagger UI |
 | `GET /api/scalar` | Scalar API reference |
-| `GET /api/me` | Identity resolved from the token |
-| `GET /api/audit` | Change log (read-only) |
-| `GET /api/generate-token` | Generate a test JWT (`?userId=7&name=Ruben`) |
+| `GET /api/v1/me` | Identity resolved from the token |
+| `GET /api/v1/audit` | Change log (read-only) |
+| `GET /api/v1/generate-token` | Generate a test JWT (`?userId=7&name=Ruben`) |
 
 Out of the box `DATA_SOURCE=dummy`, so everything above works with no database. To run against Oracle:
 
@@ -70,16 +75,16 @@ For a detailed walkthrough see **[docs/getting-started.md](docs/getting-started.
 src/
 ├── main.ts                     # Entry point
 ├── core/
-│   ├── config/                 # Swagger configuration, env validation
+│   ├── config/                 # OpenAPI, security, API prefix, env validation
 │   ├── di/                     # Composition root, tokens, one module per feature
 │   └── errors/                 # AppError + driver-error mapping
 ├── presentation/               # HTTP layer
-│   ├── controllers/
+│   ├── controllers/            # Each one declares its own routes with decorators
 │   ├── middlewares/            # httpLogger, errorHandler, JWT guard, request context
-│   ├── routes/                 # OpenAPI-annotated route definitions
+│   ├── routing/                # Decorators, router builder, OpenAPI builder, mounting
 │   └── utils/                  # parse-id and other HTTP helpers
 ├── application/                # Business logic
-│   ├── dtos/                   # Data Transfer Objects
+│   ├── dtos/                   # Zod schemas: TS type + OpenAPI component
 │   ├── queries/                # loadRelated — EF-style Include, batched
 │   ├── services/               # Business rules & compound queries
 │   └── validators/             # Zod schemas
@@ -118,7 +123,7 @@ await branchesRepository.hardDelete(3);   // borrado físico
 
 The same interface runs on Oracle or in memory depending on `DATA_SOURCE`. Relations are composed in the service layer (EF-style `Include`), and transactions are opened only where a use case writes to more than one table.
 
-Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/audit`.
+Every write records who made it (`CREATED_BY` / `UPDATED_BY`), taken from the token — never from the request body — and entities that opt in also leave a full history in `AUDIT_LOG`, queryable at `GET /api/v1/audit`.
 
 Full reference: **[docs/data-access.md](docs/data-access.md)** — the repository, the filter language, the six engines and how to set each one up. Errors, identity and the audit trail: **[docs/architecture.md](docs/architecture.md)**.
 
@@ -171,6 +176,17 @@ Copy `.env.template` to `.env.dev` (development) or `.env` (production) and fill
 | `SERVICE_NAME` | `ApiTSExpress` | Service name in logs |
 | `API_VERSION` | `1.0.0` | Shown in Swagger |
 | `JWT_SECRET` | — | **Required.** Sign JWT tokens. No insecure default — the app fails fast at startup if missing |
+| `API_PREFIX` | `/api/v1` | Where the API is mounted. Moves the surface (e.g. behind a proxy); it does not create a new version |
+| `API_LEGACY_PREFIX` | `/api` | Unversioned alias for existing clients. `off` removes it |
+| `CORS_ORIGINS` | — | Allowed origins, comma separated. As many as you need. Empty = same origin only; `*` allows any |
+| `BODY_LIMIT` | `1mb` | Max JSON / urlencoded body. Uploads stream through busboy and never reach these parsers |
+| `TRUST_PROXY_HOPS` | `0` | Trusted proxy hops in front of the app. `1` behind one nginx / load balancer |
+| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | `60000` / `120` | Global rate limit per IP. `RATE_LIMIT_MAX=0` disables it. `/health*` is exempt |
+| `AUTH_RATE_LIMIT_WINDOW_MS` / `AUTH_RATE_LIMIT_MAX` | `900000` / `10` | Rate limit for the routes that hand out credentials |
+| `CSP_ENABLED` | `false` | Content-Security-Policy. Off by default: it breaks the demo UI, Swagger and Scalar |
+| `DOCS_ENABLED` | — | Publish Swagger / Scalar / `openapi.json`. Default: everywhere except production |
+| `SHUTDOWN_DELAY_MS` | `0` | Gap between reporting "not ready" and closing the socket. Behind Kubernetes, `5000` |
+| `SHUTDOWN_TIMEOUT_MS` | `10000` | Whole-shutdown budget. Keep it below the orchestrator's grace period |
 | `DATA_SOURCE` | `dummy` | `dummy` (in-memory) / `oracle` / `sqlserver` / `postgres` / `mysql` / `mongodb`. An unknown value fails at startup instead of falling back to memory |
 | `LOG_DRIVER` | `pino` | Logger implementation: `pino` / `winston` |
 | `LOG_LEVEL` | `trace` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` |
@@ -194,7 +210,13 @@ When the server is running, open:
 - **Scalar** — `http://localhost:3001/api/scalar`
 - **OpenAPI JSON** — `http://localhost:3001/api/openapi.json`
 
-Authentication is done with a **Bearer JWT**. Click **Authorize** in Swagger, then use the token from `GET /api/generate-token`.
+Authentication is done with a **Bearer JWT**. Click **Authorize** in Swagger, then use the token from `GET /api/v1/generate-token`.
+
+The document is generated: the paths come from the route decorators and every
+schema from Zod, so there is not a line of hand-written OpenAPI in the project
+and the docs cannot drift from what the code validates. It is OpenAPI 3.1,
+because its schema *is* JSON Schema 2020-12 — exactly what Zod emits. See
+**[docs/decorated-routes.md](docs/decorated-routes.md)**.
 
 ---
 
@@ -204,10 +226,10 @@ Protected routes require an `Authorization: Bearer <token>` header.
 
 ```bash
 # 1. Get a token
-curl http://localhost:3001/api/generate-token
+curl http://localhost:3001/api/v1/generate-token
 
 # 2. Use it in protected endpoints
-curl -X POST http://localhost:3001/api/users \
+curl -X POST http://localhost:3001/api/v1/users \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "Alice"}'
@@ -231,7 +253,7 @@ docker compose up -d mssql-init    # SQL Server: the companion applies its schem
 | PostgreSQL 16 | `5433` | `appuser / AppPassword1` |
 | MySQL 8 | `3307` | `appuser / AppPassword1` |
 | MongoDB 7 | `27017` | no auth, replica set `rs0` |
-| MinIO API / Console | `9100` / `9101` | `minioadmin / minioadmin` |
+| MinIO API / Console | `9100` / `9101` | `minioadmin / minioadmin`, bucket `my-bucket` created by `minio-init` |
 
 PostgreSQL, MySQL and SQL Server are published off their standard ports because a local install usually owns 5432, 3306 and 1433 — and when it does, the API connects to the wrong server and the failure looks like bad credentials. Override with `POSTGRES_PORT`, `MYSQL_PORT` or `DB_PORT`.
 
@@ -244,7 +266,7 @@ Full deployment guide: **[docs/getting-started.md](docs/getting-started.md)**.
 ## Testing
 
 ```bash
-npm test                  # unit + integration, with coverage
+npm test                  # unit + e2e, with coverage
 npm run test:watch        # watch mode
 npm run test:local        # verbose + HTML report at reports/
 ```
@@ -263,7 +285,9 @@ Full guide: **[docs/testing.md](docs/testing.md)**.
 
 ## Adding a new resource
 
-Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md)**. Most of a new module is now declarative — describe the table and the generic repository provides the CRUD.
+Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md)**. Most of a new module is now declarative — describe the table and the generic repository provides the CRUD, decorate the controller and the routes, the validation and the documentation come with it.
+
+How the decorators work, and how to declare a DTO once: **[docs/decorated-routes.md](docs/decorated-routes.md)**.
 
 ---
 
@@ -274,6 +298,7 @@ Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md
 | Repository | `infrastructure/repositories/` |
 | Generic Repository | `infrastructure/repositories/base/` — one CRUD for every entity |
 | Unit of Work | `infrastructure/repositories/base/*.unit-of-work.ts` |
+| Declarative transaction | `application/transactions/` — `@Transactional()` + `lockRow` on the service |
 | Query Object | `base/query-builder.ts` — LINQ-style `IQueryable<T>` |
 | Data Mapper | `repositories/entities.ts` — entity ↔ table mapping |
 | Dependency Injection | `core/di/` (tsyringe) — composition root, tokens, one file per module |
@@ -282,7 +307,8 @@ Follow the step-by-step guide: **[docs/add-new-module.md](docs/add-new-module.md
 | Strategy | Pluggable engine drivers (memory ↔ SQL ↔ MongoDB), one contract |
 | Singleton | Logger instances |
 | Global error handler | `presentation/middlewares/errorHandler.middleware.ts` |
-| Ambient context (IHttpContextAccessor) | `infrastructure/plugins/asyncRequestContext.plugin.ts` |
+| Ambient context (IHttpContextAccessor) | `asyncRequestContext.plugin.ts` (identity) and `asyncTransactionContext.plugin.ts` (open transaction) |
+| Declarative routing | `presentation/routing/` — `@ApiController` / `@Get`… drive routing, validation and docs |
 
 ---
 

@@ -598,6 +598,27 @@ export class SqlGenericRepository<T extends object, TKey = number>
   }
 
   /**
+   * Bloquea una fila por PK hasta el commit. Sólo tiene sentido sobre un
+   * executor de transacción: con auto-commit el bloqueo se suelta al terminar la
+   * propia sentencia y no protege nada, por eso quien lo expone es la unidad de
+   * trabajo y no el contrato del repositorio.
+   *
+   * No filtra por borrado lógico: se bloquea la fila que existe, y si además
+   * está dada de baja eso lo decide quien llama con su propia lectura.
+   *
+   * @returns `false` si la fila no existe.
+   */
+  async lockById(id: TKey): Promise<boolean> {
+    const sql = this.dialect.buildRowLock(
+      this.schema.table,
+      this.schema.columnOf(this.schema.primaryKey)
+    );
+
+    const result = await this.db.execute(sql, { pk: id }, { expects: "rows" });
+    return result.rows.length > 0;
+  }
+
+  /**
    * Vía de escape para lo que el API genérica no expresa a propósito
    * —agregaciones, `GROUP BY`, vistas, procedimientos—.
    *

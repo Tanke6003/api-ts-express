@@ -50,27 +50,30 @@ src/
 │       └── error-mapper.ts          # Any thrown value → status + stable code
 │
 ├── presentation/                    # HTTP layer — knows Express
-│   ├── controllers/
+│   ├── controllers/                 # Each one declares its own routes
 │   │   ├── base.controller.ts       # Identity of the request, for every controller
-│   │   └── users.controller.ts      # Handles req/res, delegates to service
+│   │   ├── users.controller.ts      # @ApiController("/users") + @Get/@Post/...
+│   │   ├── branches.controller.ts   # Sucursales
+│   │   ├── appointments.controller.ts # Citas
+│   │   ├── identity.controller.ts   # /me
+│   │   ├── audit.controller.ts      # /audit — read-only change log
+│   │   └── dev.controller.ts        # Token generation & file upload (dev only)
 │   ├── middlewares/
 │   │   ├── requestContext.middleware.ts # Opens the per-request store, mints requestId
 │   │   ├── httpLogger.middleware.ts  # Pino HTTP middleware
 │   │   ├── validate.middleware.ts    # Zod body/query guards
 │   │   └── errorHandler.middleware.ts # Global error handler (last middleware)
-│   ├── routes/
-│   │   ├── index.route.ts           # Mounts all routers under /api
-│   │   ├── users.route.ts           # OpenAPI-annotated CRUD routes
-│   │   ├── branches.route.ts        # Sucursales
-│   │   ├── appointments.route.ts    # Citas
-│   │   ├── identity.route.ts        # /api/me
-│   │   ├── audit.route.ts           # /api/audit — read-only change log
-│   │   └── test.route.ts            # Token generation & file upload (dev)
+│   ├── routing/                     # How a controller becomes HTTP + docs
+│   │   ├── route.decorators.ts      # @ApiController, @Get/@Post/... and the registry
+│   │   ├── router.builder.ts        # Metadata → Express: guard, validation, handler
+│   │   ├── openapi.builder.ts       # The same metadata → the OpenAPI paths
+│   │   └── index.route.ts           # Walks the registry and mounts under API_PREFIX
 │   └── utils/
 │       └── parse-id.ts              # Route param → positive integer, or 400
 │
 ├── application/                     # Business logic — knows Domain only
-│   ├── dtos/                        # Request/response shapes (OpenAPI schemas)
+│   ├── dtos/                        # Zod schemas: TS type + OpenAPI component
+│   ├── transactions/                # @Transactional + the base that carries lockRow
 │   ├── queries/
 │   │   └── include.query.ts         # loadRelated — EF-style Include, batched
 │   ├── services/                    # Business rules & compound queries
@@ -124,18 +127,20 @@ The generic repository, the entity mapping and the engine drivers are documented
 HTTP Request
     │
     ▼
-Express Middleware (request context, json, cors, pino-http)
+Express Middleware
+    │  request context → helmet → rate limit → cors → json → pino-http
     │
     ▼
-Route handler  (users.route.ts)
-    │  resolves controller from DI container
+Router built from the decorators  (router.builder.ts)
+    │  JWT guard, then Zod validation of body/query
     ▼
 Controller  (users.controller.ts)
-    │  validates params, calls service
+    │  declares its own routes; handles req/res and calls the service
     ▼
 Service  (appointments.service.ts)
-    │  business rules, compound queries, Include of related aggregates,
-    │  opens a transaction when the use case writes to more than one table
+    │  business rules, compound queries, Include of related aggregates.
+    │  Opens a transaction (@Transactional) when the use case writes in more
+    │  than one place, or decides based on what it just read
     ▼
 Repository  (appointments.repository.ts)
     │  logs, wraps errors, delegates to the generic repository
@@ -423,6 +428,7 @@ See **[add-new-module.md](add-new-module.md)** for a complete step-by-step guide
 | `IFileStorage` | `IFileStorage` | File upload |
 | `IRequestContext` | `IRequestContext` | Identity and request id, per request |
 | `IAuditTrail` | `IAuditTrail` | Change log line, bound to the active transaction |
+| `ITransactionContext` | `AsyncTransactionContextPlugin` | The open transaction, so a repository joins it without being handed it |
 | `IUnitOfWork` | `IUnitOfWork` | Transaction spanning more than one table |
 | `UsersStore` | `IGenericRepository<IUser>` | CRUD on the active engine |
 | `IUsersRepository` | `IUsersRepository` | Data access abstraction |

@@ -1,3 +1,53 @@
+# Changelog
+
+## Unreleased — `feature/http-hardening`
+
+**HTTP hardening.** Helmet, per-IP rate limiting, CORS against an allowlist read
+from `CORS_ORIGINS`, body capped at 1 MB, `x-powered-by` off, and Swagger,
+Scalar and `openapi.json` published everywhere except production.
+
+**Double-booking race closed.** `ITransactionScope.lockRow` plus
+`SqlDialect.buildRowLock` per engine; the appointment check and write now happen
+inside one transaction that locks the branch row. Unique index on the five
+schemas as the backstop for when more than one instance runs, and the violation
+is translated back into the overlap 409.
+
+**Graceful shutdown and real health probes.** The HTTP server is kept so it can
+be closed, and shutdown drains in four steps with a watchdog. `/health/live`
+never touches the database, `/health/ready` answers 503 when it is down or while
+draining, `/health` stays as an alias.
+
+**Routing declared on the controller.** `@ApiController` and the verb decorators
+replaced all six route files. One declaration produces the Express route, the
+Zod validation and the OpenAPI operation, so they cannot disagree. The whole
+document is generated — including the DTO components, declared once with
+`defineDto` — and swagger-jsdoc is gone, which also fixes docs being empty in
+production. Now OpenAPI 3.1.
+
+**Transactions declared, not threaded.** The open transaction is published in an
+AsyncLocalStorage, so the repositories a service already injects bind themselves
+to it: three private helpers went back to taking just an id. `@Transactional()`
+replaces the `unitOfWork.execute(...)` wrapper, and `lockRow` moved to the
+service base so the lock stays explicit without the scope being passed around —
+outside a transaction it fails naming the missing decorator. A decorated method
+calling another joins instead of nesting.
+
+**API prefix configurable** through `API_PREFIX` (`/api/v1` by default), with the
+unversioned `/api` kept as an alias and the prefix published on `/health/ready`.
+
+**`contains` filter operator.** User input is no longer a LIKE pattern: searching
+`%` returned the whole table, and on MongoDB it built a pathological regex.
+
+**Uploads.** 5 MB per file, one file on `/upload-file` and ten on
+`/upload-files`, a wrong body answers 400 instead of 500, and busboy's error
+event is handled so a malformed multipart cannot take the process down. MinIO
+now actually starts — the compose service had no `command` — and a `minio-init`
+companion creates the bucket.
+
+---
+
+## Commit log
+
 * [Update] implement tests (257320b)
 * [Add] add test to users sql server datasource (f9a3902)
 * [Update] add test to jwt and sequelize (e62451f)

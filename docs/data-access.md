@@ -161,7 +161,7 @@ await appointments.find({
     fkBranch: 1,
     durationMin: { gte: 30, lte: 90 },
     status: { notIn: ["CANCELLED", "DONE"] },
-    guestName: { ilike: "%walk-in%" },
+    guestName: { contains: "walk-in" },
     fkClient: { isNull: true },
     scheduledAt: { between: [from, to] },
   },
@@ -170,7 +170,7 @@ await appointments.find({
 // Nested groups
 await branches.getPaged(page, limit, {
   where: {
-    $or: [{ name: { ilike: `%${search}%` } }, { address: { ilike: `%${search}%` } }],
+    $or: [{ name: { contains: search } }, { address: { contains: search } }],
   },
 });
 ```
@@ -180,6 +180,7 @@ await branches.getPaged(page, limit, {
 | `eq` `ne` `gt` `gte` `lt` `lte` | `=` `<>` `>` `>=` `<` `<=` | `$eq` `$ne` `$gt` `$gte` `$lt` `$lte` | comparison on a normalised value |
 | `like` / `notLike` | `LIKE` / `NOT LIKE` | anchored `$regex` / `$not` | anchored `RegExp` |
 | `ilike` | `UPPER(col) LIKE UPPER(:bind)` | `$regex` with the `i` flag | case-insensitive `RegExp` |
+| `contains` | `UPPER(col) LIKE UPPER(:bind) ESCAPE '!'` | escaped `$regex`, `i` flag | `String.includes`, lowercased |
 | `in` / `notIn` | `IN (…)` / `NOT IN (…)` | `$in` / `$nin` | `some` / every |
 | `between` | `BETWEEN … AND …` | `$gte` + `$lte` | both bounds |
 | `isNull` | `IS NULL` / `IS NOT NULL` | `$eq: null` / `$ne: null` | `null` or absent |
@@ -190,7 +191,14 @@ Details that are easy to get wrong and are therefore fixed by the contract suite
 - A bare `null` (`{ tag: null }`) means `IS NULL`. On MongoDB it is translated to `$eq: null`, which also matches documents where the field is absent — what a SQL engine understands by "column without a value".
 - An **empty list** is not invalid syntax: `in: []` compiles to `1 = 0` and `notIn: []` to `1 = 1` on SQL, and to `$in: []` on MongoDB. Dynamic filters hit this constantly.
 - A **property that is not mapped throws** rather than silently matching nothing.
-- A `%` or `_` written by the user is escaped before the LIKE pattern becomes a regular expression, so it cannot turn into an arbitrary regex.
+- **`contains` is the operator for user input.** `like` and `ilike` take a
+  *pattern*, so a `%` or a `_` typed into a form becomes a wildcard: searching
+  `%` returns the whole table and `a_b` matches `axb`. `contains` takes literal
+  text, neutralises the wildcards and declares an `ESCAPE` clause; each driver
+  implements the meaning natively, so the caller has no pattern to get wrong.
+  The escape character is `!` and not a backslash because MySQL treats the
+  backslash as an escape inside the string literal itself, and `ESCAPE ''`
+  would reach it as an escaped quote.
 - Filters on the same field never collide: the Mongo translator splits them into several documents instead of overwriting a key, and SQL joins them with `AND`.
 
 Three translators keep those semantics aligned — `SqlWhereCompiler`, `toMongoFilter` and `matchesFilter` — and each one resolves field names through `EntitySchema` and values through `toColumnValue`, so a model boolean is compared against the stored `1/0` and a date travels as a `Date`.
@@ -245,27 +253,47 @@ Calling `softDelete` or `restore` on an entity whose metadata declares no `softD
 
 **Not everything is wrapped in a transaction.** A single statement is already atomic and travels with auto-commit; wrapping it would only add a round trip.
 
-A transaction is opened when a use case writes in more than one place and a half-finished result would be invalid. That boundary is the service, not the repository:
+A transaction is opened in two cases, and the boundary is the service, not the
+repository:
+
+1. **The use case writes in more than one place** and a half-finished result
+   would be invalid.
+2. **It decides based on what it just read**, even if it then writes a single
+   row. Checking that an appointment slot is free and taking it are two
+   statements, and another request fits between them. Here the transaction is
+   not about atomicity but about isolation, and it comes with `lockRow`.
 
 ```typescript
+@Transactional()
 async hardDelete(id: number): Promise<boolean> {
-  return this.unitOfWork.execute(async (scope) => {
-    const branches = scope.repository<IBranch>(ENTITY_NAMES.BRANCHES);
-    const appointments = scope.repository<IAppointment>(ENTITY_NAMES.APPOINTMENTS);
+  await this.lockRow(ENTITY_NAMES.BRANCHES, id);
 
-    // Appointments reference the branch by FK, so they go first.
-    const removedAppointments = await appointments.hardDeleteWhere({ fkBranch: id });
-    const deleted = await branches.hardDelete(id);
+  // Appointments reference the branch by FK, so they go first.
+  const removed = await this.appointmentsRepository.hardDeleteWhere({ fkBranch: id });
+  const deleted = await this.repository.hardDelete(id);
 
-    if (!deleted) {
-      throw new AppError("Branch not found", 404);   // triggers the rollback
-    }
-    return true;
-  });
+  if (!deleted) {
+    throw new AppError("Branch not found", 404);   // triggers the rollback
+  }
+  return true;
 }
 ```
 
-Inside the block, `scope.repository(...)` returns the same generic repository bound to the transaction, memoised per entity, so the service code is identical to the non-transactional path. Commit on success, rollback on throw, the original error propagated untouched. The change log follows the same scope: a rolled-back operation takes its `AUDIT_LOG` line with it.
+The service keeps using its **injected** repositories: each one looks up the
+open transaction in `ITransactionContext` and binds itself to it. Nothing is
+threaded through parameters, so a private helper that only ever needed an id
+keeps taking just an id.
+
+That context is the same `AsyncLocalStorage` technique `IRequestContext` uses for
+the request identity, and it carries the same trade-off: reading
+`repository.insert(...)` you cannot tell whether it runs in a transaction. What
+you can see is the boundary — the `unitOfWork.execute(...)` in the service. If
+you need to escape it deliberately, construct the repository without the context.
+
+The explicit form is still available for a service that would rather spell it
+out — `unitOfWork.execute(async (scope) => ...)`, with `scope.repository(...)`
+returning the same generic repository bound to the transaction, memoised per
+entity. It is what the two cases below need. Commit on success, rollback on throw, the original error propagated untouched. The change log follows the same scope: a rolled-back operation takes its `AUDIT_LOG` line with it.
 
 How each engine implements it:
 
@@ -274,7 +302,68 @@ How each engine implements it:
 | Oracle | One pooled connection with `autoCommit: false`, commit or rollback around the block. |
 | SQL Server · PostgreSQL · MySQL | Sequelize's managed transaction; the block receives an executor bound to it. |
 | MongoDB | A `ClientSession` passed to every operation. `withTransaction` **retries** on transient server errors, so the block may run more than once and must not carry side effects outside the database. |
-| In memory | Snapshots every store before running and restores them if the block throws. It reproduces the failure behaviour, not isolation between concurrent operations — that is the database's job. |
+| In memory | Snapshots every store before running and restores them if the block throws. Transactions are queued and run one at a time: Node is single-threaded but that is not isolation — between the `await` of a read and the write that depends on it the event loop serves other requests, and two overlapping snapshots would also break the rollback, since a failure in the second would restore over what the first had already committed. |
+
+### `@Transactional()`
+
+A service method that extends `TransactionalService` can declare the boundary
+with a decorator instead of wrapping its body:
+
+```typescript
+@Transactional()
+async softDelete(id: number): Promise<boolean> {
+  await this.lockRow(ENTITY_NAMES.BRANCHES, id);
+  const deleted = await this.repository.softDelete(id);
+  ...
+}
+```
+
+`this.lockRow(...)` comes from the base class and reads the open transaction
+from the context, so the lock stays explicit without the scope being passed
+around. Outside a transaction it fails immediately saying the method is missing
+its decorator — the silent failure would be writing without a lock and believing
+there is exclusion.
+
+A decorated method calling another **joins** the open transaction rather than
+nesting a second one, so both share a commit.
+
+Two cases where the explicit `unitOfWork.execute(...)` is still the right tool,
+and both appear in `AppointmentsService`:
+
+- **Something must be read before the transaction opens.** `update` reads the
+  appointment to know which branch to lock; done inside, that plain SELECT would
+  pin MySQL's snapshot before the lock. The public method reads, and a decorated
+  private one holds the transactional core.
+- **Something must stay outside.** `create` projects the result into a DTO after
+  committing: they are reads that decide nothing, and inside they would only
+  hold the branch lock for longer.
+
+### `scope.lockRow(entity, id)`
+
+Locks a row until commit. Transactions asking for the same row queue up behind it.
+
+It is what a use case needs when the decision to write depends on what it just
+read. Locking the **parent** row — the branch of an appointment, not the
+appointment — serialises only the callers that actually compete, and lets other
+branches book in parallel.
+
+**It has to be the transaction's first statement.** MySQL defaults to REPEATABLE
+READ and pins the snapshot on the first consistent read; if a plain SELECT runs
+before the lock, later reads keep seeing the old state even once the lock is
+granted. A locking read does not pin a snapshot, so opening with it makes the
+checks see the latest committed data on all four engines.
+
+| Engine | Statement |
+|--------|-----------|
+| Oracle · PostgreSQL · MySQL | `SELECT pk FROM t WHERE pk = :pk FOR UPDATE` |
+| SQL Server | `SELECT pk FROM t WITH (UPDLOCK, HOLDLOCK) WHERE pk = :pk` — T-SQL has no `FOR UPDATE`; `HOLDLOCK` is what keeps it until commit |
+| MongoDB | No locking read exists. The guarantee comes from a unique index instead, and the driver returns a duplicate-key error the mapper turns into a 409 |
+| In memory | Nothing to lock: the whole transaction already runs exclusively |
+
+The lock only reaches the requests of one process. With more than one instance
+running, the guarantee has to be in the database — which is why `APPOINTMENTS`
+carries a unique index on `(FK_BRANCH, SCHEDULED_AT)`, partial so a cancelled
+appointment does not hold the slot.
 
 ---
 

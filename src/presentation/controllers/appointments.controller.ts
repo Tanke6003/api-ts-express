@@ -1,115 +1,94 @@
 // src/presentation/controllers/appointments.controller.ts
-import { Request, Response, NextFunction } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { inject, injectable } from "tsyringe";
 import type { IAppointmentsService } from "../../domain/interfaces/application/services/appointments.service.interface";
-import { IAppointmentsController } from "../../domain/interfaces/presentation/controllers/appointments.controller.interface";
-import type { AppointmentQueryInput } from "../../application/validators/appointments.validators";
+import type { IAppointmentsController } from "../../domain/interfaces/presentation/controllers/appointments.controller.interface";
+import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import {
+  appointmentQuerySchema,
+  createAppointmentSchema,
+  updateAppointmentSchema,
+} from "../../application/validators/appointments.validators";
 import { AppError } from "../../core/errors/app-error";
 import { parseId } from "../utils/parse-id";
-import { BaseController } from "./base.controller";
-import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import { CrudController } from "./crud.controller";
+import { ApiController, Delete, Get, Post } from "../routing/route.decorators";
+import { Crud } from "../routing/crud.decorator";
 import { TOKENS } from "../../core/di/tokens";
 
+const ID_PARAM = { id: "integer" } as const;
+
+/**
+ * Citas.
+ *
+ * El servicio es todo suyo —cada lectura resuelve relaciones y cada escritura
+ * tiene reglas—, pero el controlador no: parsear el id, devolver 404 y delegar
+ * el error es lo mismo aquí que en cualquier módulo, así que viene de la base.
+ * Las dos bases son independientes: se puede tomar una sin la otra.
+ */
 @injectable()
-export class AppointmentsController extends BaseController implements IAppointmentsController {
+@ApiController("/appointments", { tag: "Appointments", token: TOKENS.IAppointmentsController })
+@Crud({
+  resource: "la cita",
+  dto: "Appointment",
+  schemas: {
+    create: createAppointmentSchema,
+    update: updateAppointmentSchema,
+    query: appointmentQuerySchema,
+  },
+})
+export class AppointmentsController extends CrudController implements IAppointmentsController {
   constructor(
-    @inject(TOKENS.IAppointmentsService) private readonly appointmentsService: IAppointmentsService,
+    @inject(TOKENS.IAppointmentsService) private readonly appointments: IAppointmentsService,
     @inject(TOKENS.IRequestContext) context: IRequestContext
   ) {
-    super(context);
+    super(appointments, context, "la cita");
   }
 
-  public getAll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const query = (req.validatedQuery as AppointmentQueryInput | undefined) ?? {
-        page: 1,
-        limit: 10,
-        withDeleted: false,
-        onlyGuests: false,
-      };
-      res.json(await this.appointmentsService.getAll(query));
-    } catch (err) {
-      next(err);
-    }
-  };
-
+  @Get("/stats", {
+    summary: "Totales de citas por estado",
+    responses: { 200: { description: "Totales por estado", ref: "AppointmentStats" } },
+  })
   public getStats = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const raw = req.query.branchId;
-      const branchId = raw === undefined ? undefined : parseId(String(raw), "branch");
-      res.json({ data: await this.appointmentsService.getStats(branchId) });
-    } catch (err) {
-      next(err);
+      const branchId = raw === undefined ? undefined : parseId(String(raw), "la sucursal");
+
+      res.json({ data: await this.appointments.getStats(branchId) });
+    } catch (error) {
+      next(error);
     }
   };
 
-  public getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const appointment = await this.appointmentsService.getById(
-        parseId(req.params.id, "appointment")
-      );
-      if (!appointment) throw new AppError("Appointment not found", 404);
-      res.json(appointment);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  public create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const created = await this.appointmentsService.create(req.body);
-      res.status(201).json(created);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  public update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const updated = await this.appointmentsService.update(
-        parseId(req.params.id, "appointment"),
-        req.body
-      );
-      if (!updated) throw new AppError("Appointment not found", 404);
-      res.json(updated);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  public softDelete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const deleted = await this.appointmentsService.softDelete(
-        parseId(req.params.id, "appointment")
-      );
-      if (!deleted) throw new AppError("Appointment not found", 404);
-      res.status(204).send();
-    } catch (err) {
-      next(err);
-    }
-  };
-
+  @Delete("/:id/hard", {
+    summary: "Baja física de una cita",
+    params: ID_PARAM,
+    responses: { 204: "Cita eliminada", 404: "Cita no encontrada" },
+  })
   public hardDelete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const deleted = await this.appointmentsService.hardDelete(
-        parseId(req.params.id, "appointment")
-      );
+      const deleted = await this.appointments.hardDelete(parseId(req.params.id, "la cita"));
       if (!deleted) throw new AppError("Appointment not found", 404);
+
       res.status(204).send();
-    } catch (err) {
-      next(err);
+    } catch (error) {
+      next(error);
     }
   };
 
+  @Post("/:id/restore", {
+    summary: "Revierte la baja lógica de una cita",
+    params: ID_PARAM,
+    responses: { 200: "Cita restaurada", 404: "Cita no encontrada o ya activa" },
+  })
   public restore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const restored = await this.appointmentsService.restore(
-        parseId(req.params.id, "appointment")
-      );
+      const restored = await this.appointments.restore(parseId(req.params.id, "la cita"));
       if (!restored) throw new AppError("Appointment not found or already active", 404);
+
       res.json({ status: "ok", message: "Appointment restored" });
-    } catch (err) {
-      next(err);
+    } catch (error) {
+      next(error);
     }
   };
 }

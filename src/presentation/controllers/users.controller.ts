@@ -1,78 +1,37 @@
 // src/presentation/controllers/users.controller.ts
-import { Request, Response, NextFunction } from "express";
-import { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
-import type { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
 import { inject, injectable } from "tsyringe";
-import { AppError } from "../../core/errors/app-error";
-import type { PaginationInput } from "../../application/validators/users.validators";
-import { BaseController } from "./base.controller";
+import type { IUsersController } from "../../domain/interfaces/presentation/controllers/users.controller.interface";
+import type { IUsersService } from "../../domain/interfaces/application/services/users.service.interface";
 import type { IRequestContext } from "../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
+import {
+  createUserSchema,
+  paginationSchema,
+  updateUserSchema,
+} from "../../application/validators/users.validators";
+import { CrudController } from "./crud.controller";
+import { ApiController } from "../routing/route.decorators";
+import { Crud } from "../routing/crud.decorator";
 import { TOKENS } from "../../core/di/tokens";
 
+/**
+ * Usuarios. El módulo entero es esta declaración.
+ *
+ * Los cinco manejadores vienen de `CrudController` y las cinco rutas —con su
+ * validación y su documentación— de `@Crud`. Para quedarse con un verbo propio
+ * se saca de `verbs` y se declara aquí con su decorador.
+ */
 @injectable()
-export class UsersController extends BaseController implements IUsersController {
+@ApiController("/users", { tag: "Users", token: TOKENS.IUsersController })
+@Crud({
+  resource: "el usuario",
+  dto: "User",
+  schemas: { create: createUserSchema, update: updateUserSchema, query: paginationSchema },
+})
+export class UsersController extends CrudController implements IUsersController {
   constructor(
-    @inject(TOKENS.IUsersService) private readonly usersService: IUsersService,
+    @inject(TOKENS.IUsersService) service: IUsersService,
     @inject(TOKENS.IRequestContext) context: IRequestContext
   ) {
-    super(context);
+    super(service, context, "el usuario");
   }
-
-  public getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const { page, limit } = (req.validatedQuery as PaginationInput | undefined) ?? {
-        page: 1,
-        limit: 10,
-      };
-      const result = await this.usersService.getAllUsers({ page, limit });
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  public getUserById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = Number(req.params.id);
-      if (isNaN(userId)) throw new AppError("Invalid user ID", 400);
-      const user = await this.usersService.getUserById(userId);
-      if (!user) throw new AppError("User not found", 404);
-      res.json(user);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  public createUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      await this.usersService.createUser(req.body);
-      res.status(201).json({ status: "ok", message: "User created" });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  public updateUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = Number(req.params.id);
-      if (isNaN(userId)) throw new AppError("Invalid user ID", 400);
-      const updated = await this.usersService.updateUser(userId, req.body);
-      if (!updated) throw new AppError("User not found", 404);
-      res.json({ status: "ok", message: "User updated" });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  public deleteUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = Number(req.params.id);
-      if (isNaN(userId)) throw new AppError("Invalid user ID", 400);
-      const deleted = await this.usersService.deleteUser(userId);
-      if (!deleted) throw new AppError("User not found", 404);
-      res.status(204).send();
-    } catch (err) {
-      next(err);
-    }
-  };
 }

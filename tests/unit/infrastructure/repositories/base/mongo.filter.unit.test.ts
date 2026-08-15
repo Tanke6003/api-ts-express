@@ -56,6 +56,23 @@ describe("toMongoFilter", () => {
     expect(compile({ name: { ilike: "%norte%" } })).toEqual({ NAME: { $regex: /^.*norte.*$/i } });
   });
 
+  describe("contains", () => {
+    it("busca la subcadena literal, sin anclar y sin distinguir mayúsculas", () => {
+      expect(compile({ name: { contains: "norte" } })).toEqual({ NAME: { $regex: /norte/i } });
+    });
+
+    it("escapa el texto entero antes de que llegue al motor", () => {
+      // Con `ilike`, esto se traduciría a /^.*.*.*.*.*$/ y sería una regex
+      // patológica ejecutándose dentro del servidor de MongoDB. Como literal es
+      // inofensivo.
+      expect(compile({ name: { contains: "%%%%%" } })).toEqual({ NAME: { $regex: /%%%%%/i } });
+      expect(compile({ name: { contains: "a.b" } })).toEqual({ NAME: { $regex: /a\.b/i } });
+      expect(compile({ name: { contains: "(a|b)+" } })).toEqual({
+        NAME: { $regex: /\(a\|b\)\+/i },
+      });
+    });
+  });
+
   it("notLike niega la expresión regular", () => {
     expect(compile({ name: { notLike: "a%" } })).toEqual({ NAME: { $not: /^a.*$/ } });
   });

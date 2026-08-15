@@ -117,6 +117,30 @@ CREATE INDEX IX_APPT_CLIENT    ON APPOINTMENTS (FK_CLIENT);
 CREATE INDEX IX_APPT_SCHEDULED ON APPOINTMENTS (SCHEDULED_AT);
 CREATE INDEX IX_APPT_AVAILABLE ON APPOINTMENTS (AVAILABLE);
 
+-- Ultima red contra la doble reserva.
+--
+-- La aplicacion ya serializa el alta bloqueando la sucursal (SELECT ... FOR
+-- UPDATE), pero ese bloqueo solo alcanza a las peticiones del mismo proceso:
+-- con dos instancias corriendo, la garantia tiene que estar aqui.
+--
+-- Cubre el mismo inicio exacto, no el solape parcial.
+--
+-- MySQL no tiene indices parciales ni filtrados, asi que "unico solo cuando la
+-- cita cuenta" se expresa con una columna generada que vale NULL en el resto de
+-- casos: un UNIQUE ignora los NULL, de modo que las canceladas y las dadas de
+-- baja no compiten por el hueco.
+--
+-- SLOT_KEY es una columna de la base y no una propiedad del dominio: no se
+-- anade al mapeo de src/infrastructure/repositories/entities.ts, o el
+-- repositorio generico intentaria escribirla.
+ALTER TABLE APPOINTMENTS
+  ADD COLUMN SLOT_KEY VARCHAR(64) GENERATED ALWAYS AS (
+    CASE WHEN AVAILABLE = 1 AND STATUS <> 'CANCELLED'
+         THEN CONCAT(FK_BRANCH, '@', DATE_FORMAT(SCHEDULED_AT, '%Y-%m-%d %H:%i:%s'))
+    END
+  ) STORED,
+  ADD UNIQUE INDEX UX_APPT_SLOT (SLOT_KEY);
+
 -- =============================================================================
 -- AUDIT_LOG: bitacora de cambios. La escribe el repositorio generico despues de
 -- cada escritura, dentro de la misma transaccion que la operacion auditada.

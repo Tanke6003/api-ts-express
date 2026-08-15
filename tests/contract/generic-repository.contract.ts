@@ -187,6 +187,36 @@ export function runGenericRepositoryContract(driver: string, setup: ContractSetu
         expect(await names({ name: { ilike: "%LPH%" } })).toEqual(["alpha"]);
       });
 
+      describe("contains", () => {
+        it("busca una subcadena sin distinguir mayúsculas", async () => {
+          expect(await names({ name: { contains: "LPH" } })).toEqual(["alpha"]);
+          expect(await names({ name: { contains: "a" } })).toEqual(["alpha", "beta", "gamma"]);
+        });
+
+        // El motivo de que exista este operador: con `ilike` el texto es un
+        // patrón, así que estos tres casos darían resultados que nadie pidió.
+        it("trata los comodines como texto, no como patrón", async () => {
+          await repository.insert({ name: "100% lana", qty: 1 });
+          await repository.insert({ name: "a_b", qty: 2 });
+
+          // Con ilike, "%" casaría con todo.
+          expect(await names({ name: { contains: "%" } })).toEqual(["100% lana"]);
+          expect(await names({ name: { contains: "100%" } })).toEqual(["100% lana"]);
+          // Con ilike, "_" es un carácter cualquiera y esto casaría con "alpha".
+          expect(await names({ name: { contains: "a_b" } })).toEqual(["a_b"]);
+        });
+
+        it("trata el carácter de escape como texto", async () => {
+          await repository.insert({ name: "signo !", qty: 3 });
+
+          expect(await names({ name: { contains: "!" } })).toEqual(["signo !"]);
+        });
+
+        it("no casa con un valor nulo", async () => {
+          expect(await names({ tag: { contains: "x" } })).toEqual(["alpha"]);
+        });
+      });
+
       it("combina grupos con $and, $or y $not", async () => {
         expect(await names({ $or: [{ name: "alpha" }, { qty: 30 }] })).toEqual(["alpha", "gamma"]);
         expect(await names({ $and: [{ qty: { gte: 20 } }, { tag: { isNull: false } }] })).toEqual([

@@ -11,6 +11,8 @@ import { BaseModuleRepository } from "./base/module.repository";
 import { SqlGenericRepository } from "./base/drivers/sql.generic.repository";
 import { APPOINTMENTS_ENTITY } from "./entities";
 import { TOKENS } from "../../core/di/tokens";
+import { ENTITY_NAMES } from "../../domain/models/entity-names";
+import type { ITransactionContext } from "../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 
 /**
  * Citas. El CRUD y las consultas por filtro los hereda del repositorio
@@ -29,9 +31,10 @@ export class AppointmentsRepository
 {
   constructor(
     @inject(TOKENS.AppointmentsStore) store: IGenericRepository<IAppointment>,
-    @inject(TOKENS.ILogger) logger: ILogger
+    @inject(TOKENS.ILogger) logger: ILogger,
+    @inject(TOKENS.ITransactionContext) transactions?: ITransactionContext
   ) {
-    super(store, logger, "AppointmentsRepository");
+    super(store, logger, "AppointmentsRepository", ENTITY_NAMES.APPOINTMENTS, transactions);
   }
 
   async countByStatus(fkBranch?: number): Promise<AppointmentStatusCount[]> {

@@ -5,8 +5,10 @@ import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/
 import type { IRequestContext } from "../../../domain/interfaces/infrastructure/plugins/request-context.plugin.interface";
 import type { ITokenPlugin } from "../../../domain/interfaces/infrastructure/plugins/token.plugin.interface";
 import type { IFileStorage } from "../../../domain/interfaces/infrastructure/plugins/fileStorage.plugin.interface";
+import type { ITransactionContext } from "../../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 import { DotenvPlugin } from "../../../infrastructure/plugins/dotenv.plugin";
 import { AsyncRequestContextPlugin } from "../../../infrastructure/plugins/asyncRequestContext.plugin";
+import { AsyncTransactionContextPlugin } from "../../../infrastructure/plugins/asyncTransactionContext.plugin";
 import { JwtPlugin } from "../../../infrastructure/plugins/jwt.plugin";
 import { NativeFileStoragePlugin } from "../../../infrastructure/plugins/nativeFileStorage.plugin";
 import { validateCriticalEnvs } from "../../config/env.validation";
@@ -18,6 +20,7 @@ export interface Plugins {
   envs: IEnvs;
   logger: ILogger;
   requestContext: IRequestContext;
+  transactions: ITransactionContext;
 }
 
 /**
@@ -43,6 +46,14 @@ export function registerPlugins(): Plugins {
   container.registerSingleton<IRequestContext>(TOKENS.IRequestContext, AsyncRequestContextPlugin);
   const requestContext = container.resolve<IRequestContext>(TOKENS.IRequestContext);
 
+  // Mismo motivo que el anterior, y singleton por la misma razón: la unidad de
+  // trabajo abre el almacén y el repositorio lo lee, y tienen que ser el mismo.
+  container.registerSingleton<ITransactionContext>(
+    TOKENS.ITransactionContext,
+    AsyncTransactionContextPlugin
+  );
+  const transactions = container.resolve<ITransactionContext>(TOKENS.ITransactionContext);
+
   // Singleton: el secreto se valida y se guarda en el constructor, así que
   // rehacerlo en cada resolución sólo repetiría trabajo.
   container.registerSingleton<ITokenPlugin>(TOKENS.ITokenPlugin, JwtPlugin);
@@ -51,5 +62,5 @@ export function registerPlugins(): Plugins {
   // subidas. Registrado como clase no se toca el disco hasta que alguien lo pida.
   container.registerSingleton<IFileStorage>(TOKENS.IFileStorage, NativeFileStoragePlugin);
 
-  return { envs, logger, requestContext };
+  return { envs, logger, requestContext, transactions };
 }

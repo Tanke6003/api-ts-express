@@ -5,6 +5,7 @@ import type {
 } from "../../../../domain/interfaces/infrastructure/repositories/unit-of-work.interface";
 import type { IGenericRepository } from "../../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { ISqlExecutor } from "../../../../domain/interfaces/infrastructure/plugins/sql-executor.interface";
+import type { ITransactionContext } from "../../../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 import { SqlGenericRepository } from "../drivers/sql.generic.repository";
 
 /**
@@ -34,7 +35,12 @@ export type SqlRepositoryRegistry = Map<string, SqlGenericRepository<never, neve
 export class SqlUnitOfWork implements IUnitOfWork {
   constructor(
     private readonly db: ISqlTransactionRunner,
-    private readonly repositories: SqlRepositoryRegistry
+    private readonly repositories: SqlRepositoryRegistry,
+    /**
+     * Publica la transacción para que los repositorios de módulo se apunten a
+     * ella sin recibirla por parámetro.
+     */
+    private readonly context?: ITransactionContext
   ) {}
 
   execute<R>(work: (scope: ITransactionScope) => Promise<R>): Promise<R> {
@@ -54,18 +60,29 @@ export class SqlUnitOfWork implements IUnitOfWork {
         return repository;
       };
 
-      const scope: ITransactionScope = {
-        repository: <T extends object, TKey = number>(entity: string): IGenericRepository<T, TKey> => {
-          const cached = bound.get(entity);
-          if (cached) return cached as IGenericRepository<T, TKey>;
+      const boundRepositoryOf = (entity: string): SqlGenericRepository<never, never> => {
+        const cached = bound.get(entity);
+        if (cached) return cached as SqlGenericRepository<never, never>;
 
-          const rebound = baseRepositoryOf(entity).withExecutor(tx);
-          bound.set(entity, rebound);
-          return rebound as unknown as IGenericRepository<T, TKey>;
-        },
+        const rebound = baseRepositoryOf(entity).withExecutor(tx);
+        bound.set(entity, rebound);
+        return rebound;
       };
 
-      return work(scope);
+      const scope: ITransactionScope = {
+        repository: <T extends object, TKey = number>(entity: string): IGenericRepository<T, TKey> =>
+          boundRepositoryOf(entity) as unknown as IGenericRepository<T, TKey>,
+
+        // El bloqueo va por el mismo executor que el resto de la transacción,
+        // así que lo libera su commit o su rollback. La sentencia la escribe el
+        // dialecto, que es donde vive lo que cambia entre motores.
+        lockRow: (entity: string, id: unknown): Promise<boolean> =>
+          boundRepositoryOf(entity).lockById(id as never),
+      };
+
+      // Dentro de este `run`, cualquier repositorio de módulo que consulte el
+      // contexto usará la conexión de la transacción en lugar del pool.
+      return this.context ? this.context.run(scope, () => work(scope)) : work(scope);
     });
   }
 }

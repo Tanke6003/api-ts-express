@@ -124,6 +124,17 @@ CREATE INDEX IX_APPT_BRANCH    ON APPOINTMENTS (FK_BRANCH);
 CREATE INDEX IX_APPT_CLIENT    ON APPOINTMENTS (FK_CLIENT);
 CREATE INDEX IX_APPT_SCHEDULED ON APPOINTMENTS (SCHEDULED_AT);
 CREATE INDEX IX_APPT_AVAILABLE ON APPOINTMENTS (AVAILABLE);
+
+-- Ultima red contra la doble reserva.
+--
+-- La aplicacion ya serializa el alta bloqueando la sucursal (UPDLOCK/HOLDLOCK),
+-- pero ese bloqueo solo alcanza a las peticiones del mismo proceso: con dos
+-- instancias corriendo, la garantia tiene que estar aqui.
+--
+-- Cubre el mismo inicio exacto, no el solape parcial. El indice es filtrado
+-- porque una cita cancelada o dada de baja no ocupa el hueco.
+CREATE UNIQUE INDEX UX_APPT_SLOT ON APPOINTMENTS (FK_BRANCH, SCHEDULED_AT)
+  WHERE AVAILABLE = 1 AND STATUS <> 'CANCELLED';
 GO
 
 -- =============================================================================

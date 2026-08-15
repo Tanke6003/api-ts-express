@@ -28,6 +28,17 @@ export interface FieldOperators<V> {
   notLike?: string;
   /** LIKE ignorando mayúsculas/minúsculas (`UPPER(col) LIKE UPPER(:bind)`). */
   ilike?: string;
+  /**
+   * Contiene este **texto literal**, sin distinguir mayúsculas.
+   *
+   * Es el operador para buscar con lo que teclea un usuario. `like` e `ilike`
+   * reciben un patrón, así que un `%` o un `_` que venga del formulario se
+   * interpretan como comodines: buscar `%` devuelve la tabla entera y `a_b`
+   * casa con `axb`. Aquí no hay patrón que escribir, y cada driver lo resuelve
+   * a su manera —LIKE con ESCAPE, `includes`, `$regex` escapado—, así que quien
+   * llama no puede equivocarse.
+   */
+  contains?: string;
   in?: V[];
   notIn?: V[];
   between?: [V, V];

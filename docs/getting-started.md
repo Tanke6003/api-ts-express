@@ -154,20 +154,24 @@ npm run dev:win:pretty   # Windows, piped through pino-pretty
 All three run `tsx watch src/main.ts`, so edits reload without a build step. The boot log ends with:
 
 ```
-Server running on port 3001
-UI:      http://localhost:3001/
-Users:   http://localhost:3001/api/users
-Swagger: http://localhost:3001/api/swagger
-Scalar:  http://localhost:3001/api/scalar
-Health:  http://localhost:3001/health
+INFO: Servidor escuchando
+  port: 3001
+  ui: http://localhost:3001/
+  users: http://localhost:3001/api/v1/users
+  swagger: http://localhost:3001/api/swagger
+  scalar: http://localhost:3001/api/scalar
+  health: http://localhost:3001/health/ready
 ```
+
+Swagger and Scalar only appear when the documentation is published — everywhere
+except production, unless `DOCS_ENABLED` says otherwise.
 
 With a real driver the process authenticates against the database *before* it starts listening, and exits with code 1 if that fails. A wrong password shows up in the boot log rather than in a user's first request.
 
 Tests need nothing running:
 
 ```bash
-npm test              # unit + integration, with coverage
+npm test              # unit + e2e, with coverage
 npm run test:watch    # watch mode
 npm run test:local    # verbose, HTML report under reports/
 ```
@@ -178,14 +182,22 @@ Coverage lands in `reports/coverage/`, the test report in `reports/tests-report.
 
 ## 4. The endpoints
 
-Everything except `/health`, `/api/generate-token` and the upload routes requires `Authorization: Bearer <token>`.
+Everything except `/health*`, `/api/v1/generate-token` and the upload routes
+requires `Authorization: Bearer <token>`. Routes require a token unless they
+declare `public: true`, so forgetting the flag closes an endpoint rather than
+opening one.
+
+The API is mounted at `API_PREFIX` (`/api/v1` by default) and also answers under
+the unversioned `/api` while `API_LEGACY_PREFIX` is on. The prefix in use is
+published by `/health/ready`, so a client can discover it instead of assuming
+it.
 
 ```bash
 curl http://localhost:3001/health
-curl http://localhost:3001/api/generate-token          # ?userId=7&name=Ruben to simulate a user
+curl http://localhost:3001/api/v1/generate-token          # ?userId=7&name=Ruben to simulate a user
 
-TOKEN=$(curl -s http://localhost:3001/api/generate-token | jq -r .token)
-curl -X POST http://localhost:3001/api/users \
+TOKEN=$(curl -s http://localhost:3001/api/v1/generate-token | jq -r .token)
+curl -X POST http://localhost:3001/api/v1/users \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "Alice", "email": "alice@example.com"}'
@@ -193,32 +205,34 @@ curl -X POST http://localhost:3001/api/users \
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/health` | — | Status, active `dataSource`, timestamp, uptime |
-| `GET` | `/api/generate-token` | — | Development JWT; accepts `userId`, `name`, `email` |
-| `GET` | `/api/users` | Bearer | Paginated list (`page`, `limit`) |
-| `GET` | `/api/users/:id` | Bearer | Single user |
-| `POST` | `/api/users` | Bearer | Create — `name` required, `email` / `phone` / `isClient` optional |
-| `PUT` | `/api/users/:id` | Bearer | Update |
-| `DELETE` | `/api/users/:id` | Bearer | Logical delete |
-| `GET` | `/api/branches` | Bearer | Paginated list |
-| `GET` | `/api/branches/:id` | Bearer | Single branch |
-| `POST` | `/api/branches` | Bearer | Create |
-| `PUT` | `/api/branches/:id` | Bearer | Update |
-| `DELETE` | `/api/branches/:id` | Bearer | Logical delete |
-| `DELETE` | `/api/branches/:id/hard` | Bearer | Physical delete |
-| `POST` | `/api/branches/:id/restore` | Bearer | Undo a logical delete |
-| `GET` | `/api/appointments` | Bearer | Paginated list; filters combine with AND |
-| `GET` | `/api/appointments/stats` | Bearer | Aggregates |
-| `GET` | `/api/appointments/:id` | Bearer | Single appointment |
-| `POST` | `/api/appointments` | Bearer | Create |
-| `PUT` | `/api/appointments/:id` | Bearer | Update |
-| `DELETE` | `/api/appointments/:id` | Bearer | Logical delete |
-| `DELETE` | `/api/appointments/:id/hard` | Bearer | Physical delete |
-| `POST` | `/api/appointments/:id/restore` | Bearer | Undo a logical delete |
-| `GET` | `/api/me` | Bearer | Identity resolved from the token |
-| `GET` | `/api/audit` | Bearer | Change log, read-only |
-| `POST` | `/api/upload-file` | — | Single file, multipart |
-| `POST` | `/api/upload-files` | — | Multiple files, multipart |
+| `GET` | `/health/live` | — | Liveness: the process answers. Never touches the database |
+| `GET` | `/health/ready` | — | Readiness: 503 if the database is down or the app is draining |
+| `GET` | `/health` | — | Alias of `/health/ready` |
+| `GET` | `/api/v1/generate-token` | — | Development JWT; accepts `userId`, `name`, `email` |
+| `GET` | `/api/v1/users` | Bearer | Paginated list (`page`, `limit`) |
+| `GET` | `/api/v1/users/:id` | Bearer | Single user |
+| `POST` | `/api/v1/users` | Bearer | Create — `name` required, `email` / `phone` / `isClient` optional |
+| `PUT` | `/api/v1/users/:id` | Bearer | Update |
+| `DELETE` | `/api/v1/users/:id` | Bearer | Logical delete |
+| `GET` | `/api/v1/branches` | Bearer | Paginated list |
+| `GET` | `/api/v1/branches/:id` | Bearer | Single branch |
+| `POST` | `/api/v1/branches` | Bearer | Create |
+| `PUT` | `/api/v1/branches/:id` | Bearer | Update |
+| `DELETE` | `/api/v1/branches/:id` | Bearer | Logical delete |
+| `DELETE` | `/api/v1/branches/:id/hard` | Bearer | Physical delete |
+| `POST` | `/api/v1/branches/:id/restore` | Bearer | Undo a logical delete |
+| `GET` | `/api/v1/appointments` | Bearer | Paginated list; filters combine with AND |
+| `GET` | `/api/v1/appointments/stats` | Bearer | Aggregates |
+| `GET` | `/api/v1/appointments/:id` | Bearer | Single appointment |
+| `POST` | `/api/v1/appointments` | Bearer | Create |
+| `PUT` | `/api/v1/appointments/:id` | Bearer | Update |
+| `DELETE` | `/api/v1/appointments/:id` | Bearer | Logical delete |
+| `DELETE` | `/api/v1/appointments/:id/hard` | Bearer | Physical delete |
+| `POST` | `/api/v1/appointments/:id/restore` | Bearer | Undo a logical delete |
+| `GET` | `/api/v1/me` | Bearer | Identity resolved from the token |
+| `GET` | `/api/v1/audit` | Bearer | Change log, read-only |
+| `POST` | `/api/v1/upload-file` | — | One file, multipart, up to 5 MB |
+| `POST` | `/api/v1/upload-files` | — | Up to 10 files, multipart, 5 MB each |
 
 Interactive documentation is generated from the OpenAPI annotations on the route files:
 
@@ -299,18 +313,37 @@ npm run start:win # Windows
 
 Never commit `.env` files — use the platform's secret store. The startup validation is the safety net, not the strategy: it refuses to boot without the secrets, but it cannot tell a strong secret from `change_me`.
 
-The process drains its connection pool on `SIGINT` and `SIGTERM`, so orchestrators that stop containers with a signal get a clean shutdown for free.
+On `SIGINT` and `SIGTERM` the process drains in four steps: it stops reporting
+itself as ready, waits `SHUTDOWN_DELAY_MS` for the load balancer to notice, stops
+accepting connections and lets the in-flight requests finish, and only then
+returns the connection pool. A watchdog capped at `SHUTDOWN_TIMEOUT_MS` forces
+the exit if any step hangs.
 
-`GET /health` is the endpoint for load balancer probes:
+That waiting step is what removes the 502s on a rolling deploy: closing the
+socket before the balancer knows loses whatever it routed in the meantime.
+Behind Kubernetes, set `SHUTDOWN_DELAY_MS=5000` and keep `SHUTDOWN_TIMEOUT_MS`
+below `terminationGracePeriodSeconds`.
+
+Probes are split, because an orchestrator does opposite things with each answer:
+
+| Endpoint | Question | Behaviour |
+|----------|----------|-----------|
+| `GET /health/live` | Is the process alive? | Always `200`. Never touches the database — restarting cannot fix someone else's database |
+| `GET /health/ready` | Can it take traffic? | `503` if the database is down or the app is draining, so the balancer routes elsewhere |
+| `GET /health` | — | Alias of `/health/ready` |
 
 ```json
 {
   "status": "ok",
   "dataSource": "postgres",
+  "database": "up",
   "timestamp": "2025-01-01T00:00:00.000Z",
   "uptime": 42
 }
 ```
+
+The database check is capped at 2 s and its result cached for 3 s, so a probe
+every second does not turn into a query every second against every replica.
 
 GitHub Actions runs lint, TypeScript build, tests with coverage and a dependency audit as parallel jobs on every push and pull request (`.github/workflows/ci.yml`, plus standalone `lint.yml` and `test.yml`). No repository secrets are needed as configured.
 

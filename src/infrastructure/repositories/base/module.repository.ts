@@ -7,6 +7,7 @@ import type {
   WhereFilter,
 } from "../../../domain/interfaces/infrastructure/repositories/generic.repository.interface";
 import type { ILogger } from "../../../domain/interfaces/infrastructure/plugins/logger.plugin.interface";
+import type { ITransactionContext } from "../../../domain/interfaces/infrastructure/plugins/transaction-context.plugin.interface";
 import { QueryBuilder } from "./query/query-builder";
 
 /**
@@ -22,11 +23,36 @@ export abstract class BaseModuleRepository<T extends object, TKey = number>
   implements IGenericRepository<T, TKey>
 {
   protected constructor(
-    protected readonly store: IGenericRepository<T, TKey>,
+    /** Almacén del motor activo, con auto-commit. */
+    private readonly baseStore: IGenericRepository<T, TKey>,
     protected readonly logger: ILogger,
     /** Nombre del repositorio concreto; aparece en los logs y en los errores. */
-    protected readonly context: string
+    protected readonly context: string,
+    /** Nombre lógico de la entidad (ver `ENTITY_NAMES`); lo pide la transacción. */
+    private readonly entity?: string,
+    /** Sin él, el repositorio nunca se une a una transacción. */
+    private readonly transactions?: ITransactionContext
   ) {}
+
+  /**
+   * Almacén sobre el que operan todos los métodos de abajo.
+   *
+   * Si hay una transacción abierta en este contexto, devuelve el repositorio
+   * enlazado a ella; si no, el del pool. Es un único punto porque toda esta
+   * clase tira de `this.store`: así un módulo entra en la transacción sin que
+   * el servicio tenga que pasarle nada.
+   *
+   * Que sea ambiental tiene un precio, y conviene saberlo: leyendo
+   * `repository.insert(...)` no se ve si está dentro de una transacción. Lo que
+   * sí se ve es el borde, el `unitOfWork.execute(...)` del servicio. Es el mismo
+   * trato que ya hace `IRequestContext` con la identidad de la petición.
+   */
+  protected get store(): IGenericRepository<T, TKey> {
+    if (!this.entity) return this.baseStore;
+
+    const scoped = this.transactions?.current()?.repository<T, TKey>(this.entity);
+    return (scoped as IGenericRepository<T, TKey> | undefined) ?? this.baseStore;
+  }
 
   /**
    * Ejecuta una operación del almacén traduciendo cualquier fallo a un error
