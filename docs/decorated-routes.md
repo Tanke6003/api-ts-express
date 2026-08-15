@@ -100,10 +100,18 @@ async (req, res, next) => {}`), lo que ata `this` sin `.bind()`. Un decorador de
 propiedad recibe el prototipo y el nombre, que es cuanto hace falta para
 registrar; el manejador se toma después de la instancia.
 
-**El orden importa y es el del código.** `/users/:id` declarado antes que
-`/users/stats` haría que "stats" se interpretara como un id. Los decoradores se
-evalúan en orden de declaración, así que basta con escribir las rutas concretas
-antes que las paramétricas, igual que en un fichero de rutas.
+**El orden lo decide la especificidad, no el código.** Las rutas se montan de
+más concreta a más genérica: `/users/stats` gana a `/users/:id` aunque se
+declare después. A igualdad se conserva el orden de declaración.
+
+Antes la regla era "el orden es el del código", y funcionaba pero se rompía
+sola: bastaba con mover un método de sitio para que una ruta estática dejara de
+alcanzarse, y el síntoma era un 400 de "id inválido" en vez de un error claro.
+Con esta regla no puede pasar, y es además lo que hace viable que una clase base
+declare `/:id` sin tapar lo que añada quien la extienda.
+
+Y lo que sí es un error se detecta al arrancar: dos rutas con el mismo verbo y
+el mismo camino lanzan en vez de que la segunda quede muerta en silencio.
 
 ---
 

@@ -177,6 +177,67 @@ export function joinPath(prefix: string, path: string): string {
   return `${prefix}${path}`;
 }
 
+/**
+ * Cuánto de concreto es un segmento de ruta. Cuanto más bajo, antes se prueba.
+ *
+ * Express recorre las rutas en el orden en que se registran y se queda con la
+ * primera que case, así que `/:id` declarada antes que `/stats` se traga
+ * "stats" y lo trata como un id.
+ */
+function segmentRank(segment: string): number {
+  if (segment.startsWith(":")) return 1;
+  if (segment.startsWith("*") || segment.startsWith("{")) return 2;
+  return 0;
+}
+
+/**
+ * Ordena de más concreta a más genérica, comparando segmento a segmento.
+ *
+ * Sustituye a la regla anterior —"el orden es el del código"—, que funcionaba
+ * pero se rompía sola: bastaba con mover un método de sitio, o con que una
+ * clase base declarara `/:id`, para que una ruta estática dejara de alcanzarse
+ * y el síntoma fuera un 400 de "id inválido" en vez de un error claro.
+ *
+ * A igualdad se conserva el orden de declaración, porque `sort` es estable.
+ */
+export function bySpecificity(a: RouteMetadata, b: RouteMetadata): number {
+  const left = a.path.split("/");
+  const right = b.path.split("/");
+
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    const difference = segmentRank(left[i]) - segmentRank(right[i]);
+    if (difference !== 0) return difference;
+  }
+
+  return 0;
+}
+
+/**
+ * Rutas del controlador listas para montar: ordenadas por especificidad y con
+ * los duplicados detectados.
+ *
+ * Dos rutas con el mismo verbo y el mismo camino son un error, no una
+ * preferencia: Express se queda con la primera y la segunda no se ejecuta
+ * jamás, en silencio. Aquí se convierte en un fallo al arrancar.
+ */
+export function sortedRoutes(metadata: ControllerMetadata, controllerName: string): RouteMetadata[] {
+  const routes = [...metadata.routes].sort(bySpecificity);
+  const seen = new Set<string>();
+
+  for (const route of routes) {
+    const signature = `${route.method.toUpperCase()} ${joinPath(metadata.prefix, route.path)}`;
+    if (seen.has(signature)) {
+      throw new Error(
+        `[router] ${controllerName} declara ${signature} dos veces. ` +
+          "Sólo se ejecutaría la primera."
+      );
+    }
+    seen.add(signature);
+  }
+
+  return routes;
+}
+
 /** Metadatos de un controlador decorado, o `null` si no lo está. */
 export function getControllerMetadata(target: object): ControllerMetadata | null {
   const metadata = REGISTRY.get(target);

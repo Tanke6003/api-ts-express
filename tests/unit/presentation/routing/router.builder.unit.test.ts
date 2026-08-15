@@ -111,6 +111,65 @@ describe("router.builder", () => {
     );
   });
 
+  describe("orden de las rutas", () => {
+    /**
+     * `/:id` se declara **antes** que `/stats`, al revés de como habría que
+     * escribirlo si el orden fuera el del código. Con el orden por
+     * especificidad da igual: gana la estática.
+     */
+    @ApiController("/orden", { tag: "Orden" })
+    class DesordenadoController {
+      @Get("/:id", { public: true })
+      public byId = (req: express.Request, res: express.Response) =>
+        res.json({ quien: "byId", id: req.params.id });
+
+      @Get("/stats", { public: true })
+      public stats = (_req: express.Request, res: express.Response) =>
+        res.json({ quien: "stats" });
+
+      @Get("/:id/hard", { public: true })
+      public hard = (_req: express.Request, res: express.Response) =>
+        res.json({ quien: "hard" });
+    }
+
+    const app = (() => {
+      const instance = express();
+      const router = express.Router();
+      registerController(router, DesordenadoController, new DesordenadoController(), guard);
+      instance.use(router);
+      return instance;
+    })();
+
+    it("una ruta estática gana a una paramétrica aunque se declare después", async () => {
+      // Sin el orden por especificidad, "stats" se leería como un id y esto
+      // devolvería { quien: "byId", id: "stats" }.
+      expect((await request(app).get("/orden/stats")).body).toEqual({ quien: "stats" });
+    });
+
+    it("la paramétrica sigue funcionando para lo demás", async () => {
+      expect((await request(app).get("/orden/7")).body).toEqual({ quien: "byId", id: "7" });
+    });
+
+    it("las rutas más largas no compiten con las cortas", async () => {
+      expect((await request(app).get("/orden/7/hard")).body).toEqual({ quien: "hard" });
+    });
+
+    it("dos rutas iguales son un error al arrancar, no la segunda ignorada", () => {
+      @ApiController("/dup", { tag: "Dup" })
+      class DuplicadoController {
+        @Get("/:id", { public: true })
+        public uno = (_req: express.Request, res: express.Response) => res.json({});
+
+        @Get("/:id", { public: true })
+        public dos = (_req: express.Request, res: express.Response) => res.json({});
+      }
+
+      expect(() =>
+        registerController(express.Router(), DuplicadoController, new DuplicadoController(), guard)
+      ).toThrow(/declara GET \/dup\/:id dos veces/);
+    });
+  });
+
   describe("joinPath", () => {
     it("no deja barra final cuando la ruta es la raíz del controlador", () => {
       expect(joinPath("/things", "/")).toBe("/things");

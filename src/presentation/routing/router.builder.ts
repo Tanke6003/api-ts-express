@@ -1,6 +1,6 @@
 // src/presentation/routing/router.builder.ts
 import type { RequestHandler, Router } from "express";
-import { getControllerMetadata, joinPath } from "./route.decorators";
+import { getControllerMetadata, joinPath, sortedRoutes } from "./route.decorators";
 import { validateBody, validateQuery } from "../middlewares/validate.middleware";
 
 /** Manejador que expone el controlador, ya atado a su instancia. */
@@ -42,7 +42,7 @@ export function registerController(
 
   const controller = instance;
 
-  for (const route of metadata.routes) {
+  for (const route of sortedRoutes(metadata, type.name)) {
     const handler = (controller as Record<string, unknown>)[route.handler];
 
     if (typeof handler !== "function") {

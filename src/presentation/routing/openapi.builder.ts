@@ -9,6 +9,7 @@
 // sin nada que garantizara que coincidían.
 import { z, type ZodType } from "zod";
 import {
+  bySpecificity,
   joinPath,
   type ControllerMetadata,
   type ResponseSpec,
@@ -212,7 +213,8 @@ export function buildOpenApiPaths(controllers: ControllerMetadata[]): OpenApiPat
   const paths: OpenApiPaths = {};
 
   for (const controller of controllers) {
-    for (const route of controller.routes) {
+    // Mismo orden que el enrutado, para que la documentación se lea igual.
+    for (const route of [...controller.routes].sort(bySpecificity)) {
       const path = toOpenApiPath(joinPath(controller.prefix, route.path));
       paths[path] ??= {};
       paths[path][route.method] = operationOf(route, controller.tag);
