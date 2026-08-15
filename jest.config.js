@@ -2,11 +2,16 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
 
-  testMatch: [
-    "**/tests/unit/**/*.test.ts",
-    "**/tests/integration/**/*.test.ts",
-    // "**/tests/e2e/**/*.test.ts"
-  ],
+  // Dos niveles, y la frontera es dónde vive la lógica:
+  //
+  //   unit  la maquinaria compartida (CRUD genérico, enrutado, repositorio
+  //         base, dialectos, errores) y las reglas de negocio propias de un
+  //         módulo, que son las que tienen casos límite.
+  //   e2e   el flujo de cada entidad por HTTP, de la ruta a la base en memoria.
+  //
+  // Un módulo sin reglas propias no lleva test unitario: probar su pase a
+  // través sería probar el framework a través de algo que no añade nada.
+  testMatch: ["**/tests/unit/**/*.test.ts", "**/tests/e2e/**/*.test.ts"],
 
   reporters: [
     "default",

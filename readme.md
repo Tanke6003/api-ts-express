@@ -23,7 +23,7 @@ A production-ready REST API starter built with **Node.js**, **Express 5**, and *
 | API Docs | Swagger UI + Scalar, generated from the route decorators and the Zod schemas — no hand-written annotations |
 | File Storage | Local filesystem or AWS S3 / MinIO |
 | Web UI | Static HTML + vanilla JS + Tailwind, served from `public/` |
-| Testing | Jest — unit, integration |
+| Testing | Jest — unit for the shared machinery and each module's rules, e2e for the flow of each entity |
 | Linting | ESLint 9 (flat config) |
 | CI | GitHub Actions |
 
@@ -266,7 +266,7 @@ Full deployment guide: **[docs/getting-started.md](docs/getting-started.md)**.
 ## Testing
 
 ```bash
-npm test                  # unit + integration, with coverage
+npm test                  # unit + e2e, with coverage
 npm run test:watch        # watch mode
 npm run test:local        # verbose + HTML report at reports/
 ```

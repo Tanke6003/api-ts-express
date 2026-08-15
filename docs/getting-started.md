@@ -171,7 +171,7 @@ With a real driver the process authenticates against the database *before* it st
 Tests need nothing running:
 
 ```bash
-npm test              # unit + integration, with coverage
+npm test              # unit + e2e, with coverage
 npm run test:watch    # watch mode
 npm run test:local    # verbose, HTML report under reports/
 ```

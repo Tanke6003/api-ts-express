@@ -1,6 +1,37 @@
 # Testing
 
-Jest with ts-jest. Everything runs against the in-memory driver, so `npm test` needs no Docker and no database — the suite is the same in CI and on a laptop.
+Jest with ts-jest. Everything runs against the in-memory driver, so `npm test`
+needs no Docker and no database — the suite is the same in CI and on a laptop.
+
+## What gets a test, and where
+
+There are two levels, and the line between them is **where the logic lives**.
+
+| Level | Covers |
+|-------|--------|
+| `unit` | The shared machinery — generic CRUD, routing and decorators, base repository, dialects, filters, unit of work, error mapping — and a module's **own business rules** |
+| `e2e`  | Each entity's flow over HTTP, route to database |
+
+**A module without rules of its own gets no unit test.** Users declares no
+behaviour: its service and controller come from `CrudService` and
+`CrudController`, which have their own tests. Writing `users.controller.unit.test`
+would be testing the framework through something that adds nothing to it, and it
+would break every time the framework changed shape without a single bug being
+caught.
+
+**A module with rules keeps its unit tests, and they are the important ones.**
+The appointment overlap has a dozen edge cases — the exact boundary, cancelled
+ones excluded, the appointment itself excluded when rescheduling — and setting
+each of those up over HTTP is slow, verbose and fragile. They belong in
+`appointments.service.unit.test.ts`.
+
+What an e2e adds that a unit test cannot: that the wiring holds. Route mounted,
+guard in place, validation applied, error envelope shaped, status codes right.
+One flow per entity is enough for that; it does not need to enumerate cases.
+
+The evidence this works: dropping the three per-entity ceremony suites —365
+lines asserting what the generic pieces already assert— moved total coverage by
+about one point, because the e2e was already exercising the same code.
 
 ---
 
@@ -8,7 +39,7 @@ Jest with ts-jest. Everything runs against the in-memory driver, so `npm test` n
 
 | Command | Description |
 |---------|-------------|
-| `npm test` | Unit + integration, with coverage. What CI runs |
+| `npm test` | Unit + e2e, with coverage. What CI runs |
 | `npm run test:watch` | Watch mode, re-runs on change |
 | `npm run test:local` | Adds HTML + LCOV + JSON reports under `reports/` |
 | `npm run test:repo` | Text summary only, for CI logs |
@@ -26,15 +57,16 @@ reports/
 
 ```
 tests/
-├── unit/          # One class at a time, dependencies doubled
-├── integration/   # The whole HTTP stack over supertest
+├── unit/          # Shared machinery, and each module's own rules
+├── e2e/           # One flow per entity, over the whole HTTP stack
 ├── contract/      # The suite every repository driver must pass
 ├── mocks/         # Shared doubles
-├── setup/         # test-env.ts — env vars the suite runs with
-└── e2e/           # Against a real environment. Disabled by default
+└── setup/         # test-env.ts — env vars the suite runs with
 ```
 
-`testMatch` picks up `tests/unit/**` and `tests/integration/**`. The e2e line is commented out in `jest.config.js`: enable it when you have a real environment to point at.
+`testMatch` picks up `tests/unit/**` and `tests/e2e/**`. Both run on every
+`npm test`: the e2e uses the in-memory driver over supertest, so it needs
+nothing running.
 
 `tests/contract/` holds no test files of its own — it exports a function that a driver's test calls, which is why it has no `.test.ts` suffix.
 

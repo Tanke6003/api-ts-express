@@ -428,14 +428,24 @@ compiles fine and only blows up when that class is constructed.
 
 ## Step 9 — Tests
 
-Coverage thresholds are enforced per layer, so a module without tests fails `npm test`. Mirror the existing suites:
+Write the tests for **what the module adds**, not for what it inherits.
 
-| What | Example to copy |
-|------|-----------------|
-| Service (rules, filters, Include, transactions) | `tests/unit/services/branches.service.unit.test.ts` |
-| Controller (status codes, `next(err)`) | `tests/unit/controllers/branches.controller.unit.test.ts` |
-| Repository (generic delegation + extra SQL) | `tests/unit/repositories/appointments.repository.unit.test.ts` |
-| Validators | `tests/unit/application/validators/branches.validators.unit.test.ts` |
+| The module has… | Write |
+|-----------------|-------|
+| No rules of its own (plain CRUD) | Only an e2e flow. Copy `tests/e2e/users.e2e.test.ts` |
+| Business rules | A unit test for the service, with the edge cases. Copy `tests/unit/services/branches.service.unit.test.ts` |
+| Its own query beyond the generic API | A unit test for the repository. Copy `tests/unit/repositories/appointments.repository.unit.test.ts` |
+| Validators worth pinning | Copy `tests/unit/application/validators/branches.validators.unit.test.ts` |
+
+Every module gets **one e2e flow** regardless: it is what proves the wiring —
+route mounted, guard applied, validation running, status codes and the error
+envelope. What it does not need to do is enumerate cases; those go in the unit
+test, where they are cheap.
+
+There is no controller unit test in that table on purpose. If the controller
+comes from `CrudController`, testing it would be testing the framework through a
+module that adds nothing. If it has a handler of its own, that handler's rules
+belong in the service.
 
 The generic repository itself is already covered; you don't need to retest CRUD. Use `MemoryGenericRepository` as a real store in service tests when a mock would be more work than the real thing.
 
